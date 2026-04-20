@@ -3,7 +3,7 @@
 ## Текущие задачи
 | # | Задача | Статус | Заметки |
 |---|--------|--------|---------|
-| 1 | Frontend SPA (Vue 3 + PrimeVue) | done | Инициализировано приложение, layout, router guards, stores, страницы, компонентный слой, dev/prod Docker |
+| 1 | Frontend SPA (Vue 3 + PrimeVue) | done | Инициализировано приложение, layout, router guards, stores, страницы, компонентный слой, dev/prod Docker. Layout перестроен на официальный Sakai шаблон (fixed topbar + sidebar, useLayout composable) |
 | 2 | Аудит + уведомления | done | API, UI-страницы, realtime уведомления через WebSocket; чеклист Л (55-58) ✅: Telegram bot webhook, async email, матрица настроек event×канал, Telegram-привязка в UI |
 | 3 | CRM-интеграции + Встроенный CRM | done | Реализованы OAuth/webhook API, health/sync задачи, ротация секретов; адаптеры amoCRM/Bitrix24/Builtin полностью реализованы с реальными HTTP-вызовами; frontend: Kanban, контакты/компании/воронки CRUD |
 | 4 | Распределение заявок | done | Триггер `new_deal`; стратегии min_load/round_robin/weighted/manual_queue; авто-синхронизация менеджеров из команды; авто-распределение при создании сделки; лог с названием сделки; frontend: PMultiSelect менеджеров, PSelect fallback; чеклист Е (30-33) ✅ |
