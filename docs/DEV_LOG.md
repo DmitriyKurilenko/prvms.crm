@@ -1,5 +1,25 @@
 # Dev Log
 
+## 2026-04-20 — Frontend: официальный Sakai layout (PrimeVue)
+
+### Изменения:
+- `frontend/src/layout/composables/layout.ts` (новый): `useLayout()` composable — меню toggle, dark mode (.app-dark), static/overlay режимы
+- `frontend/src/layout/AppTopbar.vue` (новый): fixed topbar по Sakai — hamburger, лого, org-switcher, NotificationBell, dark mode, logout
+- `frontend/src/layout/AppSidebar.vue` (новый): fixed sidebar по Sakai — outside-click detection, route watcher
+- `frontend/src/layout/AppMenu.vue` (новый): nav items с feature-lock, RouterLink active classes, user footer
+- `frontend/src/layouts/AppLayout.vue`: переписан — импортирует новые layout-компоненты, containerClass по layoutState
+- `frontend/src/styles/main.css`: переписан под официальный Sakai CSS — fixed topbar (4rem), fixed sidebar (20rem), padding-left 22rem на main
+- `frontend/src/main.ts`: darkModeSelector изменён с `.theme-dark` на `.app-dark`
+- `frontend/src/stores/ui.ts`: toggleTheme использует `.app-dark` вместо `.theme-dark`
+
+### Валидация:
+- `npm run build` → ✓ 680 modules, без ошибок
+- `npm run typecheck` → ошибки только в pre-existing файлах (CRMView, TelephonyView, api/http)
+- `docker compose up -d --build` → все контейнеры запущены
+
+### Риски:
+- Визуальная проверка в браузере требуется (fixed layout принципиально отличается от flex layout)
+
 ## 2026-04-18 — Телефония: полная интеграция FreeSWITCH (dialplan XML, directory, CDR hook)
 
 ### Изменения:

@@ -11,7 +11,7 @@ export const useUiStore = defineStore('ui', {
     },
     toggleTheme() {
       this.darkMode = !this.darkMode
-      document.documentElement.classList.toggle('theme-dark', this.darkMode)
+      document.documentElement.classList.toggle('app-dark', this.darkMode)
     }
   }
 })

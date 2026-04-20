@@ -1,10 +1,8 @@
 <template>
-  <div class="layout-wrapper">
-    <SidebarNav />
-
+  <div class="layout-wrapper" :class="containerClass">
+    <AppTopbar />
+    <AppSidebar />
     <div class="layout-main-container">
-      <TopBar />
-
       <div class="layout-main">
         <div v-if="trialBanner" class="trial-banner" :class="{ 'trial-expired': tenant?.trial_expired }">
           <template v-if="tenant?.trial_expired">
@@ -18,21 +16,31 @@
             <RouterLink to="/app/subscription">Оформить подписку</RouterLink>
           </template>
         </div>
-
         <RouterView />
       </div>
     </div>
+    <div class="layout-mask" @click="hideMobileMenu" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
-import SidebarNav from './SidebarNav.vue'
-import TopBar from './TopBar.vue'
+import AppTopbar from '@/layout/AppTopbar.vue'
+import AppSidebar from '@/layout/AppSidebar.vue'
+import { useLayout } from '@/layout/composables/layout'
 import { useTenantStore } from '@/stores/tenant'
 
+const { layoutConfig, layoutState, hideMobileMenu } = useLayout()
 const tenantStore = useTenantStore()
 const tenant = computed(() => tenantStore.current)
+
+const containerClass = computed(() => ({
+  'layout-overlay': layoutConfig.menuMode === 'overlay',
+  'layout-static': layoutConfig.menuMode === 'static',
+  'layout-overlay-active': layoutState.overlayMenuActive,
+  'layout-mobile-active': layoutState.mobileMenuActive,
+  'layout-static-inactive': layoutState.staticMenuInactive,
+}))
 
 const trialBanner = computed(() =>
   tenant.value ? (tenant.value.trial_active || tenant.value.trial_expired) : false
