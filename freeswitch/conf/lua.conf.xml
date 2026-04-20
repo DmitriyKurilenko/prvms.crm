@@ -1,0 +1,9 @@
+<configuration name="lua.conf" description="Lua Script Configuration">
+  <settings>
+    <param name="module-directory" value="/usr/lib/freeswitch/mod/"/>
+  </settings>
+  <hooks>
+    <!-- Fire CDR hook on every call end to POST call data to Django -->
+    <hook event="CHANNEL_HANGUP_COMPLETE" script="cdr_hook.lua"/>
+  </hooks>
+</configuration>

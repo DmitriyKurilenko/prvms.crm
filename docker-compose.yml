@@ -1,0 +1,145 @@
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: platform_db
+      POSTGRES_USER: platform
+      POSTGRES_PASSWORD: platform_dev
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "${DB_HOST_PORT:-15432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U platform -d platform_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.4-alpine
+    ports:
+      - "${REDIS_HOST_PORT:-16379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  web:
+    build: .
+    command: uvicorn config.asgi:application --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - .:/app
+      - call_recordings:/app/media/calls
+    ports:
+      - "${WEB_HOST_PORT:-18100}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    env_file:
+      - .env
+    restart: unless-stopped
+
+  frontend:
+    image: node:24-alpine
+    working_dir: /app
+    command: sh -c "npm install && npx vite --host 0.0.0.0 --port ${FRONTEND_DEV_HOST_PORT:-15173}"
+    volumes:
+      - ./frontend:/app
+      - ./docs/user-guide:/app/src/docs/user-guide:ro
+      - frontend_node_modules:/app/node_modules
+    ports:
+      - "${FRONTEND_DEV_HOST_PORT:-15173}:${FRONTEND_DEV_HOST_PORT:-15173}"
+    environment:
+      - VITE_API_URL=http://localhost:${WEB_HOST_PORT:-18100}/api
+
+  frontend-prod:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    profiles:
+      - frontend-prod
+    ports:
+      - "${FRONTEND_PROD_HOST_PORT:-14173}:80"
+    restart: unless-stopped
+
+  celery:
+    build: .
+    command: celery -A config worker -l info
+    volumes:
+      - .:/app
+      - call_recordings:/app/media/calls
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    env_file:
+      - .env
+    restart: unless-stopped
+
+  celery-beat:
+    build: .
+    command: celery -A config beat -l info
+    volumes:
+      - .:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    env_file:
+      - .env
+    restart: unless-stopped
+
+  migrate:
+    build: .
+    command: >
+      sh -c "echo '=== Starting migration' &&
+             python manage.py migrate_schemas --shared --noinput &&
+             python manage.py migrate_schemas --tenant --noinput"
+    volumes:
+      - .:/app
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+
+  freeswitch:
+    image: signalwire/freeswitch-public-base:latest
+    profiles:
+      - telephony
+    ports:
+      - "${FREESWITCH_SIP_HOST_PORT:-15060}:5060/udp"
+      - "${FREESWITCH_SIP_HOST_PORT:-15060}:5060/tcp"
+      - "${FREESWITCH_TLS_HOST_PORT:-15061}:5061/tcp"
+      - "${FREESWITCH_WSS_HOST_PORT:-17443}:7443/tcp"
+      - "${FREESWITCH_ESL_PORT:-8021}:8021/tcp"
+      - "${FREESWITCH_RTP_PORT_RANGE:-26384-26484}:16384-16484/udp"
+    volumes:
+      - freeswitch_conf:/etc/freeswitch
+      - call_recordings:/var/lib/freeswitch/recordings
+      - ./freeswitch/xml_curl.conf.xml:/etc/freeswitch/autoload_configs/xml_curl.conf.xml:ro
+      - ./freeswitch/conf/lua.conf.xml:/etc/freeswitch/autoload_configs/lua.conf.xml:ro
+      - ./freeswitch/conf/acl.conf.xml:/etc/freeswitch/autoload_configs/acl.conf.xml:ro
+      - ./freeswitch/scripts/cdr_hook.lua:/etc/freeswitch/scripts/cdr_hook.lua:ro
+    environment:
+      - ESL_PASSWORD=${FREESWITCH_ESL_PASSWORD:-ClueCon}
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  call_recordings:
+  frontend_node_modules:
+  freeswitch_conf:

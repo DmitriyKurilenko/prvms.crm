@@ -1,0 +1,43 @@
+# =============================================================================
+# СЕРВЕР 2 — FreeSWITCH (телефония)
+# =============================================================================
+# Запускается ТОЛЬКО на отдельном VPS, не на основном сервере CRM.
+#
+# Требования к серверу: 2 vCPU, 4 GB RAM (Hetzner CX22, ~€4.5/мес)
+#
+# Запуск:
+#   docker compose -f docker-compose.telephony.yml up -d
+#
+# После запуска настроить на основном сервере в .env.prod:
+#   FREESWITCH_ESL_HOST=<IP этого сервера>
+#   FREESWITCH_WSS_URL=wss://<домен этого сервера>:7443
+# =============================================================================
+
+services:
+  freeswitch:
+    image: signalwire/freeswitch-public-base:latest
+    ports:
+      - "${FREESWITCH_SIP_PORT:-5060}:5060/udp"       # SIP UDP
+      - "${FREESWITCH_SIP_PORT:-5060}:5060/tcp"       # SIP TCP
+      - "${FREESWITCH_TLS_PORT:-5061}:5061/tcp"       # SIP TLS
+      - "${FREESWITCH_WSS_PORT:-7443}:7443/tcp"       # WebRTC WSS (SoftPhone)
+      - "${FREESWITCH_ESL_PORT:-8021}:8021/tcp"       # ESL (CRM → FreeSWITCH)
+      - "16384-16484:16384-16484/udp"                 # RTP медиа (100 параллельных звонков)
+    volumes:
+      - freeswitch_conf:/etc/freeswitch
+      - freeswitch_recordings:/var/lib/freeswitch/recordings
+      # Конфиг: FreeSWITCH обращается к CRM за маршрутизацией звонков и кредами менеджеров
+      - ./freeswitch/xml_curl.conf.xml:/etc/freeswitch/autoload_configs/xml_curl.conf.xml:ro
+      # Lua: автозапуск CDR-хука на каждом завершении звонка
+      - ./freeswitch/conf/lua.conf.xml:/etc/freeswitch/autoload_configs/lua.conf.xml:ro
+      # ACL: список доверенных IP (по умолчанию открыто, тянуть в prod)
+      - ./freeswitch/conf/acl.conf.xml:/etc/freeswitch/autoload_configs/acl.conf.xml:ro
+      # CDR-хук: при завершении звонка отправляет данные в CRM
+      - ./freeswitch/scripts/cdr_hook.lua:/etc/freeswitch/scripts/cdr_hook.lua:ro
+    environment:
+      - ESL_PASSWORD=${FREESWITCH_ESL_PASSWORD:-ClueCon}
+    restart: unless-stopped
+
+volumes:
+  freeswitch_conf:
+  freeswitch_recordings:
