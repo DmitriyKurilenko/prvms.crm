@@ -1,8 +1,8 @@
 import { computed, reactive } from 'vue'
+import { useUiStore } from '@/stores/ui'
 
 const layoutConfig = reactive({
-  menuMode: 'static' as 'static' | 'overlay',
-  darkTheme: false
+  menuMode: 'static' as 'static' | 'overlay'
 })
 
 const layoutState = reactive({
@@ -14,9 +14,10 @@ const layoutState = reactive({
 })
 
 export function useLayout() {
+  const ui = useUiStore()
+
   const toggleDarkMode = () => {
-    layoutConfig.darkTheme = !layoutConfig.darkTheme
-    document.documentElement.classList.toggle('app-dark', layoutConfig.darkTheme)
+    ui.toggleTheme()
   }
 
   const toggleMenu = () => {
@@ -37,7 +38,7 @@ export function useLayout() {
 
   const isDesktop = () => window.innerWidth > 991
 
-  const isDarkTheme = computed(() => layoutConfig.darkTheme)
+  const isDarkTheme = computed(() => ui.darkMode)
   const hasOpenOverlay = computed(() => layoutState.overlayMenuActive)
 
   return {

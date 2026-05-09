@@ -169,6 +169,15 @@
 - Рендер делает свой `frontend/src/utils/markdown.ts` (~50 строк): headings с slug-id (unicode `\p{L}\p{N}` для кириллицы), списки, параграфы, inline-код, bold/italic, ссылки, `<hr/>`. Внешние ссылки получают `target="_blank" rel="noopener"`.
 **Последствия:** Никакой новой npm-зависимости; один источник правды для справки; при добавлении новых статей в `docs/user-guide/` они появляются в SPA без изменений кода. Формат md намеренно ограничен (нет таблиц, ```-блоков, blockquote) — при необходимости расширяем рендер, а не подтягиваем библиотеку.
 
+## DEC-027: Дизайн-система SPA выровнена под redesign (2026-04-29)
+**Контекст:** В `redesign/` подготовлен прототип на React/CSS-vars (Sakai-inspired) с фиксированной палитрой (indigo primary), своими токенами и тёмной темой. SPA на Vue 3 + PrimeVue нужно привести к этому визуальному языку без слома существующих компонентов.
+**Решение:**
+- В `frontend/src/main.ts` Aura-preset переопределён через `definePreset`: `primary` palette смаппена на indigo, semantic токены (primary/highlight/surface) заданы для `light` и `dark` colorScheme. `darkModeSelector: '.app-dark'` сохранён.
+- В `frontend/src/styles/main.css` зафиксированы дизайн-токены редизайна (`--primary*`, `--surface-*`, `--text-color*`, цветовые палитры `--green/red/orange/blue/violet/cyan/yellow` с `-500/-50`, `--radius-*`, `--shadow-*`, `--sidebar-width`, `--topbar-height`). Тёмные переопределения вынесены в `:root.app-dark`.
+- Шрифт `Nunito Sans` подключён через `<link>` в `frontend/index.html` (preconnect + display=swap), назначен на body через `--font-family`.
+- `stores/ui.ts` стал единственным источником истины для темы: `initTheme()` (вызывается из `main.ts` до mount) читает `localStorage['crm.theme']`, иначе `prefers-color-scheme`; `setTheme(mode)`/`toggleTheme()` пишут класс на `<html>` и в localStorage. `layout/composables/layout.ts` теперь делегирует тему в ui store.
+**Последствия:** Тема выбора пользователя сохраняется между сессиями, единая точка переключения, PrimeVue компоненты и кастомные секции редизайна используют общие токены. Дальнейшие PR (layout, dashboard, CRM-страницы) переиспользуют те же `--surface-*`/`--primary*` без расхождений.
+
 ## DEC-026: Subscription-контур доступен при `trial_expired` + единый источник usage лимитов (2026-04-18)
 **Контекст:** При истечении trial tenant получал 402 на все membership/role guarded endpoint-ы, включая страницу подписки и billing flow, что создавало dead-end. Параллельно usage лимитов считался в нескольких местах с риском рассинхронизации (особенно по managers/pipelines).
 **Решение:**
@@ -179,3 +188,13 @@
 - `managers` считаются только по `Membership` в public schema: `is_active=True`, `joined_at IS NOT NULL`, `invite_token IS NULL`, роли `owner/admin/manager`; `viewer` и pending invite не учитываются.
 - В usage добавлен ключ `pipelines`, а DTO планов для `/billing/plans/` и `/tenant/plans/` унифицирован через общий serializer.
 **Последствия:** Пользователь с истёкшим trial всегда может попасть в подписку и завершить оплату без обходных путей; лимиты отображаются и проверяются консистентно во всех слоях; структура планов в регистрации и ЛК синхронизирована и не дрейфует.
+
+## DEC-028: Server bootstrap для infra-стеков через общий Docker network `proxy` (2026-04-29)
+**Контекст:** На «чистых» или частично подготовленных серверах запуск `Portainer` падал с `network proxy not found`; ранее также встречался невалидный restart policy (`max retry count` для non-`on-failure`), что делало старт infra-стека недетерминированным.
+**Решение:** Добавлен единый bootstrap-скрипт `for_sample_deploy/bootstrap-server.sh`, который:
+- устанавливает Docker/Compose (Debian/Ubuntu);
+- готовит каталоги `/opt/traefik`, `/opt/portainer`, `/opt/scripts`;
+- гарантирует создание общей сети `proxy` до запуска стеков;
+- генерирует compose-файлы без устаревшего `version` и с валидным `restart: unless-stopped`;
+- создаёт управляющие скрипты `/opt/scripts/start-all.sh`, `stop-all.sh`, `status-all.sh`.
+**Последствия:** Первичная настройка и повторный старт infra-слоя воспроизводимы; `Portainer` подключается к `proxy` без ручного вмешательства; исчезают ошибки старта из-за некорректной restart policy.

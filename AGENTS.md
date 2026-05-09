@@ -25,7 +25,7 @@ If instructions conflict — STOP and ask user.
 4. docs/KNOWN_ISSUES.md — если найден или закрыт баг
 5. docs/RELEASE_NOTES.md — если изменение видно пользователю:
    - Язык: русский
-   - Без технических деталей
+   - Без технических деталей 
    - Группировка по дате → «Новое», «Улучшения», «Исправления»
 
 ## Validation Baseline (Docker)
