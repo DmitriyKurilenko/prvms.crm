@@ -1,0 +1,55 @@
+/* Sakai-inspired CRM Design Tokens & Global Styles */
+@import url('https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;500;600;700&display=swap');
+
+:root {
+  --primary: #4F46E5;
+  --primary-light: #818CF8;
+  --primary-lighter: #E0E7FF;
+  --primary-dark: #3730A3;
+  --surface-ground: #F8F9FA;
+  --surface-section: #FFFFFF;
+  --surface-card: #FFFFFF;
+  --surface-overlay: #FFFFFF;
+  --surface-border: #E5E7EB;
+  --surface-hover: #F3F4F6;
+  --text-color: #1F2937;
+  --text-color-secondary: #6B7280;
+  --text-color-muted: #9CA3AF;
+  --green-500: #22C55E;
+  --green-50: #F0FDF4;
+  --red-500: #EF4444;
+  --red-50: #FEF2F2;
+  --orange-500: #F97316;
+  --orange-50: #FFF7ED;
+  --blue-500: #3B82F6;
+  --blue-50: #EFF6FF;
+  --yellow-500: #EAB308;
+  --sidebar-width: 260px;
+  --sidebar-collapsed-width: 72px;
+  --topbar-height: 60px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
+  --font-family: 'Nunito Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: var(--font-family); background: var(--surface-ground); color: var(--text-color); -webkit-font-smoothing: antialiased; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #9CA3AF; }
+
+/* Animations */
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes slideInRight { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes slideInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes scaleIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+.animate-fade { animation: fadeIn 0.3s ease; }
+.animate-slide-right { animation: slideInRight 0.3s ease; }
+.animate-slide-up { animation: slideInUp 0.4s ease; }
+.animate-scale { animation: scaleIn 0.2s ease; }

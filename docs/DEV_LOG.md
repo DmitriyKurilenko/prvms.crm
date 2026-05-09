@@ -1,5 +1,24 @@
 # Dev Log
 
+## 2026-04-29 — Redesign PR1: дизайн-система + тёмная тема с persist
+
+### Изменения:
+- `frontend/src/main.ts`: добавлен `ProjectPreset` через `definePreset(Aura, ...)` — primary palette смаппена на indigo (50…950), для `colorScheme.light` и `dark` заданы semantic токены `primary`/`highlight`/`surface`; `darkModeSelector: '.app-dark'`, `cssLayer: false`. Перед `app.mount` вызывается `useUiStore(pinia).initTheme()` чтобы не было flash-of-light при загрузке.
+- `frontend/src/styles/main.css`: переписаны корневые токены под спецификацию `redesign/` — `--primary*`, `--surface-*`, `--text-color*`, статусные палитры `--green/red/orange/blue/violet/cyan/yellow` (50/500), `--radius-sm/md/lg`, `--shadow-sm/md/lg`, `--sidebar-width: 16rem`, `--topbar-height: 4rem`, `--font-family: 'Nunito Sans'`. Блок `:root.app-dark` явно переопределяет `--surface-*`/`--text-color*`/teneous shadows. Удалены устаревшие алиасы на `--p-*` там, где есть прямые значения.
+- `frontend/index.html`: подключён Google Fonts Nunito Sans (preconnect + display=swap), вес 400/500/600/700/800.
+- `frontend/src/stores/ui.ts`: добавлены `initTheme()` (читает `localStorage['crm.theme']`, fallback на `prefers-color-scheme`), `setTheme(mode)` (persist + apply class), `toggleTheme()`. Флаг `themeInitialized` защищает от повторной инициализации.
+- `frontend/src/layout/composables/layout.ts`: убрано локальное `layoutConfig.darkTheme`; `toggleDarkMode` и `isDarkTheme` делегируются в `useUiStore` — единый источник истины.
+
+### Валидация:
+- `docker compose exec frontend npm run build` → ✓ 682 modules, 3.62s, без ошибок
+- `docker compose exec frontend npm run typecheck` → ошибки только pre-existing (KNOWN_ISSUES #4): `undici`, vite/vitest mismatch, http.ts, CRMView.vue, TelephonyView.vue, auth.ts. В изменённых файлах ошибок нет.
+- `curl http://localhost:15173/` → 200, в HTML присутствует Nunito Sans link
+- HMR-обновление `main.css`/`AppTopbar.vue`/`AppSidebar.vue`/`AppLayout.vue` отрабатывает без ошибок в логах frontend контейнера
+
+### Риски:
+- Визуальная проверка в браузере (light/dark, переключение, перезагрузка с сохранением темы) — за пользователем; требуется хотя бы один заход в SPA для подтверждения, что тёмные `--surface-*` не конфликтуют с фоновыми стилями отдельных views.
+- В легаси `frontend/src/layouts/TopBar.vue` остался ссылающийся на `ui.darkMode`/`ui.toggleTheme` код, но он не подключён маршрутами (`AppLayout` использует новый `layout/AppTopbar.vue`). Не трогаю в этом PR.
+
 ## 2026-04-20 — Frontend: официальный Sakai layout (PrimeVue)
 
 ### Изменения:
