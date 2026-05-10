@@ -182,6 +182,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useToast } from 'primevue/usetoast'
 import FeatureGate from '@/components/FeatureGate.vue'
 import ContactDrawer from '@/components/ContactDrawer.vue'
 import * as crmApi from '@/api/crm'
@@ -190,6 +191,7 @@ import { useAuthStore } from '@/stores/auth'
 import { normalizeCrmPermissions } from '@/utils/crmPermissions'
 
 const auth = useAuthStore()
+const toast = useToast()
 const perms = computed(() => normalizeCrmPermissions(auth.user?.crm_permissions))
 const canCreateContact = computed(() => perms.value.contacts.can_create)
 const canUpdateContact = computed(() => perms.value.contacts.can_update)
@@ -219,7 +221,11 @@ const companyName = (id: number | null) => companies.value.find(c => c.id === id
 
 const loadContacts = async () => {
   loading.value = true
-  contacts.value = await crmApi.listContacts(contactSearch.value || undefined)
+  try {
+    contacts.value = await crmApi.listContacts(contactSearch.value || undefined)
+  } catch {
+    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось загрузить контакты.', life: 5000 })
+  }
   loading.value = false
 }
 
@@ -288,19 +294,27 @@ const submitContact = async () => {
     source: contactForm.source,
     responsible_id: contactForm.responsible_id,
   }
-  if (contactForm.id) {
-    await crmApi.patchContact(contactForm.id, data)
-  } else {
-    await crmApi.createContact(data)
+  try {
+    if (contactForm.id) {
+      await crmApi.patchContact(contactForm.id, data)
+    } else {
+      await crmApi.createContact(data)
+    }
+    showForm.value = false
+    await loadContacts()
+  } catch {
+    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось сохранить контакт.', life: 5000 })
   }
-  showForm.value = false
-  await loadContacts()
 }
 
 const removeContact = async (id: number) => {
   if (!canDeleteContact.value) return
-  await crmApi.deleteContact(id)
-  await loadContacts()
+  try {
+    await crmApi.deleteContact(id)
+    await loadContacts()
+  } catch {
+    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось удалить контакт.', life: 5000 })
+  }
 }
 
 /* --- Helpers --- */

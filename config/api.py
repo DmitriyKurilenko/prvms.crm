@@ -52,6 +52,9 @@ api.add_router('/telephony/', telephony_router)
 from apps.tenants.onboarding_api import onboarding_router
 api.add_router('/onboarding/', onboarding_router)
 
+from apps.ai_assistant.api import ai_router
+api.add_router('/ai/', ai_router)
+
 # Health check (public, no auth)
 @api.get('/healthz', auth=None, tags=['system'])
 def healthz(request):

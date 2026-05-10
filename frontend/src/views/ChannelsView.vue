@@ -176,6 +176,7 @@
               </div>
               <form @submit.prevent="sendMessage" style="display: flex; gap: 8px; margin-top: 8px">
                 <PInputText v-model="messageText" placeholder="Написать ответ…" style="flex: 1" />
+                <PButton type="button" icon="pi pi-comment" class="p-button-secondary" title="AI Ассистент" @click="openAIAssistant" :disabled="!activeSessionId" />
                 <PButton type="submit" icon="pi pi-send" :disabled="!messageText.trim()" />
               </form>
             </template>
@@ -192,12 +193,14 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { useToast } from 'primevue/usetoast'
 import { api, getAccessToken, getTenantSlug } from '@/api/http'
 import { refresh as refreshToken } from '@/api/auth'
 import FeatureGate from '@/components/FeatureGate.vue'
 import { formatDateTime, formatTime as fmtTime } from '@/utils/datetime'
 
 const route = useRoute()
+const toast = useToast()
 
 /* ── state ── */
 const activeTab = ref('channels')
@@ -238,7 +241,11 @@ const copyWebhook = (ch: any) => {
 
 /* ── channels CRUD ── */
 const loadChannels = async () => {
-  channels.value = await api('/channels/')
+  try {
+    channels.value = await api('/channels/')
+  } catch {
+    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось загрузить каналы.', life: 5000 })
+  }
 }
 
 const submitChannel = async () => {
@@ -250,13 +257,17 @@ const submitChannel = async () => {
     welcome_message: form.welcome_message,
     is_active: form.is_active,
   }
-  if (editingId.value) {
-    await api(`/channels/${editingId.value}/`, { method: 'PATCH', body })
-  } else {
-    await api('/channels/', { method: 'POST', body })
+  try {
+    if (editingId.value) {
+      await api(`/channels/${editingId.value}/`, { method: 'PATCH', body })
+    } else {
+      await api('/channels/', { method: 'POST', body })
+    }
+    cancelEdit()
+    await loadChannels()
+  } catch {
+    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось сохранить канал.', life: 5000 })
   }
-  cancelEdit()
-  await loadChannels()
 }
 
 const startEdit = (ch: any) => {
@@ -275,18 +286,30 @@ const cancelEdit = () => {
 }
 
 const toggleActive = async (ch: any) => {
-  await api(`/channels/${ch.id}/`, { method: 'PATCH', body: { is_active: !ch.is_active } })
-  await loadChannels()
+  try {
+    await api(`/channels/${ch.id}/`, { method: 'PATCH', body: { is_active: !ch.is_active } })
+    await loadChannels()
+  } catch {
+    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось изменить статус канала.', life: 5000 })
+  }
 }
 
 const removeChannel = async (id: number) => {
-  await api(`/channels/${id}/`, { method: 'DELETE' })
-  await loadChannels()
+  try {
+    await api(`/channels/${id}/`, { method: 'DELETE' })
+    await loadChannels()
+  } catch {
+    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось удалить канал.', life: 5000 })
+  }
 }
 
 const registerWebhook = async (id: number) => {
-  await api(`/channels/${id}/register-webhook/`, { method: 'POST' })
-  await loadChannels()
+  try {
+    await api(`/channels/${id}/register-webhook/`, { method: 'POST' })
+    await loadChannels()
+  } catch {
+    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось зарегистрировать webhook.', life: 5000 })
+  }
 }
 
 /* ── chats ── */
@@ -338,6 +361,16 @@ const loadMessages = async () => {
 const sendMessage = async () => {
   const text = messageText.value.trim()
   if (!text || !selectedChannelId.value || !activeSessionId.value) return
+
+  if (text.startsWith('/ai ')) {
+    const aiQuestion = text.slice(4).trim()
+    if (aiQuestion) {
+      messageText.value = ''
+      await callAIAssistant(aiQuestion)
+    }
+    return
+  }
+
   messageText.value = ''
 
   // Optimistic: show the message immediately before Celery processes it
@@ -439,11 +472,6 @@ const connectChatWs = async () => {
       }
     } catch { /* ignore */ }
   }
-
-  ws.onclose = () => {
-    chatSocket = null
-    subscribedChannelId = null
-  }
 }
 
 const disconnectChatWs = () => {
@@ -491,7 +519,73 @@ onMounted(async () => {
       const s = sessions.value.find((x: any) => x.id === sid)
       if (s) await selectSession(s)
     }
-  }
+}
 })
+
+/* ── AI Assistant ── */
+const callAIAssistant = async (question: string) => {
+  const conversationId = activeSessionId.value ? await getOrCreateAIConversation() : null
+  const context: Record<string, any> = {}
+  if (activeSessionId.value) {
+    context.channel_id = activeSessionId.value
+  }
+  if (sessions.value.find(s => s.id === activeSessionId.value)?.crm_lead_id) {
+    context.deal_id = sessions.value.find(s => s.id === activeSessionId.value)?.crm_lead_id
+  }
+
+  const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:18100/api'}/ai/chat/`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${getAccessToken()}`,
+      'X-Tenant-Slug': getTenantSlug() || '',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      content: question,
+      conversation_id: conversationId,
+      ...context,
+    }),
+  })
+
+  if (response.ok) {
+    const result = await response.json()
+    const tempId = -(Date.now())
+    messages.value.push({
+      id: tempId,
+      direction: 'out',
+      text: `[AI]: ${result.content}`,
+      attachments: [],
+      external_message_id: '',
+      crm_message_id: '',
+      delivered: true,
+      error: '',
+      created_at: new Date().toISOString(),
+    })
+    await nextTick()
+    if (messagesContainer.value) {
+      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+    }
+  }
+}
+
+const getOrCreateAIConversation = async (): Promise<number | null> => {
+  const response = await fetch(
+    `${import.meta.env.VITE_API_URL || 'http://localhost:18100/api'}/ai/conversations/`,
+    { headers: { 'Authorization': `Bearer ${getAccessToken()}`, 'X-Tenant-Slug': getTenantSlug() || '' } }
+  )
+  if (response.ok) {
+    const conversations = await response.json()
+    const existing = conversations.find((c: any) => c.channel_id === activeSessionId.value)
+    if (existing) return existing.id
+  }
+  return null
+}
+
+const openAIAssistant = () => {
+  if (activeSessionId.value) {
+    window.location.href = `/app/assistant?channel=${activeSessionId.value}`
+  }
+}
+
 onUnmounted(disconnectChatWs)
 </script>

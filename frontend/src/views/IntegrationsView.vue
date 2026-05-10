@@ -362,6 +362,8 @@ const loadConnections = async () => {
   loading.value = true
   try {
     connections.value = await listConnections()
+  } catch {
+    errorMessage.value = 'Не удалось загрузить список интеграций.'
   } finally {
     loading.value = false
   }

@@ -25,7 +25,11 @@ export const useTenantStore = defineStore('tenant', {
     loaded: false
   }),
   getters: {
-    hasFeature: (state) => (feature: FeatureCode) => Boolean(state.plan?.features?.includes(feature)),
+    hasFeature: (state) => (feature: FeatureCode): boolean => {
+      if (!state.plan || !state.plan.features) return false
+      return state.plan.features.includes(feature)
+    },
+    planLoaded: (state) => Boolean(state.plan),
     limitReached: (state) => (field: keyof TenantPlan['usage']) => {
       if (!state.plan) return false
       const limitField = field as 'max_managers' | 'max_contracts_per_month' | 'max_crm_connections' | 'max_pipelines'

@@ -63,6 +63,7 @@ TENANT_APPS = [
     'apps.crm',
     'apps.audit',
     'apps.notifications',
+    'apps.ai_assistant',
 ]
 
 INSTALLED_APPS = list(SHARED_APPS) + [app for app in TENANT_APPS if app not in SHARED_APPS]
@@ -268,6 +269,11 @@ SMS_SENDER_NAME = env('SMS_SENDER_NAME', default='Platform')
 # ---------- Telegram ----------
 TELEGRAM_NOTIFICATION_BOT_TOKEN = env('TELEGRAM_NOTIFICATION_BOT_TOKEN', default='')
 TELEGRAM_NOTIFICATION_BOT_USERNAME = env('TELEGRAM_NOTIFICATION_BOT_USERNAME', default='')
+
+# ---------- Hermes AI Assistant ----------
+HERMES_API_URL = env('HERMES_API_URL', default='http://prvmscrm-hermes:8642')
+HERMES_API_KEY = env('HERMES_API_KEY', default='')
+HERMES_WEBHOOK_SECRET = env('HERMES_WEBHOOK_SECRET', default='')
 
 # ---------- Webhooks ----------
 WEBHOOK_BASE_URL = env('WEBHOOK_BASE_URL', default='')

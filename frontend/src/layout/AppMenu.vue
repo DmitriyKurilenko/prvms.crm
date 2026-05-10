@@ -47,9 +47,14 @@ import { useAuthStore } from '@/stores/auth'
 const tenantStore = useTenantStore()
 const auth = useAuthStore()
 
+const planReady = computed(() => tenantStore.planLoaded)
+
 interface NavItem { to: string; label: string; icon: string; feature?: string | null; locked?: boolean }
 
 function withLock(items: NavItem[]) {
+  if (!planReady.value) {
+    return items.map(i => ({ ...i, locked: false }))
+  }
   return items.map(i => ({ ...i, locked: i.feature ? !tenantStore.hasFeature(i.feature as never) : false }))
 }
 
@@ -69,6 +74,7 @@ const groups = computed(() => [
   withLock([
     { to: '/app/integrations',  label: 'Интеграции',  icon: 'pi pi-plug',            feature: null },
     { to: '/app/team',          label: 'Команда',     icon: 'pi pi-users',           feature: null },
+    { to: '/app/assistant',     label: 'AI Ассистент', icon: 'pi pi-comment',         feature: null },
     { to: '/app/audit',         label: 'Аудит',       icon: 'pi pi-list-check',      feature: null },
     { to: '/app/notifications', label: 'Уведомления', icon: 'pi pi-bell',            feature: null },
     { to: '/app/settings',      label: 'Настройки',   icon: 'pi pi-cog',             feature: null },

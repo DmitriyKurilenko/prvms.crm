@@ -201,10 +201,11 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useToast } from 'primevue/usetoast'
 import { api } from '@/api/http'
 
 /* ── state ── */
-const activeTab = ref('members')
+const toast = useToast()
 const users = ref<any[]>([])
 const email = ref('')
 const inviteRole = ref('manager')
@@ -381,6 +382,8 @@ const loadRolePermissions = async () => {
     }
 
     permissionRows.value = rows
+  } catch {
+    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось загрузить права ролей.', life: 5000 })
   } finally {
     permissionsLoading.value = false
   }

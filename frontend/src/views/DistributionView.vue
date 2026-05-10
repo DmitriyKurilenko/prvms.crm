@@ -120,9 +120,12 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useToast } from 'primevue/usetoast'
 import { api } from '@/api/http'
 import FeatureGate from '@/components/FeatureGate.vue'
 import { formatDateTime } from '@/utils/datetime'
+
+const toast = useToast()
 
 interface DistRule {
   id: number
@@ -183,7 +186,11 @@ const strategyLabel = (s: string) => ({ min_load: 'Мин. нагрузка', ro
 const sourceLabel = (s: string) => ({ crm_webhook: 'CRM-вебхук', builtin_crm: 'Встроенный CRM', messenger: 'Мессенджер', phone_call: 'Звонок', manual: 'Ручное' }[s] || s)
 
 const load = async () => {
-  rules.value = await api('/distribution/rules/')
+  try {
+    rules.value = await api('/distribution/rules/')
+  } catch {
+    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось загрузить правила распределения.', life: 5000 })
+  }
 }
 
 const loadManagers = async () => {
@@ -195,7 +202,11 @@ const loadManagers = async () => {
 }
 
 const loadLog = async () => {
-  logEntries.value = await api('/distribution/log/')
+  try {
+    logEntries.value = await api('/distribution/log/')
+  } catch {
+    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось загрузить журнал распределения.', life: 5000 })
+  }
 }
 
 const submitRule = async () => {
@@ -211,14 +222,18 @@ const submitRule = async () => {
     trigger_filter: rule.trigger_filter,
     strategy_config: rule.strategy_config,
   }
-  if (editingId.value) {
-    await api(`/distribution/rules/${editingId.value}/`, { method: 'PATCH', body: payload })
-    editingId.value = null
-  } else {
-    await api('/distribution/rules/', { method: 'POST', body: payload })
+  try {
+    if (editingId.value) {
+      await api(`/distribution/rules/${editingId.value}/`, { method: 'PATCH', body: payload })
+      editingId.value = null
+    } else {
+      await api('/distribution/rules/', { method: 'POST', body: payload })
+    }
+    resetForm()
+    await load()
+  } catch {
+    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось сохранить правило.', life: 5000 })
   }
-  resetForm()
-  await load()
 }
 
 const startEdit = (r: DistRule) => {
@@ -250,13 +265,21 @@ const resetForm = () => {
 }
 
 const toggleActive = async (r: DistRule) => {
-  await api(`/distribution/rules/${r.id}/`, { method: 'PATCH', body: { is_active: !r.is_active } })
-  await load()
+  try {
+    await api(`/distribution/rules/${r.id}/`, { method: 'PATCH', body: { is_active: !r.is_active } })
+    await load()
+  } catch {
+    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось изменить статус правила.', life: 5000 })
+  }
 }
 
 const removeRule = async (id: number) => {
-  await api(`/distribution/rules/${id}/`, { method: 'DELETE' })
-  await load()
+  try {
+    await api(`/distribution/rules/${id}/`, { method: 'DELETE' })
+    await load()
+  } catch {
+    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось удалить правило.', life: 5000 })
+  }
 }
 
 onMounted(() => {

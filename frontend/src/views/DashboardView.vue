@@ -84,13 +84,15 @@ const stats = ref<Record<string, number>>({})
 const online = ref<{ online: number; total: number } | null>(null)
 let pollHandle: ReturnType<typeof setInterval> | null = null
 
-const hasAnalytics = computed(() => tenantStore.hasFeature('analytics'))
-const hasCrmBuiltin = computed(() => tenantStore.hasFeature('crm_builtin'))
-const hasDistribution = computed(() => tenantStore.hasFeature('distribution'))
-const hasContracts = computed(() => tenantStore.hasFeature('contracts'))
-const hasTelephony = computed(() => tenantStore.hasFeature('telephony'))
-const hasChannels = computed(() => tenantStore.hasFeature('messenger_channels'))
-const hasExternalCrm = computed(() => tenantStore.hasFeature('crm_amocrm') || tenantStore.hasFeature('crm_bitrix24'))
+const planReady = computed(() => tenantStore.planLoaded)
+
+const hasAnalytics = computed(() => planReady.value && tenantStore.hasFeature('analytics'))
+const hasCrmBuiltin = computed(() => planReady.value && tenantStore.hasFeature('crm_builtin'))
+const hasDistribution = computed(() => planReady.value && tenantStore.hasFeature('distribution'))
+const hasContracts = computed(() => planReady.value && tenantStore.hasFeature('contracts'))
+const hasTelephony = computed(() => planReady.value && tenantStore.hasFeature('telephony'))
+const hasChannels = computed(() => planReady.value && tenantStore.hasFeature('messenger_channels'))
+const hasExternalCrm = computed(() => planReady.value && (tenantStore.hasFeature('crm_amocrm') || tenantStore.hasFeature('crm_bitrix24')))
 const totalManagers = computed(() => tenantStore.plan?.usage?.managers ?? 0)
 
 const kpis = computed(() => [

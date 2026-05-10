@@ -138,8 +138,32 @@ services:
       - ESL_PASSWORD=${FREESWITCH_ESL_PASSWORD:-ClueCon}
     restart: unless-stopped
 
+  hermes:
+    image: nousresearch/hermes-agent:latest
+    container_name: prvmscrm-hermes
+    command: gateway run
+    volumes:
+      - hermes_profiles:/opt/data
+    ports:
+      - "${HERMES_API_PORT:-18642}:8642"
+    env_file:
+      - .env
+    environment:
+      - TZ=${TZ:-Europe/Moscow}
+      - HERMES_HOME=/opt/data
+      - API_SERVER_ENABLED=true
+      - API_SERVER_PORT=8642
+      - API_SERVER_KEY=${HERMES_API_KEY:-change-me}
+      - API_SERVER_HOST=0.0.0.0
+      - OPENCODE_GO_API_KEY=${OPENCODE_API_KEY:-}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - HERMES_MULTIUSER=true
+      - GATEWAY_ALLOW_ALL_USERS=true
+    restart: unless-stopped
+
 volumes:
   pgdata:
   call_recordings:
   frontend_node_modules:
   freeswitch_conf:
+  hermes_profiles:

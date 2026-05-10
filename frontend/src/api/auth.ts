@@ -43,8 +43,6 @@ export async function refresh(): Promise<string | null> {
     }
     return data.access_token
   } catch {
-    setAccessToken(null)
-    setTenantSlug(null)
     return null
   }
 }

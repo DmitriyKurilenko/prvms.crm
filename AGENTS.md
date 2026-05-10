@@ -36,3 +36,10 @@ If instructions conflict — STOP and ask user.
 5. Manual HTTP check for affected pages
 
 If any step fails — fix and rerun. Partial validation ≠ done.
+
+## Decision Rules (Self-Limitation)
+1. Если выполнение одной задачи занимает больше 2 итераций — остановись и спроси.
+2. Если что-то непонятно из известных знаний — спроси.
+3. Если не уверен на 100% что делать — спроси.
+4. Если есть разные варианты решения — спроси.
+5. Никогда не зацикливайся на одной проблеме. Если не нашлось решения за 2 итерации — спроси.
