@@ -11,6 +11,8 @@ interface LoginResponse {
   tenant_slug?: string | null
 }
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:18100/api'
+
 export async function login(payload: LoginPayload): Promise<void> {
   const data = await api<LoginResponse>('/auth/login', {
     method: 'POST',
@@ -22,7 +24,16 @@ export async function login(payload: LoginPayload): Promise<void> {
   }
 }
 
-export async function register(payload: Record<string, unknown>): Promise<{ tenant_slug: string }> {
+export interface RegisterPayload {
+  email: string
+  password: string
+  username: string
+  org_name: string
+  org_slug: string
+  plan_slug?: string
+}
+
+export async function register(payload: RegisterPayload): Promise<{ tenant_slug: string }> {
   const data = await api<{ access_token: string; tenant_slug: string }>('/auth/register', {
     method: 'POST',
     body: payload
@@ -34,9 +45,13 @@ export async function register(payload: Record<string, unknown>): Promise<{ tena
 
 export async function refresh(): Promise<string | null> {
   try {
-    const data = await api<{ access_token: string; tenant_slug?: string | null }>('/auth/refresh', {
-      method: 'POST'
+    const resp = await fetch(`${API_URL}/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
     })
+    if (!resp.ok) return null
+    const data = await resp.json()
     setAccessToken(data.access_token)
     if (data.tenant_slug) {
       setTenantSlug(data.tenant_slug)

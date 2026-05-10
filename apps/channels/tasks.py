@@ -104,33 +104,51 @@ def route_incoming_message(tenant_id: int, channel_id: int, payload: dict):
         _broadcast_session_update(tenant.slug, channel_id, session)
 
         if channel.auto_create_lead and not session.crm_lead_id and tenant.crm_mode == 'builtin':
-            from apps.distribution.services import ensure_builtin_manager_profiles, try_distribute
+            try:
+                from apps.distribution.services import ensure_builtin_manager_profiles, try_distribute
 
-            contact, _ = Contact.objects.get_or_create(
-                phone=str(normalized.get('phone', '')),
-                defaults={
-                    'first_name': str(normalized.get('username', 'Клиент'))[:100] or 'Клиент',
-                    'source': channel.channel_type,
-                },
-            )
-            pipeline = Pipeline.objects.filter(is_default=True).order_by('id').first() or Pipeline.objects.order_by('id').first()
-            if pipeline:
-                stage = pipeline.stages.order_by('sort_order', 'id').first() or Stage.objects.filter(pipeline=pipeline).order_by('id').first()
-                if stage:
-                    deal = Deal.objects.create(
-                        name=f'Диалог {channel.name}: {external_chat_id}',
-                        pipeline=pipeline,
-                        stage=stage,
-                        contact=contact,
-                        source=channel.channel_type,
+                phone = str(normalized.get('phone', ''))
+                name = str(normalized.get('username', 'Клиент'))[:100] or 'Клиент'
+
+                if phone:
+                    contact, _ = Contact.objects.get_or_create(
+                        phone=phone,
+                        defaults={'first_name': name, 'source': channel.channel_type},
                     )
-                    session.crm_lead_id = str(deal.id)
-                    session.crm_contact_id = str(contact.id)
-                    session.save(update_fields=['crm_lead_id', 'crm_contact_id'])
-                    # Auto-distribute deal to a manager
-                    if not deal.responsible_id:
-                        ensure_builtin_manager_profiles()
-                        try_distribute('new_deal', 'deal', str(deal.id))
+                else:
+                    messenger_key = f'{channel.channel_type}:{external_chat_id}'
+                    contact, _ = Contact.objects.get_or_create(
+                        messenger_id=messenger_key,
+                        defaults={'first_name': name, 'source': channel.channel_type},
+                    )
+                    if not contact.messenger_id:
+                        contact.messenger_id = messenger_key
+                        contact.save(update_fields=['messenger_id'])
+                pipeline = (
+                    Pipeline.objects.filter(is_default=True, is_active=True).order_by('id').first()
+                    or Pipeline.objects.filter(is_active=True).order_by('id').first()
+                )
+                if pipeline:
+                    stage = pipeline.stages.order_by('sort_order', 'id').first()
+                    if stage:
+                        deal = Deal.objects.create(
+                            name=f'Диалог {channel.name}: {external_chat_id}',
+                            pipeline=pipeline,
+                            stage=stage,
+                            contact=contact,
+                            source=channel.channel_type,
+                        )
+                        session.crm_lead_id = str(deal.id)
+                        session.crm_contact_id = str(contact.id)
+                        session.save(update_fields=['crm_lead_id', 'crm_contact_id'])
+                        if not deal.responsible_id:
+                            ensure_builtin_manager_profiles()
+                            try_distribute('new_deal', 'deal', str(deal.id))
+            except Exception as exc:
+                logger.exception('Auto-create lead failed for channel %s message %s', channel.id, message.id)
+                message.error = str(exc)[:500]
+                message.delivered = False
+                message.save(update_fields=['error', 'delivered'])
         elif channel.auto_create_lead and tenant.crm_mode != 'builtin':
             try:
                 adapter = get_adapter_for_tenant(tenant)

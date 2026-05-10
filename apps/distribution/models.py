@@ -47,6 +47,7 @@ class DistributionRule(models.Model):
 class DistributionLog(models.Model):
     """Лог распределения. Кому, когда, почему."""
     SOURCE_CHOICES = [
+        ('builtin_crm', 'Встроенная CRM'),
         ('crm_webhook', 'CRM-вебхук'),
         ('messenger', 'Мессенджер'),
         ('phone_call', 'Телефонный звонок'),

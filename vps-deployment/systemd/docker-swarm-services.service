@@ -1,0 +1,14 @@
+[Unit]
+Description=Start all Docker Swarm services
+After=docker.service network.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/scripts/start-all.sh
+RemainAfterExit=yes
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

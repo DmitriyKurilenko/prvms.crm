@@ -455,8 +455,9 @@ def _build_signature_record(
             contract.pdf_file.open('rb')
             pdf_hash = _compute_pdf_hash(contract.pdf_file.read())
             contract.pdf_file.close()
-        except Exception:
-            pass
+        except (FileNotFoundError, OSError):
+            # Fall back to stored hash; the PDF storage may be unavailable transiently.
+            logger.warning('Could not reopen PDF for contract %s; using stored hash', contract.id)
 
     # Create HMAC signature over the signing data
     sign_payload = f'{contract.id}:{pdf_hash}:{session.otp_sent_to}:{now.isoformat()}:{ip_address}'

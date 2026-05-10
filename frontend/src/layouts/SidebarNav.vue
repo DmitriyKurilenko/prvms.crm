@@ -76,10 +76,13 @@ function withLock(items: NavItem[]) {
 
 const groups = computed(() => [
   withLock([
-    { to: '/app',           label: 'Дашборд',     icon: 'pi pi-home',         feature: null },
-    { to: '/app/contacts',  label: 'Контакты',    icon: 'pi pi-users',        feature: 'crm_builtin' },
-    { to: '/app/deals',     label: 'Сделки',      icon: 'pi pi-chart-bar',    feature: 'crm_builtin' },
-    { to: '/app/tasks',     label: 'Задачи',      icon: 'pi pi-check-square', feature: 'crm_builtin' },
+    { to: '/app',            label: 'Дашборд',       icon: 'pi pi-home',         feature: null },
+    { to: '/app/contacts',   label: 'Контакты',      icon: 'pi pi-users',        feature: 'crm_builtin' },
+    { to: '/app/companies',  label: 'Компании',      icon: 'pi pi-building',     feature: 'crm_builtin' },
+    { to: '/app/deals',      label: 'Сделки',        icon: 'pi pi-chart-bar',    feature: 'crm_builtin' },
+    { to: '/app/tasks',      label: 'Задачи',        icon: 'pi pi-check-square', feature: 'crm_builtin' },
+    { to: '/app/pipelines',  label: 'Воронки',       icon: 'pi pi-sitemap',      feature: 'crm_builtin' },
+    { to: '/app/stats',      label: 'Аналитика CRM', icon: 'pi pi-chart-line',   feature: 'crm_builtin' },
   ]),
   withLock([
     { to: '/app/channels',      label: 'Мессенджеры',  icon: 'pi pi-send',     feature: 'messenger_channels' },

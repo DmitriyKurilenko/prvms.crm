@@ -1,6 +1,9 @@
 import { defineStore } from 'pinia'
 import { getAccessToken, getTenantSlug } from '@/api/http'
 import { refresh } from '@/api/auth'
+import { createLogger } from '@/utils/logger'
+
+const log = createLogger('ai')
 
 export interface AIMessage {
   id: number
@@ -170,7 +173,7 @@ export const useAIStore = defineStore('ai', {
         token = getAccessToken()
       }
       if (!token) {
-        console.warn('[ai] no token, cannot connect WS')
+        log.warn('no token, cannot connect WS')
         this._connecting = false
         return
       }
@@ -186,7 +189,7 @@ export const useAIStore = defineStore('ai', {
       const socket = new WebSocket(wsUrl)
 
       socket.onopen = () => {
-        console.log('[ai] WS connected')
+        log.debug('WS connected')
         this.connected = true
         this._retryCount = 0
       }

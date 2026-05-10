@@ -128,11 +128,17 @@
         <div class="form-row-2">
           <div>
             <label class="field-label">Контакт</label>
-            <PSelect v-model="dealEdit.contact_id" :options="contactOptions" optionLabel="label" optionValue="value" placeholder="— не выбран —" showClear filter filterPlaceholder="Поиск…" class="w-full" :disabled="!canUpdateDeal" />
+            <div class="select-with-add">
+              <PSelect v-model="dealEdit.contact_id" :options="contactOptions" optionLabel="label" optionValue="value" placeholder="— не выбран —" showClear filter filterPlaceholder="Поиск…" class="flex-1" :disabled="!canUpdateDeal" />
+              <PButton v-if="canCreateContact && canUpdateDeal" icon="pi pi-plus" size="small" outlined @click="quickCreateTarget = 'deal-contact'; showQuickContact = true" />
+            </div>
           </div>
           <div>
             <label class="field-label">Компания</label>
-            <PSelect v-model="dealEdit.company_id" :options="companyOptions" optionLabel="label" optionValue="value" placeholder="— не выбрана —" showClear filter filterPlaceholder="Поиск…" class="w-full" :disabled="!canUpdateDeal" />
+            <div class="select-with-add">
+              <PSelect v-model="dealEdit.company_id" :options="companyOptions" optionLabel="label" optionValue="value" placeholder="— не выбрана —" showClear filter filterPlaceholder="Поиск…" class="flex-1" :disabled="!canUpdateDeal" />
+              <PButton v-if="canCreateCompany && canUpdateDeal" icon="pi pi-plus" size="small" outlined @click="quickCreateTarget = 'deal-company'; showQuickCompany = true" />
+            </div>
           </div>
         </div>
         <div class="form-row-2">
@@ -228,11 +234,17 @@
         <div class="form-row-2">
           <div>
             <label class="field-label">Контакт</label>
-            <PSelect v-model="dealForm.contact_id" :options="contactOptions" optionLabel="label" optionValue="value" placeholder="— не выбран —" showClear filter filterPlaceholder="Поиск…" class="w-full" />
+            <div class="select-with-add">
+              <PSelect v-model="dealForm.contact_id" :options="contactOptions" optionLabel="label" optionValue="value" placeholder="— не выбран —" showClear filter filterPlaceholder="Поиск…" class="flex-1" />
+              <PButton v-if="canCreateContact" icon="pi pi-plus" size="small" outlined @click="quickCreateTarget = 'deal-contact'; showQuickContact = true" />
+            </div>
           </div>
           <div>
             <label class="field-label">Компания</label>
-            <PSelect v-model="dealForm.company_id" :options="companyOptions" optionLabel="label" optionValue="value" placeholder="— не выбрана —" showClear filter filterPlaceholder="Поиск…" class="w-full" />
+            <div class="select-with-add">
+              <PSelect v-model="dealForm.company_id" :options="companyOptions" optionLabel="label" optionValue="value" placeholder="— не выбрана —" showClear filter filterPlaceholder="Поиск…" class="flex-1" />
+              <PButton v-if="canCreateCompany" icon="pi pi-plus" size="small" outlined @click="quickCreateTarget = 'deal-company'; showQuickCompany = true" />
+            </div>
           </div>
         </div>
         <div class="form-row-2">
@@ -250,6 +262,31 @@
           <PSelect v-model="dealForm.source" :options="sourceOptions" optionLabel="label" optionValue="value" placeholder="— не указан —" showClear class="w-full" />
         </div>
         <PButton label="Создать" :disabled="!dealForm.name || !dealForm.pipeline_id" @click="submitDeal" />
+      </div>
+    </PDialog>
+
+    <PDialog v-model:visible="showQuickContact" header="Быстрое создание контакта" :style="{ width: '400px', maxWidth: '95vw' }" modal>
+      <div class="form-grid">
+        <div class="form-row-2">
+          <div><label class="field-label">Имя *</label><PInputText v-model="quickContact.first_name" placeholder="Имя" class="w-full" /></div>
+          <div><label class="field-label">Фамилия</label><PInputText v-model="quickContact.last_name" placeholder="Фамилия" class="w-full" /></div>
+        </div>
+        <div class="form-row-2">
+          <div><label class="field-label">Телефон</label><PInputText v-model="quickContact.phone" placeholder="+7..." class="w-full" /></div>
+          <div><label class="field-label">Email</label><PInputText v-model="quickContact.email" placeholder="email@..." class="w-full" /></div>
+        </div>
+        <PButton label="Создать" @click="submitQuickContact" :disabled="!canCreateContact" />
+      </div>
+    </PDialog>
+
+    <PDialog v-model:visible="showQuickCompany" header="Быстрое создание компании" :style="{ width: '400px', maxWidth: '95vw' }" modal>
+      <div class="form-grid">
+        <div><label class="field-label">Название *</label><PInputText v-model="quickCompany.name" placeholder="Название" class="w-full" /></div>
+        <div class="form-row-2">
+          <div><label class="field-label">ИНН</label><PInputText v-model="quickCompany.inn" placeholder="ИНН" maxlength="12" class="w-full" /></div>
+          <div><label class="field-label">Телефон</label><PInputText v-model="quickCompany.phone" placeholder="+7..." class="w-full" /></div>
+        </div>
+        <PButton label="Создать" @click="submitQuickCompany" :disabled="!canCreateCompany" />
       </div>
     </PDialog>
 
@@ -276,6 +313,8 @@ const perms = computed(() => normalizeCrmPermissions(auth.user?.crm_permissions)
 const canCreateDeal = computed(() => perms.value.deals.can_create)
 const canUpdateDeal = computed(() => perms.value.deals.can_update)
 const canDeleteDeal = computed(() => perms.value.deals.can_delete)
+const canCreateContact = computed(() => perms.value.contacts.can_create)
+const canCreateCompany = computed(() => perms.value.companies.can_create)
 
 const sourceOptions = [
   { label: 'Сайт', value: 'website' }, { label: 'Телефон', value: 'phone' },
@@ -491,6 +530,45 @@ const submitDeal = async () => {
   }
 }
 
+/* --- Quick-create inline --- */
+const quickCreateTarget = ref('')
+const showQuickContact = ref(false)
+const showQuickCompany = ref(false)
+const quickContact = reactive({ first_name: '', last_name: '', phone: '', email: '' })
+const quickCompany = reactive({ name: '', inn: '', phone: '' })
+
+const submitQuickContact = async () => {
+  if (!canCreateContact.value || !quickContact.first_name) return
+  try {
+    const res = await crmApi.createContact({ ...quickContact })
+    await crmApi.listContacts().then(r => (contacts.value = r))
+    if (quickCreateTarget.value === 'deal-contact') {
+      if (showDealForm.value) dealForm.contact_id = res.id
+      else dealEdit.contact_id = res.id
+    }
+    showQuickContact.value = false
+    Object.assign(quickContact, { first_name: '', last_name: '', phone: '', email: '' })
+  } catch {
+    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось создать контакт.', life: 5000 })
+  }
+}
+
+const submitQuickCompany = async () => {
+  if (!canCreateCompany.value || !quickCompany.name) return
+  try {
+    const res = await crmApi.createCompany({ ...quickCompany })
+    await crmApi.listCompanies().then(r => (companies.value = r))
+    if (quickCreateTarget.value === 'deal-company') {
+      if (showDealForm.value) dealForm.company_id = res.id
+      else dealEdit.company_id = res.id
+    }
+    showQuickCompany.value = false
+    Object.assign(quickCompany, { name: '', inn: '', phone: '' })
+  } catch {
+    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось создать компанию.', life: 5000 })
+  }
+}
+
 /* --- Helpers --- */
 const activityIcon = (type: string) => ({ call: '📞', message: '💬', task: '✅', note: '📝', email: '📧', contract: '📄', stage_change: '🔄', system: '⚙️' }[type] || '📌')
 const activityTypeLabel = (type: string) => ({ call: 'Звонок', message: 'Сообщение', task: 'Задача', note: 'Заметка', email: 'Email', contract: 'Договор', stage_change: 'Смена стадии', system: 'Система' }[type] || type)
@@ -691,5 +769,7 @@ const contractStatusLabel = (s: string) => ({ draft: 'Черновик', sent: '
 .form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .field-label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
 .w-full { width: 100%; }
+.select-with-add { display: flex; gap: 6px; align-items: flex-end; }
+.flex-1 { flex: 1; }
 .empty-state { color: var(--text-muted); padding: 24px; text-align: center; }
 </style>

@@ -2,6 +2,9 @@ import { defineStore } from 'pinia'
 import { listNotifications, markAllRead, markRead, sendTestNotification, type UiNotification } from '@/api/notifications'
 import { getAccessToken, getTenantSlug } from '@/api/http'
 import { refresh } from '@/api/auth'
+import { createLogger } from '@/utils/logger'
+
+const log = createLogger('notifications')
 
 interface NotificationsState {
   items: UiNotification[]
@@ -41,7 +44,7 @@ export const useNotificationsStore = defineStore('notifications', {
         token = getAccessToken()
       }
       if (!token) {
-        console.warn('[notifications] no token, cannot connect WS')
+        log.warn('no token, cannot connect WS')
         this._connecting = false
         return
       }
@@ -53,12 +56,12 @@ export const useNotificationsStore = defineStore('notifications', {
       const params = new URLSearchParams({ token })
       if (slug) params.set('slug', slug)
       const wsUrl = `${wsBase}/ws/notifications/?${params.toString()}`
-      console.log('[notifications] connecting WS:', wsBase + '/ws/notifications/')
+      log.debug('connecting WS:', wsBase + '/ws/notifications/')
 
       const socket = new WebSocket(wsUrl)
 
       socket.onopen = () => {
-        console.log('[notifications] WS connected')
+        log.debug('WS connected')
         const isReconnect = this._retryCount > 0
         this.connected = true
         this._retryCount = 0
@@ -71,7 +74,7 @@ export const useNotificationsStore = defineStore('notifications', {
       socket.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data)
-          console.log('[notifications] WS message:', payload)
+          log.debug('WS message:', payload)
           if (payload.id) {
             this.items = [payload, ...this.items]
           }
@@ -81,7 +84,7 @@ export const useNotificationsStore = defineStore('notifications', {
       }
 
       socket.onclose = (evt) => {
-        console.log('[notifications] WS closed, code:', evt.code)
+        log.debug('WS closed, code:', evt.code)
         this.connected = false
         this.socket = null
         if (!this._intentionalClose) {
@@ -90,7 +93,7 @@ export const useNotificationsStore = defineStore('notifications', {
       }
 
       socket.onerror = (err) => {
-        console.error('[notifications] WS error', err)
+        log.error('WS error', err)
         // onclose fires after onerror, reconnect handled there
       }
 
@@ -103,7 +106,7 @@ export const useNotificationsStore = defineStore('notifications', {
       // Exponential backoff: 1s, 2s, 4s, 8s, max 30s
       const delay = Math.min(1000 * Math.pow(2, this._retryCount), 30000)
       this._retryCount++
-      console.log(`[notifications] reconnecting in ${delay}ms (attempt ${this._retryCount})`)
+      log.debug(`reconnecting in ${delay}ms (attempt ${this._retryCount})`)
       this._retryTimer = setTimeout(async () => {
         this._retryTimer = null
         await this.connect()

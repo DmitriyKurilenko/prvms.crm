@@ -3,6 +3,8 @@ import type { Router } from 'vue-router'
 
 import { useAuthStore } from '@/stores/auth'
 import { useTenantStore } from '@/stores/tenant'
+import { getAccessToken } from '@/api/http'
+import { me } from '@/api/auth'
 
 export function installGuards(router: Router, pinia: Pinia): void {
   router.beforeEach(async (to) => {
@@ -11,6 +13,16 @@ export function installGuards(router: Router, pinia: Pinia): void {
 
     if (!auth.initialized) {
       await auth.initialize()
+    }
+
+    // If we have a valid token but no user (page refresh race),
+    // try to fetch user data before redirecting to login.
+    if (!auth.user && getAccessToken() && !to.meta.public) {
+      try {
+        auth.user = await me()
+      } catch {
+        // User data fetch failed — redirect to login
+      }
     }
 
     if (to.meta.public) {

@@ -1,4 +1,5 @@
 import json
+import logging
 from typing import Optional
 
 import requests
@@ -7,6 +8,8 @@ from django_tenants.utils import schema_context
 
 from apps.crm.models import Activity, Contact, Deal
 from apps.users.models import User
+
+logger = logging.getLogger(__name__)
 
 
 def get_hermes_profile_for_tenant(tenant_slug: str) -> str:
@@ -35,28 +38,25 @@ def build_context_for_hermes(tenant, context_data: dict) -> dict:
 
     if 'crm_lead_id' in context_data:
         with schema_context(tenant.schema_name):
-            try:
-                deal = Deal.objects.filter(id=context_data['crm_lead_id']).first()
-                if deal:
-                    context_parts.append(
-                        f"Лид (из мессенджера): {deal.name}\n"
-                        f"Стадия: {deal.stage.name if deal.stage else 'Unknown'}\n"
-                        f"Сумма: {deal.amount} {deal.currency}"
-                    )
-            except Exception:
-                pass
+            deal = Deal.objects.filter(id=context_data['crm_lead_id']).select_related('stage').first()
+            if deal:
+                context_parts.append(
+                    f"Лид (из мессенджера): {deal.name}\n"
+                    f"Стадия: {deal.stage.name if deal.stage else 'Unknown'}\n"
+                    f"Сумма: {deal.amount} {deal.currency}"
+                )
 
     if 'crm_contact_id' in context_data:
         with schema_context(tenant.schema_name):
             try:
-                contact = Contact.objects.get(id=context_data['crm_contact_id'])
+                contact = Contact.objects.select_related('company').get(id=context_data['crm_contact_id'])
                 context_parts.append(
                     f"Клиент: {contact.get_full_name()}\n"
                     f"Компания: {contact.company.name if contact.company else 'Не указана'}\n"
                     f"Телефон: {contact.phone or 'Не указан'}\n"
                     f"Email: {contact.email or 'Не указан'}"
                 )
-            except Exception:
+            except Contact.DoesNotExist:
                 pass
 
     return '\n\n'.join(context_parts) if context_parts else ''
@@ -148,5 +148,6 @@ def send_notification_via_hermes(tenant, user: User, title: str, body: str) -> b
             timeout=30,
         )
         return response.status_code == 200
-    except Exception:
+    except requests.RequestException:
+        logger.warning('Hermes notification delivery failed', exc_info=True)
         return False

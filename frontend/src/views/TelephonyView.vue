@@ -126,7 +126,7 @@
             </div>
           </div>
           <div class="ivr-rules">
-            <div v-for="(opt, i) in (ivr.options as IvrOption[])" :key="i" class="ivr-rule">
+            <div v-for="(opt, i) in ivr.options" :key="i" class="ivr-rule">
               <span class="ivr-digit">{{ opt.digit }}</span>
               <span class="ivr-arrow">→</span>
               <span class="ivr-action">{{ formatIvrAction(opt.action) }}</span>
@@ -198,7 +198,7 @@
           <div class="ivr-rules-editor">
             <div class="ivr-rules-header">
               <span>Правила меню</span>
-              <PButton label="+ Правило" text size="small" @click="ivrForm.options.push({ digit: '', action: '' })" />
+              <PButton label="+ Правило" text size="small" @click="ivrForm.options.push({ digit: '', action: '', actionType: '', actionTarget: '' })" />
             </div>
             <div v-for="(opt, idx) in ivrForm.options" :key="idx" class="ivr-rule-row">
               <span class="ivr-rule-label">Нажать</span>
@@ -452,7 +452,7 @@ const editIvr = (ivr: IvrMenu) => {
   ivrForm.id = ivr.id
   ivrForm.name = ivr.name
   ivrForm.timeout = ivr.timeout
-  ivrForm.options = (ivr.options as Array<{ digit: string; action: string }>).map(o => {
+  ivrForm.options = ivr.options.map(o => {
     const [type, target] = (o.action || '').split(':')
     return { digit: o.digit, action: o.action, actionType: type || 'queue', actionTarget: target || '' }
   })

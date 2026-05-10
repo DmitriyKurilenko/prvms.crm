@@ -8,6 +8,7 @@ import {
   register as registerApi,
   switchTenant as switchTenantApi
 } from '@/api/auth'
+import type { RegisterPayload } from '@/api/auth'
 import { getAccessToken, setTenantSlug } from '@/api/http'
 import { useTenantStore } from '@/stores/tenant'
 import type { AuthUser, OrganizationMembership } from '@/types'
@@ -17,15 +18,6 @@ interface AuthState {
   organizations: OrganizationMembership[]
   initialized: boolean
   loading: boolean
-}
-
-interface RegisterPayload {
-  email: string
-  password: string
-  username: string
-  org_name: string
-  org_slug: string
-  plan_slug?: string
 }
 
 export const useAuthStore = defineStore('auth', {
@@ -50,9 +42,8 @@ export const useAuthStore = defineStore('auth', {
           setTenantSlug(this.user.tenant_slug)
           this.organizations = await listOrganizationsApi()
         } catch {
-          this.user = null
-          this.organizations = []
-          setTenantSlug(null)
+          // Don't clear token/slug — keep whatever refresh() set.
+          // User data will be fetched on next navigation if needed.
         }
       }
       this.initialized = true

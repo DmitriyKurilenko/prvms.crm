@@ -135,14 +135,12 @@ class AIAssistantConsumer(AsyncJsonWebsocketConsumer):
         with schema_context(self._tenant_schema):
             return AIConversation.objects.filter(
                 id=conversation_id,
-                tenant_id=tenant.id,
                 user_id=self._user.id,
             ).first()
 
     async def _create_conversation(self, tenant, context_data: dict):
         with schema_context(self._tenant_schema):
             return AIConversation.objects.create(
-                tenant_id=tenant.id,
                 user_id=self._user.id,
                 channel_id=context_data.get('channel_id'),
                 deal_id=context_data.get('deal_id'),

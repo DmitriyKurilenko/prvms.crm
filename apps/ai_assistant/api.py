@@ -44,14 +44,12 @@ def chat(request, payload: ChatMessageIn):
         with schema_context(tenant.schema_name):
             conversation = AIConversation.objects.filter(
                 id=payload.conversation_id,
-                tenant=tenant,
                 user=user,
             ).first()
 
     if not conversation:
         with schema_context(tenant.schema_name):
             conversation = AIConversation.objects.create(
-                tenant=tenant,
                 user=user,
                 channel_id=payload.channel_id,
                 deal_id=payload.deal_id,
@@ -114,7 +112,6 @@ def list_conversations(request):
 
     with schema_context(tenant.schema_name):
         conversations = AIConversation.objects.filter(
-            tenant=tenant,
             user=request.user,
         ).order_by('-updated_at')
 
@@ -140,7 +137,6 @@ def get_messages(request, conversation_id: int):
     with schema_context(tenant.schema_name):
         conversation = AIConversation.objects.filter(
             id=conversation_id,
-            tenant=tenant,
             user=request.user,
         ).first()
 
@@ -168,7 +164,6 @@ def delete_conversation(request, conversation_id: int):
     with schema_context(tenant.schema_name):
         conversation = AIConversation.objects.filter(
             id=conversation_id,
-            tenant=tenant,
             user=request.user,
         ).first()
 
@@ -188,7 +183,6 @@ def update_title(request, conversation_id: int, payload: dict):
     with schema_context(tenant.schema_name):
         conversation = AIConversation.objects.filter(
             id=conversation_id,
-            tenant=tenant,
             user=request.user,
         ).first()
 

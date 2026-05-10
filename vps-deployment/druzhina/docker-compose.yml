@@ -1,0 +1,116 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    restart: always
+    environment:
+      POSTGRES_DB: druzhina
+      POSTGRES_USER: druzhina
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    expose:
+      - "5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - /opt/backups:/backups
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U druzhina"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
+  garage:
+    build:
+      context: /opt/druzhina/deploy
+      dockerfile: Dockerfile.garage
+    restart: always
+    volumes:
+      - garage-meta:/var/lib/garage/meta
+      - garage-data:/var/lib/garage/data
+      - shared:/shared
+      - /opt/druzhina/deploy/garage.toml:/etc/garage.toml:ro
+    healthcheck:
+      test: ["CMD", "test", "-f", "/shared/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+    networks:
+      - backend
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 256M
+
+  app:
+    build:
+      context: /opt/druzhina
+      dockerfile: Dockerfile
+    restart: always
+    expose:
+      - "8080"
+    environment:
+      DATABASE_URL: "postgres://druzhina:${DB_PASSWORD}@db:5432/druzhina?sslmode=disable"
+      UPLOAD_DIR: /data/uploads
+      BASE_URL: "https://druzhina.prvms.ru"
+      JWT_SECRET: ${JWT_SECRET}
+      S3_ENDPOINT: "http://garage:3900"
+      S3_REGION: "garage"
+      S3_BUCKET: "druzhina"
+      S3_CREDENTIALS_FILE: "/shared/s3.env"
+    volumes:
+      - uploads:/data/uploads
+      - shared:/shared:ro
+    networks:
+      - backend
+      - proxy
+    depends_on:
+      db:
+        condition: service_healthy
+      garage:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.druzhina.rule=Host(`druzhina.prvms.ru`)"
+      - "traefik.http.routers.druzhina.entrypoints=websecure"
+      - "traefik.http.routers.druzhina.tls.certresolver=le"
+      - "traefik.http.services.druzhina.loadbalancer.server.port=8080"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
+volumes:
+  pgdata:
+    driver: local
+  uploads:
+    driver: local
+  garage-meta:
+    driver: local
+  garage-data:
+    driver: local
+  shared:
+    driver: local
+
+networks:
+  backend:
+    driver: bridge
+    internal: true
+  proxy:
+    external: true
+    name: proxy

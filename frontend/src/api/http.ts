@@ -1,4 +1,4 @@
-import { ofetch } from 'ofetch'
+import { ofetch, type FetchOptions, type MappedResponseType, type ResponseType } from 'ofetch'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:18100/api'
 
@@ -70,11 +70,11 @@ async function refreshAccessToken(): Promise<string | null> {
   return refreshPromise
 }
 
-export const api = ofetch.create({
+const baseClient = ofetch.create({
   baseURL: API_URL,
   credentials: 'include',
   retry: 0,
-  async onRequest({ options }) {
+  onRequest({ options }) {
     const headers = new Headers(options.headers || {})
     if (accessToken) {
       headers.set('Authorization', `Bearer ${accessToken}`)
@@ -88,29 +88,28 @@ export const api = ofetch.create({
       headers.set('Accept-Language', language)
     }
     options.headers = headers
-  },
-  async onResponseError(ctx) {
-    const status = ctx.response?.status || 0
-    const request = String(ctx.request)
-    const isAuthEndpoint = request.includes('/auth/login') || request.includes('/auth/register') || request.includes('/auth/refresh')
-
-    if (status !== 401 || isAuthEndpoint) {
-      throw ctx.error
-    }
-
-    const newToken = await refreshAccessToken()
-    if (!newToken) {
-      throw ctx.error
-    }
-
-    const headers = new Headers(ctx.options.headers || {})
-    headers.set('Authorization', `Bearer ${newToken}`)
-
-    return ofetch(ctx.request, {
-      ...ctx.options,
-      headers,
-      baseURL: API_URL,
-      credentials: 'include'
-    })
   }
 })
+
+function isAuthEndpoint(url: string): boolean {
+  return url.includes('/auth/login') || url.includes('/auth/register') || url.includes('/auth/refresh')
+}
+
+export async function api<T = unknown, R extends ResponseType = 'json'>(
+  url: string,
+  options: FetchOptions<R> = {} as FetchOptions<R>
+): Promise<MappedResponseType<R, T>> {
+  try {
+    return await baseClient<T, R>(url, options)
+  } catch (err) {
+    const status = (err as { response?: { status?: number } })?.response?.status ?? 0
+    if (status !== 401 || isAuthEndpoint(url)) {
+      throw err
+    }
+    const newToken = await refreshAccessToken()
+    if (!newToken) {
+      throw err
+    }
+    return await baseClient<T, R>(url, options)
+  }
+}

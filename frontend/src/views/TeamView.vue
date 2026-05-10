@@ -206,6 +206,7 @@ import { api } from '@/api/http'
 
 /* ── state ── */
 const toast = useToast()
+const activeTab = ref<'members' | 'managers' | 'permissions'>('members')
 const users = ref<any[]>([])
 const email = ref('')
 const inviteRole = ref('manager')
@@ -260,14 +261,14 @@ const load = async () => {
 }
 
 const invite = async () => {
-  const res = await api('/users/invite', { method: 'POST', body: { email: email.value, role: inviteRole.value } })
+  const res = await api<{ invite_link?: string }>('/users/invite', { method: 'POST', body: { email: email.value, role: inviteRole.value } })
   lastInviteLink.value = res.invite_link || ''
   email.value = ''
   await load()
 }
 
 const resendInvite = async (userId: number) => {
-  const res = await api(`/users/${userId}/resend-invite`, { method: 'POST' })
+  const res = await api<{ invite_link?: string }>(`/users/${userId}/resend-invite`, { method: 'POST' })
   lastInviteLink.value = res.invite_link || ''
 }
 

@@ -658,11 +658,11 @@ def patch_deal(request, deal_id: int, payload: DealPatchIn):
             except Company.DoesNotExist:
                 return str(val)
         if field == 'responsible_id':
+            from apps.users.models import User
             try:
-                from apps.users.models import User
                 u = User.objects.get(id=val)
                 return u.get_full_name() or u.username
-            except Exception:
+            except User.DoesNotExist:
                 return str(val)
         return str(val)
 

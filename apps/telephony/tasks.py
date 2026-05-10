@@ -242,6 +242,8 @@ def _get_registered_gateways() -> set[str]:
                 gateways.add(parts[0].strip())
         return gateways
     except Exception:
+        # greenswitch raises plain Exception subclasses; broad catch is defense against
+        # network/parse failures so SIP health checks degrade gracefully.
         logger.warning('Cannot connect to FreeSWITCH ESL to check registrations')
         return set()
 
@@ -296,6 +298,7 @@ def _esl_sofia_rescan() -> bool:
         conn.stop()
         return '+OK' in body or 'reloading' in body.lower()
     except Exception:
+        # greenswitch raises plain Exception; absent rescan should not crash callers.
         logger.warning('FreeSWITCH ESL unavailable for sofia rescan')
         return False
 

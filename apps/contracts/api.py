@@ -225,12 +225,13 @@ def get_contract_pdf(request, contract_id: int):
     query_token = request.GET.get('token')
     if not query_token:
         raise HttpError(401, 'Token required')
+    from apps.users.models import User
+    from ninja_jwt.exceptions import TokenError
     from ninja_jwt.tokens import AccessToken
     try:
         validated = AccessToken(query_token)
-        from apps.users.models import User
         request.auth = User.objects.get(id=validated['user_id'])
-    except Exception:
+    except (TokenError, User.DoesNotExist, KeyError):
         raise HttpError(401, 'Invalid token')
     require_roles(request, ['owner', 'admin', 'manager'])
     require_feature_access(request, 'contracts')

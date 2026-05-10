@@ -60,7 +60,7 @@
           </PColumn>
           <PColumn header="ЭДО">
             <template #body="{ data }">
-              <span v-if="(data as any).esign_agreement_signed_at" class="esign-ok" title="Соглашение подписано">✅</span>
+              <span v-if="data.esign_agreement_signed_at" class="esign-ok" title="Соглашение подписано">✅</span>
               <span v-else class="esign-no">—</span>
             </template>
           </PColumn>
@@ -272,10 +272,10 @@ const editContact = (c: CrmContact) => {
     last_name: c.last_name,
     phone: c.phone,
     email: c.email,
-    position: (c as any).position || '',
+    position: c.position || '',
     company_id: c.company_id,
-    messenger_id: (c as any).messenger_id || '',
-    source: (c as any).source || '',
+    messenger_id: c.messenger_id || '',
+    source: c.source || '',
     responsible_id: c.responsible_id,
   })
   showForm.value = true

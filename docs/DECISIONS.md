@@ -29,12 +29,12 @@
 **Контекст:** Публичные маршруты (`/channels/webhook/...`, `/telephony/...`) были подключены через `django-ninja Router`, что ломало URL bootstrap и запуск мигратора; WebSocket не имел tenant/user-безопасности.
 **Решение:** Публичные endpoint-ы переведены в обычные Django view и подключены напрямую в `config/urls.py`; для `/ws/notifications/` добавлена JWT-аутентификация через query-token и персональные каналы `notifications.user.<id>`.
 
-## DEC-020: Presence tracking через Redis + WebSocket heartbeat (2026-04-18)
+## DEC-A01: Presence tracking через Redis + WebSocket heartbeat (2026-04-18)
 **Контекст:** Нужен live-счётчик «менеджеров онлайн» без дополнительной инфраструктуры. WebSocket notifications consumer уже есть, Redis уже задействован для channel layers.
 **Решение:** При WS-подключении пишем ключ `presence:{schema}:{user_id}` в Redis c TTL 90s; asyncio-задача внутри consumer обновляет ключ каждые 45s; при disconnect — удаляем. Endpoint `GET /dashboard/managers-online/` сканирует ключи по префиксу + пересекает с active Membership.
 **Последствия:** Нет новых сервисов. Изоляция тенантов — через prefix с schema_name. При падении WS ключ истекает через 90s автоматически.
 
-## DEC-021: Tenant branding — CSS var + Intl (2026-04-18)
+## DEC-A02: Tenant branding — CSS var + Intl (2026-04-18)
 **Контекст:** Логотип, цвет бренда, таймзона и язык хранятся в TenantInfo, но нигде не применялись в UI.
 **Решение:** `applyBrandColor` устанавливает `--brand` CSS-переменную на `documentElement` при загрузке/сохранении тенанта. Datetime util использует `Intl.DateTimeFormat` с `tenant.timezone` и LOCALE_MAP[tenant.language]. Язык передаётся через `Accept-Language` header. Полный vue-i18n не добавляется.
 **Последствия:** Все форматы дат в SPA учитывают TZ и язык организации. Backend получает корректный `Accept-Language` для системных сообщений Django.
@@ -45,7 +45,7 @@
 **Последствия:** Два этапа на публичной странице: «Получить код» → ввод кода. В CRM отображается только ссылка с кнопкой копирования.
 **Последствия:** Корневой роутинг соответствует спецификации, bootstrap стабильный, realtime-уведомления доступны только авторизованному пользователю.
 
-## DEC-007: Дефолтные планы/фичи и полноценный frontend delivery в Docker (2026-04-13)
+## DEC-007a: Дефолтные планы/фичи и полноценный frontend delivery в Docker (2026-04-13)
 **Контекст:** Без seed-данных тарифов регистрация организации зависела от ручной подготовки БД; frontend отсутствовал как приложение и production-сборка.
 **Решение:** Добавлена миграция seed для `Feature`/`Plan` (`simple/basic/crm`), инициализировано полноценное SPA (`frontend/`) и добавлен production Docker-путь (`Dockerfile.frontend` + `frontend-prod` сервис через nginx).
 **Последствия:** Новый инстанс платформы стартует сразу с рабочими тарифами и доступным UI как в dev (`frontend`), так и в production-профиле (`frontend-prod`).
@@ -199,12 +199,39 @@
 - создаёт управляющие скрипты `/opt/scripts/start-all.sh`, `stop-all.sh`, `status-all.sh`.
 **Последствия:** Первичная настройка и повторный старт infra-слоя воспроизводимы; `Portainer` подключается к `proxy` без ручного вмешательства; исчезают ошибки старта из-за некорректной restart policy.
 
-## DEC-XXX: AI Assistant через Hermes orchestrator + OpenCode.ai (2026-05-09)
+## DEC-029: AI Assistant через Hermes orchestrator + OpenCode.ai (2026-05-09)
 **Контекст:** Нужен AI-ассистент в CRM с поддержкой чата, CRM-функций и проактивных уведомлений.
 **Решение:** Hermes Agent (Docker, port 8642) как orchestrator с OpenCode.ai cloud provider. Per-tenant Hermes profiles изолируют данные. Django хранит диалоги в PostgreSQL (AIConversation/AIMessage, tenant-scoped). Hermes skills написаны на Python и работают через schema_context. Проактивные уведомления идут через Hermes cron → webhook → Django Notification → WebSocket.
 **Последствия:** OpenCode Go — облачный сервис (не отдельный контейнер). Hermes — единственный orchestrator. Диалоги хранятся в PostgreSQL (а не в Hermes state.db). Интеграция через OpenAI-compatible API (/v1/chat/completions).
 
-## DEC-029: Обязательная обратная связь при ошибках API во всех view (2026-05-10)
+## DEC-030: Pipeline seeding при регистрации тенанта + синонимный фоллбек distribution (2026-05-10)
+**Контекст:** После редизайна `auto_create_lead` в мессенджерах не работал — Pipeline/Stage создавались только при шаге 2 онбординга (выбор CRM-режима). Если пользователь пропускал онбординг или первый контакт приходил до настройки, `route_incoming_message` не находил pipeline и Deal не создавался. Распределение тоже не работало: `try_distribute('new_deal', ...)` вызывалось с триггером `new_deal`, но дефолтное правило создавалось с `new_lead`.
+**Решение:**
+- `_seed_default_pipeline()` вызывается при регистрации тенанта (`register()`) и при пропуске онбординга (`onboarding_skip()`). Гарантированно создаёт воронку «Продажи» с 7 этапами.
+- `try_distribute()` делает синонимный фоллбек: если `new_deal` не нашёл правило, пробует `new_lead` (и наоборот). Обратная совместимость с legacy-правилами.
+- `auto_create_lead` в `tasks.py` обёрнут в `try/except` с логированием в `message.error` — transient failures не теряют сообщения.
+- Cookie рефреш-токена: `SameSite='Lax'` в dev (достаточно для cross-port на localhost), `SameSite='None'` + `Secure=True` в production.
+**Последствия:** Pipeline всегда доступен для новых тенантов. Distribution работает с любыми существующими правилами. При сбое `auto_create_lead` сообщение сохраняется с пометкой ошибки.
+
+## DEC-031: UI error handling hardening — toast + planLoaded guards (2026-05-10)
 **Контекст:** После редизайна 10+ view имели нулевую обработку ошибок API-вызовов. Паттерн `try { ... } finally { ... }` без `catch` приводил к «немым» кнопкам — клик выполнял запрос, ошибка проглатывалась, кнопка снова становилась активной без объяснения причины.
 **Решение:** В каждой view, делающей API-вызовы, добавлены `catch`-блоки с toast-уведомлением через PrimeVue Toast. `<PToast />` размещён в `App.vue`. Вспомогательные guard-ы (`planLoaded` в tenant store) защищают от ложных блокировок до загрузки данных.
 **Последствия:** Пользователь всегда видит причину ошибки (toast в правом верхнем углу). Инвариант: любой `await api(...)` обязан иметь `try/catch` с toast при ошибке. Новые view должны следовать этому паттерну с первого коммита.
+
+## DEC-032: Полный рефакторинг A-E (2026-05-10)
+**Контекст:** Аудит выявил несколько P0/P1 проблем: ai_assistant миграция с camelCase-полем `herMes_conversation_id` ломала тесты при создании второго tenant; Vite dev отдавал 500 EISDIR на `/app` из-за коллизии SPA-маршрута и `working_dir: /app`; во frontend ~12 кастов `(... as any)` обходили типизацию; `apps/users/api.py` (769 LOC) совмещал auth + invites + roles + role-permissions + manager-profiles; `_seed_default_pipeline` импортировался напрямую из `apps.tenants.onboarding_api` в `apps/users/api.py` (приватный символ через границу app); `CRMView.vue` (2023 LOC) дублировал функциональность DealsView/ContactsView/TasksView; `console.log` оставались в production-коде; bare `except Exception:` без логирования встречались в 23 местах.
+**Решение:**
+- **AI assistant**: `tenant` FK удалён (избыточен внутри tenant schema), поле переименовано в `hermes_conversation_id`, миграция перегенерирована (БД пустая), удалён дубликат тестов в `tests/__init__.py`.
+- **Vite EISDIR**: `working_dir: /srv/app` в `docker-compose.yml` (frontend), все volume mount-ы перенесены на `/srv/app/*`. SPA-маршрут `/app` больше не коллидирует с CWD.
+- **Frontend types**: `CrmContact` расширен (`position/messenger_id/source/esign_agreement_*`), `CrmDeal` получил `contracts/chat_sessions/source` рефы, `IvrMenu.options` строго типизирован. Логика retry в `http.ts` вынесена из `onResponseError` в обёртку (правильная архитектура, не заплатка). `(x as any)` касты удалены везде. `tsconfig.json` получил `skipLibCheck: true` для подавления кросс-зависимостей `vite/vitest`.
+- **Tenant provisioning service**: создан `apps/tenants/services.py` с публичным `provision_tenant(tenant)` и `ensure_default_pipeline()`. `register()` (auth) и `onboarding_skip()` теперь вызывают единую публичную функцию. Приватный импорт через границу app устранён.
+- **users/api split**: 769 LOC → `auth_api.py` (login/register/refresh/logout/me/orgs/switch/invite-check-accept), `team_api.py` (members/invite/role/role-permissions/deactivate), `managers_api.py` (manager-profiles/days-off). `apps/users/api.py` стал тонким shim для обратной совместимости с `config/api.py`.
+- **bare except**: `TokenError` (ninja-jwt), `User.DoesNotExist`, `Contact.DoesNotExist`, `requests.RequestException`, `OSError`, `json.JSONDecodeError` — узкие исключения там, где они стабильно определены. Где broad `except` оправдан (greenswitch ESL без публичной иерархии исключений) — добавлен явный комментарий «почему».
+- **Frontend decomposition**: `CRMView.vue` (2023 LOC) удалён. Уникальные функции вынесены: `CompaniesView` (167 LOC), `PipelinesView` с двумя tabs воронки/триггеры (460 LOC), `StatsView` (135 LOC). Дубликаты Kanban/Contacts/Tasks устранены — их исходные view (`DealsView/ContactsView/TasksView`) остаются единственной точкой правды. `/app/crm` → redirect на `/app/deals`. Sidebar обновлён: добавлены Компании / Воронки / Аналитика CRM.
+- **Frontend logger**: создан `frontend/src/utils/logger.ts` (scoped logger с `debug/info/warn/error`; `debug/info` молчат в production). `console.log` в `stores/notifications.ts`, `stores/ai.ts` и новых views заменены на `log.debug`/`log.error`.
+**Последствия:**
+- Все 118 backend-тестов зелёные. KNOWN_ISSUES #4 (typecheck), #5 (ai_assistant), #6 (Vite EISDIR) закрыты.
+- `apps/users/api.py`: 769 LOC → 18 LOC (shim).
+- Зелёный `npm run typecheck`, 5/5 vitest, 118/118 Django tests.
+- Частная функция `_seed_default_pipeline` больше не импортируется через границу app — единая публичная точка через `apps.tenants.services.provision_tenant`.
+- Production console чище: только warn/error попадают в браузер.

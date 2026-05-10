@@ -67,12 +67,10 @@ class AIModelsTest(TenantAPITestCase):
         from apps.ai_assistant.models import AIConversation
 
         conversation = AIConversation.objects.create(
-            tenant=self.tenant,
             user=self.owner,
             title='Test conversation',
         )
         self.assertEqual(conversation.title, 'Test conversation')
-        self.assertEqual(conversation.tenant, self.tenant)
         self.assertEqual(conversation.user, self.owner)
         self.assertIsNotNone(conversation.created_at)
 
@@ -80,7 +78,6 @@ class AIModelsTest(TenantAPITestCase):
         from apps.ai_assistant.models import AIConversation, AIMessage
 
         conversation = AIConversation.objects.create(
-            tenant=self.tenant,
             user=self.owner,
             title='Test',
         )
@@ -97,7 +94,6 @@ class AIModelsTest(TenantAPITestCase):
         from apps.ai_assistant.models import AIConversation, AIMessage
 
         conversation = AIConversation.objects.create(
-            tenant=self.tenant,
             user=self.owner,
         )
         msg1 = AIMessage.objects.create(conversation=conversation, role='user', content='First')
