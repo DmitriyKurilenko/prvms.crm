@@ -28,7 +28,7 @@ export function installGuards(router: Router, pinia: Pinia): void {
     }
 
     if (!tenant.loaded) {
-      await tenant.ensureLoaded()
+      try { await tenant.ensureLoaded() } catch { /* allow navigation if tenant fails */ }
     }
 
     // Trial expired → only allow subscription and settings pages

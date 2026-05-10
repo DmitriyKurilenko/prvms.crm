@@ -61,7 +61,6 @@ async function refreshAccessToken(): Promise<string | null> {
         return response.access_token
       })
       .catch(() => {
-        setAccessToken(null)
         return null
       })
       .finally(() => {

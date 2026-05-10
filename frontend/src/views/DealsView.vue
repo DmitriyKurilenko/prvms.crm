@@ -261,6 +261,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useToast } from 'primevue/usetoast'
 import FeatureGate from '@/components/FeatureGate.vue'
 import * as crmApi from '@/api/crm'
 import type { CrmDeal, CrmActivity, KanbanColumn } from '@/api/crm'
@@ -270,6 +271,7 @@ import { normalizeCrmPermissions } from '@/utils/crmPermissions'
 import { formatDate, formatDateTime } from '@/utils/datetime'
 
 const auth = useAuthStore()
+const toast = useToast()
 const perms = computed(() => normalizeCrmPermissions(auth.user?.crm_permissions))
 const canCreateDeal = computed(() => perms.value.deals.can_create)
 const canUpdateDeal = computed(() => perms.value.deals.can_update)
@@ -344,15 +346,23 @@ const colTotal = (col: KanbanColumn) => {
 }
 
 const loadPipelines = async () => {
-  pipelines.value = await crmApi.listPipelines()
-  if (pipelines.value.length && !selectedPipeline.value) {
-    selectedPipeline.value = pipelines.value[0].id
+  try {
+    pipelines.value = await crmApi.listPipelines()
+    if (pipelines.value.length && !selectedPipeline.value) {
+      selectedPipeline.value = pipelines.value[0].id
+    }
+  } catch {
+    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось загрузить воронки.', life: 5000 })
   }
 }
 
 const loadBoard = async () => {
   if (!selectedPipeline.value) return
-  columns.value = await crmApi.kanbanDeals(selectedPipeline.value)
+  try {
+    columns.value = await crmApi.kanbanDeals(selectedPipeline.value)
+  } catch {
+    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось загрузить доску сделок.', life: 5000 })
+  }
 }
 
 let dragDealId: number | null = null
@@ -362,9 +372,14 @@ const onDragStart = (e: DragEvent, id: number) => {
 }
 const onDrop = async (_e: DragEvent, stageId: number) => {
   if (!canUpdateDeal.value || !dragDealId) return
-  await crmApi.moveDeal(dragDealId, stageId)
-  dragDealId = null
-  await loadBoard()
+  try {
+    await crmApi.moveDeal(dragDealId, stageId)
+    dragDealId = null
+    await loadBoard()
+  } catch {
+    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось переместить сделку.', life: 5000 })
+    dragDealId = null
+  }
 }
 
 onMounted(async () => {
@@ -385,32 +400,48 @@ const newNote = ref('')
 const newActivityType = ref('note')
 
 const openDeal = async (id: number) => {
-  dealDetail.value = await crmApi.getDeal(id)
-  const d = dealDetail.value
-  Object.assign(dealEdit, { name: d.name, amount: d.amount, currency: d.currency, contact_id: d.contact_id, company_id: (d as any).company_id ?? null, responsible_id: d.responsible_id, expected_close_date: (d as any).expected_close_date || '', source: (d as any).source || '', loss_reason: (d as any).loss_reason || '' })
-  showDealDetail.value = true
+  try {
+    dealDetail.value = await crmApi.getDeal(id)
+    const d = dealDetail.value
+    Object.assign(dealEdit, { name: d.name, amount: d.amount, currency: d.currency, contact_id: d.contact_id, company_id: (d as any).company_id ?? null, responsible_id: d.responsible_id, expected_close_date: (d as any).expected_close_date || '', source: (d as any).source || '', loss_reason: (d as any).loss_reason || '' })
+    showDealDetail.value = true
+  } catch {
+    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось открыть сделку.', life: 5000 })
+  }
 }
 
 const saveDealEdit = async () => {
   if (!canUpdateDeal.value || !dealDetail.value || !dealEdit.name) return
-  await crmApi.patchDeal(dealDetail.value.id, { ...dealEdit, expected_close_date: dealEdit.expected_close_date || null })
-  showDealDetail.value = false
-  await loadBoard()
+  try {
+    await crmApi.patchDeal(dealDetail.value.id, { ...dealEdit, expected_close_date: dealEdit.expected_close_date || null })
+    showDealDetail.value = false
+    await loadBoard()
+  } catch {
+    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось сохранить сделку.', life: 5000 })
+  }
 }
 
 const removeDeal = async () => {
   if (!canDeleteDeal.value || !dealDetail.value) return
-  await crmApi.deleteDeal(dealDetail.value.id)
-  showDealDetail.value = false
-  await loadBoard()
+  try {
+    await crmApi.deleteDeal(dealDetail.value.id)
+    showDealDetail.value = false
+    await loadBoard()
+  } catch {
+    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось удалить сделку.', life: 5000 })
+  }
 }
 
 const addNote = async () => {
   if (!canUpdateDeal.value || !dealDetail.value || !newNote.value.trim()) return
-  await crmApi.createActivity({ activity_type: newActivityType.value, deal_id: dealDetail.value.id, title: newNote.value })
-  newNote.value = ''
-  newActivityType.value = 'note'
-  dealDetail.value = await crmApi.getDeal(dealDetail.value.id)
+  try {
+    await crmApi.createActivity({ activity_type: newActivityType.value, deal_id: dealDetail.value.id, title: newNote.value })
+    newNote.value = ''
+    newActivityType.value = 'note'
+    dealDetail.value = await crmApi.getDeal(dealDetail.value.id)
+  } catch {
+    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось добавить заметку.', life: 5000 })
+  }
 }
 
 const downloadPdf = (contractId: number) => {
@@ -450,10 +481,14 @@ const submitDeal = async () => {
     stageId = stages[0]?.id || null
   }
   if (!stageId) return
-  await crmApi.createDeal({ name: dealForm.name, pipeline_id: dealForm.pipeline_id, stage_id: stageId, amount: dealForm.amount, currency: dealForm.currency, contact_id: dealForm.contact_id, company_id: dealForm.company_id, responsible_id: dealForm.responsible_id, expected_close_date: dealForm.expected_close_date || null, source: dealForm.source })
-  showDealForm.value = false
-  Object.assign(dealForm, { name: '', amount: null, currency: 'RUB', stage_id: null, contact_id: null, company_id: null, responsible_id: null, expected_close_date: '', source: '' })
-  await loadBoard()
+  try {
+    await crmApi.createDeal({ name: dealForm.name, pipeline_id: dealForm.pipeline_id, stage_id: stageId, amount: dealForm.amount, currency: dealForm.currency, contact_id: dealForm.contact_id, company_id: dealForm.company_id, responsible_id: dealForm.responsible_id, expected_close_date: dealForm.expected_close_date || null, source: dealForm.source })
+    showDealForm.value = false
+    Object.assign(dealForm, { name: '', amount: null, currency: 'RUB', stage_id: null, contact_id: null, company_id: null, responsible_id: null, expected_close_date: '', source: '' })
+    await loadBoard()
+  } catch {
+    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось создать сделку.', life: 5000 })
+  }
 }
 
 /* --- Helpers --- */

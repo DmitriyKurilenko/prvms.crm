@@ -98,6 +98,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useNotifications } from '@/composables/useNotifications'
+import { useToast } from 'primevue/usetoast'
 import { useAuthStore } from '@/stores/auth'
 import {
   listPreferences,
@@ -111,6 +112,7 @@ import {
 
 const { items, load, notifications } = useNotifications()
 const auth = useAuthStore()
+const toast = useToast()
 
 const canManage = computed(() => auth.role === 'owner' || auth.role === 'admin')
 
@@ -157,6 +159,8 @@ async function loadPrefs() {
   prefsLoading.value = true
   try {
     prefs.value = await listPreferences()
+  } catch {
+    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось загрузить настройки уведомлений.', life: 5000 })
   } finally {
     prefsLoading.value = false
   }
@@ -172,6 +176,8 @@ async function loadTgStatus() {
   tgLoading.value = true
   try {
     tgStatus.value = await telegramStatus()
+  } catch {
+    tgStatus.value = null
   } finally {
     tgLoading.value = false
   }
@@ -188,6 +194,8 @@ async function handleLink() {
       tgLinkUrl.value = ''
       alert('Настройте TELEGRAM_NOTIFICATION_BOT_USERNAME на сервере для генерации ссылки.')
     }
+  } catch {
+    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось инициировать привязку Telegram.', life: 5000 })
   } finally {
     tgLinking.value = false
   }

@@ -80,10 +80,12 @@
 
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
+import { useToast } from 'primevue/usetoast'
 import { api } from '@/api/http'
 import { useTenantStore } from '@/stores/tenant'
 
 const emit = defineEmits<{ done: [] }>()
+const toast = useToast()
 
 const tenantStore = useTenantStore()
 const step = ref(Math.max(1, (tenantStore.current?.onboarding_step || 0) + 1))
@@ -161,6 +163,8 @@ const next = async () => {
     if (step.value > 5 || tenantStore.current?.onboarding_step === 5) {
       emit('done')
     }
+  } catch {
+    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось сохранить настройку. Попробуйте ещё раз.', life: 5000 })
   } finally {
     saving.value = false
   }
@@ -172,7 +176,12 @@ const confirmSkip = () => {
 
 const skip = async () => {
   showSkipDialog.value = false
-  await api('/onboarding/skip/', { method: 'POST' })
+  try {
+    await api('/onboarding/skip/', { method: 'POST' })
+  } catch {
+    toast.add({ severity: 'warn', summary: 'Предупреждение', detail: 'Не удалось пропустить настройку. Попробуйте ещё раз.', life: 5000 })
+    return
+  }
   await tenantStore.reloadTenant()
   emit('done')
 }

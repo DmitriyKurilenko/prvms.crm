@@ -10,6 +10,7 @@ from apps.channels.public_views import channel_webhook
 from apps.telephony.public_views import dialplan, directory, events, configuration
 from apps.billing.webhook_views import yookassa_webhook
 from apps.notifications.views import TelegramBotWebhookView
+from apps.ai_assistant.public_views import hermes_webhook
 
 urlpatterns = [
     path('', root),
@@ -39,6 +40,7 @@ urlpatterns = [
     path('telephony/configuration/', configuration),
     path('billing/yookassa/webhook/', yookassa_webhook),
     path('notifications/telegram/bot-webhook/', TelegramBotWebhookView.as_view()),
+    path('ai/hermes-webhook/', hermes_webhook),
 ]
 
 if settings.DEBUG:

@@ -198,3 +198,13 @@
 - генерирует compose-файлы без устаревшего `version` и с валидным `restart: unless-stopped`;
 - создаёт управляющие скрипты `/opt/scripts/start-all.sh`, `stop-all.sh`, `status-all.sh`.
 **Последствия:** Первичная настройка и повторный старт infra-слоя воспроизводимы; `Portainer` подключается к `proxy` без ручного вмешательства; исчезают ошибки старта из-за некорректной restart policy.
+
+## DEC-XXX: AI Assistant через Hermes orchestrator + OpenCode.ai (2026-05-09)
+**Контекст:** Нужен AI-ассистент в CRM с поддержкой чата, CRM-функций и проактивных уведомлений.
+**Решение:** Hermes Agent (Docker, port 8642) как orchestrator с OpenCode.ai cloud provider. Per-tenant Hermes profiles изолируют данные. Django хранит диалоги в PostgreSQL (AIConversation/AIMessage, tenant-scoped). Hermes skills написаны на Python и работают через schema_context. Проактивные уведомления идут через Hermes cron → webhook → Django Notification → WebSocket.
+**Последствия:** OpenCode Go — облачный сервис (не отдельный контейнер). Hermes — единственный orchestrator. Диалоги хранятся в PostgreSQL (а не в Hermes state.db). Интеграция через OpenAI-compatible API (/v1/chat/completions).
+
+## DEC-029: Обязательная обратная связь при ошибках API во всех view (2026-05-10)
+**Контекст:** После редизайна 10+ view имели нулевую обработку ошибок API-вызовов. Паттерн `try { ... } finally { ... }` без `catch` приводил к «немым» кнопкам — клик выполнял запрос, ошибка проглатывалась, кнопка снова становилась активной без объяснения причины.
+**Решение:** В каждой view, делающей API-вызовы, добавлены `catch`-блоки с toast-уведомлением через PrimeVue Toast. `<PToast />` размещён в `App.vue`. Вспомогательные guard-ы (`planLoaded` в tenant store) защищают от ложных блокировок до загрузки данных.
+**Последствия:** Пользователь всегда видит причину ошибки (toast в правом верхнем углу). Инвариант: любой `await api(...)` обязан иметь `try/catch` с toast при ошибке. Новые view должны следовать этому паттерну с первого коммита.

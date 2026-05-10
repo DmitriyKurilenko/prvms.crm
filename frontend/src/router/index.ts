@@ -24,6 +24,7 @@ import UpgradeView from '@/views/UpgradeView.vue'
 import AcceptInviteView from '@/views/AcceptInviteView.vue'
 import HelpView from '@/views/HelpView.vue'
 import NotFoundView from '@/views/NotFoundView.vue'
+import AssistantView from '@/views/AssistantView.vue'
 
 export interface AppRouteMeta {
   public?: boolean
@@ -172,6 +173,12 @@ const routes: RouteRecordRaw[] = [
         name: 'help',
         component: HelpView,
         meta: { roles: ['owner', 'admin', 'manager', 'viewer'], title: 'Помощь' }
+      },
+      {
+        path: 'assistant',
+        name: 'assistant',
+        component: AssistantView,
+        meta: { roles: ['owner', 'admin', 'manager', 'viewer'], title: 'AI Ассистент' }
       }
     ]
   },

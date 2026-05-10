@@ -1,5 +1,125 @@
 # Dev Log
 
+## 2026-05-10 — UI Error Handling Hardening: try/catch + Toast + planLoaded guards
+
+### Корневая причина:
+После редизайна пользователи сообщили о неработающих кнопках в онбординге и других разделах. Аудит выявил системный паттерн: API-вызовы без обработки ошибок во всех view. Основные проблемы:
+1. **`try { ... } finally { ... }` без `catch`** — в 4 view (TeamView, NotificationsView, IntegrationsView, OnboardingWizard): ошибки API проглатываются, кнопка перестаёт реагировать без обратной связи.
+2. **Нулевая обработка ошибок** — в DealsView, ContactsView, DistributionView, ChannelsView: ни одного `try/catch`.
+3. **Dead code** — в ChannelsView дублирующий `ws.onclose` перезаписывал логику переподключения WebSocket.
+4. **План не загружен → всё заблокировано** — Dashboard/Sidebar применяли `pointer-events: none` до загрузки списка features.
+5. **Критический баг онбординга** — `SameSite='Lax'` в куке `refresh_token` не давал браузеру отправлять cookie на кросс-ориджин POST из JS (фронтенд :15173 → бэкенд :18100). `NotificationBell` на странице онбординга вызывал `refresh()` → `POST /api/auth/refresh` → 400 «Missing refresh token» → `setAccessToken(null)` в catch → access-токен обнулялся → все API-запросы падали с 401 → toast «Не удалось сохранить настройку».
+
+### Изменения:
+
+**OnboardingWizard.vue:**
+- Добавлен `catch` с toast-уведомлением в `next()` и `skip()`
+- Импортирован `useToast` из PrimeVue
+
+**TeamView.vue:**
+- `loadRolePermissions`: `try/finally` → `try/catch/finally` с toast
+- Импортирован `useToast`
+
+**NotificationsView.vue:**
+- `loadPrefs`, `loadTgStatus`, `handleLink`: `try/finally` → `try/catch/finally`
+- Импортирован `useToast`
+
+**IntegrationsView.vue:**
+- `loadConnections`: `try/finally` → `try/catch/finally` с `errorMessage`
+
+**DealsView.vue:**
+- `loadPipelines`, `loadBoard`, `onDrop`, `openDeal`, `saveDealEdit`, `removeDeal`, `addNote`, `submitDeal` — обёрнуты в try/catch с toast
+- Импортирован `useToast`
+
+**ContactsView.vue:**
+- `loadContacts`, `submitContact`, `removeContact` — обёрнуты в try/catch с toast
+- Импортирован `useToast`
+
+**DistributionView.vue:**
+- `load`, `loadLog`, `submitRule`, `toggleActive`, `removeRule` — обёрнуты в try/catch с toast
+- Импортирован `useToast`
+
+**ChannelsView.vue:**
+- Удалён дублирующий `ws.onclose` (строки 454-457) — восстанавливает реконнект WebSocket
+- `loadChannels`, `submitChannel`, `toggleActive`, `removeChannel`, `registerWebhook` — try/catch с toast
+- Импортирован `useToast`
+
+**App.vue:**
+- Добавлен `<PToast position="top-right" />` — ранее был зарегистрирован, но не в DOM
+
+**stores/tenant.ts:**
+- Добавлен getter `planLoaded: (state) => Boolean(state.plan)`
+- `hasFeature` явно проверяет `state.plan !== null` и `state.plan.features !== undefined`
+
+**DashboardView.vue:**
+- Все `hasFeature`-зависимые `computed` защищены `planReady.value`
+
+**AppMenu.vue (layout):**
+- `withLock()` не блокирует пункты до загрузки плана (`planReady`)
+
+**vite.config.ts:**
+- Добавлен `appType: 'spa'` для SPA fallback (Vite dev-сервер)
+
+**apps/users/api.py (backend):**
+- `_set_refresh_cookie()`: `samesite='Lax'` → `samesite='None'` — кросс-ориджин POST не отправляли cookie
+
+**frontend/src/api/auth.ts:**
+- `refresh()`: catch больше не вызывает `setAccessToken(null)` — не сбрасывает валидный токен при ошибке рефреша
+
+**frontend/src/api/http.ts:**
+- `refreshAccessToken()`: catch больше не вызывает `setAccessToken(null)` — аналогично
+
+### Файлы (21 файл изменено):
+- `frontend/src/App.vue`, `frontend/vite.config.ts`
+- `frontend/src/api/auth.ts`, `frontend/src/api/http.ts`
+- `frontend/src/stores/tenant.ts`
+- `frontend/src/layout/AppMenu.vue`
+- `frontend/src/components/OnboardingWizard.vue`
+- `frontend/src/views/TeamView.vue`, `NotificationsView.vue`, `IntegrationsView.vue`
+- `frontend/src/views/DealsView.vue`, `ContactsView.vue`, `DistributionView.vue`, `ChannelsView.vue`
+- `frontend/src/views/DashboardView.vue`
+- `apps/users/api.py`
+
+### Валидация:
+- `docker compose down` ✅
+- `docker compose up -d --build` ✅
+- `docker compose run --rm web python manage.py check` → `0 issues` ✅
+- Frontend build: `686 modules, 3.74s` ✅
+- Frontend tests: `5/5 passed` ✅
+- Все 19 SPA-маршрутов → `200 OK` ✅
+- Backend health: `GET /healthz` → `200` ✅
+
+### Известная регрессия тестов:
+- 5 backend-тестов (`test_auth_api`, `test_invites_api`, `test_tenant_resolver`) падают с `relation "ai_assistant_aiconversation" does not exist` — вызвано добавлением `apps.ai_assistant` в `TENANT_APPS` в конфиге при незакоммиченной миграции. Пре-экзистинг, не вызвано изменениями данного PR. Вынесено в KNOWN_ISSUES #5.
+
+### Риски:
+- Vite dev-сервер возвращает 500 на `GET /app` (EISDIR), т.к. рабочая директория совпадает с SPA-маршрутом. Production nginx обрабатывает корректно. Дочерние маршруты (`/app/dashboard` и т.д.) работают без ошибок.
+
+## 2026-05-09 — AI Assistant: Hermes + OpenCode.ai integration
+
+### Что сделано:
+- Исправлена ошибка в `models.py`: `channels.ChatSession` → `messenger_channels.ChatSession` (правильный Django app label)
+- Созданы и применены миграции `0001_initial.py` для AIConversation/AIMessage
+- Написаны тесты в `apps/ai_assistant/tests/test_ai_assistant.py` — 14 тестов (models, services, Hermes integration)
+- Обновлена документация: AI_CONTEXT.md, DECISIONS.md (DEC-XXX), DEV_LOG
+
+### Компоненты:
+- `apps/ai_assistant/models.py`: AIConversation, AIMessage (tenant-scoped)
+- `apps/ai_assistant/api.py`: POST /api/ai/chat/, GET /api/ai/conversations/, etc.
+- `apps/ai_assistant/services.py`: send_to_hermes(), build_context_for_hermes()
+- `apps/ai_assistant/consumers.py`: AIAssistantConsumer (WebSocket)
+- `apps/ai_assistant/hermes_skills/`: crm_get_deal.py, crm_create_task.py
+- `apps/ai_assistant/public_views.py`: hermes_webhook endpoint
+- Frontend: stores/ai.ts, views/AssistantView.vue, api/ai.ts, router, AppMenu, ChannelsView
+
+### Валидация:
+- `python manage.py check` → 0 issues
+- `python manage.py test apps.ai_assistant` → 14 tests OK
+- `docker compose run frontend npm run build` → built in 26.53s
+
+### Блокировка:
+- Hermes registry `ghcr.io/nousresearch/hermes-agent:latest` недоступен (denied) — end-to-end тест，暂时无法进行
+
 ## 2026-04-29 — Redesign PR1: дизайн-система + тёмная тема с persist
 
 ### Изменения:
