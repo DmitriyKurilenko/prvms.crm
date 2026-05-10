@@ -1,0 +1,194 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: always
+    command: postgres -c shared_buffers=32MB -c work_mem=1MB -c maintenance_work_mem=8MB -c max_connections=15
+    environment:
+      POSTGRES_DB: ${DB_NAME:-vybra}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    expose:
+      - "5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - /opt/backups:/backups
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-vybra}"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.15'
+          memory: 96M
+        reservations:
+          cpus: '0.05'
+          memory: 32M
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    command: redis-server --save "" --appendonly no --maxmemory 32mb --maxmemory-policy allkeys-lru
+    expose:
+      - "6379"
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.05'
+          memory: 40M
+        reservations:
+          cpus: '0.02'
+          memory: 16M
+
+  web:
+    build:
+      context: /opt/vybra
+      dockerfile: Dockerfile
+    restart: always
+    init: true
+    command: sh -c "python manage.py migrate --noinput && gunicorn vybra.wsgi:application --bind 0.0.0.0:8000 --workers 1 --threads 2 --timeout 120 --keep-alive 5 --max-requests 250 --max-requests-jitter 25 --access-logfile - --error-logfile -"
+    expose:
+      - "8000"
+    volumes:
+      - media_data:/app/media
+    networks:
+      - backend
+      - proxy
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - /opt/vybra/.env
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS -H 'X-Forwarded-Proto: https' http://127.0.0.1:8000/ >/dev/null"]
+      interval: 20s
+      timeout: 7s
+      retries: 5
+      start_period: 30s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.vybra.rule=Host(`vybra.prvms.ru`)"
+      - "traefik.http.routers.vybra.entrypoints=websecure"
+      - "traefik.http.routers.vybra.tls.certresolver=le"
+      - "traefik.http.services.vybra.loadbalancer.server.port=8000"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.22'
+          memory: 128M
+        reservations:
+          cpus: '0.08'
+          memory: 48M
+
+  celery:
+    build:
+      context: /opt/vybra
+      dockerfile: Dockerfile.worker
+    restart: always
+    init: true
+    command: celery -A vybra worker -l info --pool=solo --concurrency=1 --without-gossip --without-mingle --without-heartbeat --prefetch-multiplier=1 --max-tasks-per-child=50 --max-memory-per-child=80000
+    volumes:
+      - media_data:/app/media
+    networks:
+      - backend
+      - proxy
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      selenium:
+        condition: service_healthy
+    env_file:
+      - /opt/vybra/.env
+    deploy:
+      resources:
+        limits:
+          cpus: '0.18'
+          memory: 96M
+        reservations:
+          cpus: '0.08'
+          memory: 48M
+
+  selenium:
+    image: selenium/standalone-chromium:4
+    restart: always
+    shm_size: 128m
+    environment:
+      - SE_NODE_MAX_SESSIONS=1
+      - SE_NODE_SESSION_TIMEOUT=120
+      - SE_VNC_NO_PASSWORD=1
+      - SE_START_VNC=false
+      - SE_OPTS=--log-level WARNING
+    expose:
+      - "4444"
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:4444/wd/hub/status"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.35'
+          memory: 384M
+        reservations:
+          cpus: '0.15'
+          memory: 256M
+
+  celery-beat:
+    build:
+      context: /opt/vybra
+      dockerfile: Dockerfile.worker
+    restart: always
+    init: true
+    command: celery -A vybra beat -l info -s /tmp/celerybeat-schedule
+    networks:
+      - backend
+      - proxy
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - /opt/vybra/.env
+    deploy:
+      resources:
+        limits:
+          cpus: '0.05'
+          memory: 32M
+        reservations:
+          cpus: '0.02'
+          memory: 16M
+
+volumes:
+  postgres_data:
+    driver: local
+  media_data:
+    driver: local
+
+networks:
+  backend:
+    driver: bridge
+    internal: true
+  proxy:
+    external: true
+    name: proxy

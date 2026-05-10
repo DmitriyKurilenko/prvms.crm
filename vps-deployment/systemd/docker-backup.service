@@ -1,0 +1,14 @@
+[Unit]
+Description=Backup all Docker databases
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/scripts/backup-all.sh
+StandardOutput=journal
+StandardError=journal
+User=root
+
+[Install]
+WantedBy=multi-user.target

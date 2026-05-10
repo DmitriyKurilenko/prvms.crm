@@ -11,9 +11,11 @@ import SubscriptionView from '@/views/SubscriptionView.vue'
 import NotificationsView from '@/views/NotificationsView.vue'
 import AuditView from '@/views/AuditView.vue'
 import IntegrationsView from '@/views/IntegrationsView.vue'
-import CRMView from '@/views/CRMView.vue'
 import ContactsView from '@/views/ContactsView.vue'
+import CompaniesView from '@/views/CompaniesView.vue'
 import DealsView from '@/views/DealsView.vue'
+import PipelinesView from '@/views/PipelinesView.vue'
+import StatsView from '@/views/StatsView.vue'
 import TasksView from '@/views/TasksView.vue'
 import DistributionView from '@/views/DistributionView.vue'
 import ContractsView from '@/views/ContractsView.vue'
@@ -92,9 +94,25 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: 'crm',
-        name: 'crm',
-        component: CRMView,
-        meta: { roles: ['owner', 'admin', 'manager', 'viewer'], feature: 'crm_builtin', title: 'CRM' }
+        redirect: '/app/deals'
+      },
+      {
+        path: 'companies',
+        name: 'companies',
+        component: CompaniesView,
+        meta: { roles: ['owner', 'admin', 'manager', 'viewer'], feature: 'crm_builtin', title: 'Компании' }
+      },
+      {
+        path: 'pipelines',
+        name: 'pipelines',
+        component: PipelinesView,
+        meta: { roles: ['owner', 'admin'], feature: 'crm_builtin', title: 'Воронки' }
+      },
+      {
+        path: 'stats',
+        name: 'stats',
+        component: StatsView,
+        meta: { roles: ['owner', 'admin', 'manager', 'viewer'], feature: 'crm_builtin', title: 'Аналитика CRM' }
       },
       {
         path: 'integrations',
@@ -184,7 +202,7 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/crm',
-    redirect: '/app/crm'
+    redirect: '/app/deals'
   },
   {
     path: '/integrations',

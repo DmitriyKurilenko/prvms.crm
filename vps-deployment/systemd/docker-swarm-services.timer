@@ -1,0 +1,11 @@
+[Unit]
+Description=Backup timer for all services
+Requires=docker-swarm-services.service
+
+[Timer]
+OnCalendar=daily
+OnCalendar=*-*-* 02:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

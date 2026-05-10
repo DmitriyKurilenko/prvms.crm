@@ -121,18 +121,24 @@ def try_distribute(trigger: str, entity_type: str, entity_id: str,
                    source: str = 'builtin_crm', payload: dict | None = None) -> DistributionLog | None:
     """Attempt to distribute an entity. Returns log if distributed, None otherwise.
 
-    Tries the exact trigger first. For builtin CRM, also tries new_lead↔new_deal
-    synonyms since leads and deals are the same entity.
+    Tries the exact trigger first. Falls back to new_lead↔new_deal synonyms.
     """
+    triggers_to_try = [trigger]
+    if trigger == 'new_deal':
+        triggers_to_try.append('new_lead')
+    elif trigger == 'new_lead':
+        triggers_to_try.append('new_deal')
+
     payload = payload or {}
-    rule = choose_rule(trigger, payload)
-    if not rule:
-        return None
-    try:
-        return assign_entity(rule, entity_type, entity_id, source, payload)
-    except Exception:
-        logger.exception('Distribution failed for %s:%s trigger=%s', entity_type, entity_id, trigger)
-        return None
+    for t in triggers_to_try:
+        rule = choose_rule(t, payload)
+        if rule:
+            try:
+                return assign_entity(rule, entity_type, entity_id, source, payload)
+            except Exception:
+                logger.exception('Distribution failed for %s:%s trigger=%s', entity_type, entity_id, t)
+                return None
+    return None
 
 
 def _match_filter(rule_filter: dict, payload: dict) -> bool:

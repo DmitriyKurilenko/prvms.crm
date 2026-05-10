@@ -7,8 +7,13 @@ export interface CrmContact {
   last_name: string
   phone: string
   email: string
+  position?: string
+  messenger_id?: string
+  source?: string
   company_id: number | null
   responsible_id: number | null
+  esign_agreement_signed_at?: string | null
+  esign_agreement_id?: number | null
   created_at: string
 }
 
@@ -40,6 +45,26 @@ export interface CrmStage {
   auto_action: Record<string, unknown>
 }
 
+export interface CrmDealContractRef {
+  id: number
+  template_name: string | null
+  status: string
+  created_at: string
+  contact_phone?: string
+  signing_url?: string | null
+}
+
+export interface CrmDealChatSessionRef {
+  id: number
+  channel_id: number
+  channel_name?: string
+  channel_type?: string
+  external_user_name?: string
+  external_chat_id?: string
+  last_message_at?: string | null
+  is_active?: boolean
+}
+
 export interface CrmDeal {
   id: number
   name: string
@@ -48,9 +73,12 @@ export interface CrmDeal {
   stage_name?: string
   amount: number | null
   currency: string
+  source?: string
   responsible_id: number | null
   contact_id: number | null
   company_id?: number | null
+  contracts?: CrmDealContractRef[]
+  chat_sessions?: CrmDealChatSessionRef[]
   updated_at: string
 }
 

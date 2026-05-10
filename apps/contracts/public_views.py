@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import logging
+
 from django.http import FileResponse, JsonResponse
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
 from .services import SigningError, _resolve_signing_session, get_signing_context, request_signing_otp, send_signed_contract_email, verify_signing
+
+logger = logging.getLogger(__name__)
 
 
 @require_GET
@@ -157,5 +161,7 @@ def sign_send_email(request, token: str):
     except SigningError as exc:
         return JsonResponse({'error': str(exc)}, status=400)
     except Exception:
+        # Email delivery / PDF rendering / SMTP / S3 — depends on env. Log details, return generic 500 to client.
+        logger.exception('Failed to send signed contract email for token %s', token)
         return JsonResponse({'error': 'Ошибка отправки email'}, status=500)
     return JsonResponse({'detail': 'sent'})

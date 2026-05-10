@@ -19,10 +19,15 @@ export interface Extension {
   is_active: boolean
 }
 
+export interface IvrMenuOption {
+  digit: string
+  action: string
+}
+
 export interface IvrMenu {
   id: number
   name: string
-  options: Array<Record<string, unknown>>
+  options: IvrMenuOption[]
   timeout: number
   is_active: boolean
 }

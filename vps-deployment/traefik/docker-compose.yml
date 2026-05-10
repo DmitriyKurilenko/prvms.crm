@@ -1,0 +1,83 @@
+services:
+  traefik:
+    image: traefik:v2.11
+    restart: always
+    command:
+      # Traefik Pilot
+      - "--global.checknewversion=false"
+      - "--global.sendanonymoususage=false"
+
+      # Entrypoints
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+
+      # API & Dashboard
+      - "--api=true"
+      - "--api.dashboard=true"
+      - "--api.debug=false"
+
+      # Docker Swarm provider
+      - "--providers.docker=true"
+      - "--providers.docker.swarmMode=false"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.watch=true"
+      - "--providers.docker.network=proxy"
+
+      # ACME / Let's Encrypt
+      - "--certificatesresolvers.le.acme.email=hvosdt@gmail.com"
+      - "--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json"
+      - "--certificatesresolvers.le.acme.httpchallenge=true"
+      - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
+
+      # Logging
+      - "--log.level=INFO"
+      - "--accesslog=true"
+      - "--accesslog.filepath=/var/log/traefik/access.log"
+
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"  # Dashboard
+
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /opt/traefik/letsencrypt:/letsencrypt
+      - /opt/traefik/logs:/var/log/traefik
+
+    environment:
+      - TRAEFIK_API_DASHBOARD=true
+
+    networks:
+      - proxy
+
+    # Dashboard exposed directly on http://VPS_IP:8080 — no Host route, no certificate.
+    # If you ever want it on a real domain, add a DNS A record first, then uncomment:
+    # labels:
+    #   - "traefik.enable=true"
+    #   - "traefik.http.routers.traefik.rule=Host(`traefik.example.com`)"
+    #   - "traefik.http.routers.traefik.entrypoints=websecure"
+    #   - "traefik.http.routers.traefik.tls.certresolver=le"
+    #   - "traefik.http.routers.traefik.service=api@internal"
+    #   - "traefik.http.routers.traefik.middlewares=auth"
+    #   - "traefik.http.middlewares.auth.basicauth.users=admin:$$2y$$05$$H8KaeYSWXxfXO8Or.0DtCOzhPNjMQcVlBDwQLvKxAYNOFIJrTMigy"
+
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.2'
+          memory: 256M
+volumes:
+  letsencrypt:
+    driver: local
+
+networks:
+  proxy:
+    external: true
+    name: proxy

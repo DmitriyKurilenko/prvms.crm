@@ -1,6 +1,237 @@
 # Dev Log
 
-## 2026-05-10 — UI Error Handling Hardening: try/catch + Toast + planLoaded guards
+## 2026-05-10 — Полный рефакторинг A-E (DEC-032)
+
+### Корневая причина:
+Аудит выявил несколько P0/P1 проблем в кодовой базе:
+1. **ai_assistant миграция** содержала камелкейс-поле `herMes_conversation_id` и избыточный `tenant` FK на public.tenants.Tenant. При создании второго тенанта в тестовой БД миграция применялась некорректно → `relation "ai_assistant_aiconversation" does not exist` (KNOWN_ISSUES #5).
+2. **Vite dev `/app` → 500 EISDIR**: `working_dir: /app` в `docker-compose.yml` коллидировал с SPA-маршрутом `/app` (KNOWN_ISSUES #6).
+3. **Frontend typecheck нестабилен**: ~12 кастов `(... as any)` обходили типизацию, `CrmContact/CrmDeal` не описывали реальные поля backend-ответа, `IvrMenu.options` имел тип `Record<string, unknown>[]` (KNOWN_ISSUES #4).
+4. **Нарушение инкапсуляции**: `apps/users/api.py:18` импортировал приватный `_seed_default_pipeline` из `apps.tenants.onboarding_api` — CRM-логика просочилась в auth-flow.
+5. **God-modules**: `apps/users/api.py` (769 LOC) совмещал auth + invites + roles + role-permissions + manager-profiles. `frontend/src/views/CRMView.vue` (2023 LOC) дублировал функциональность DealsView/ContactsView/TasksView.
+6. **23 bare `except Exception:`** в production-коде (часть с logger, часть silent-pass).
+7. **`console.log` в production-bundle**: stores/notifications.ts (7 шт), stores/ai.ts (2 шт).
+
+### Изменения:
+
+**Фаза A — Стабилизация:**
+
+`apps/ai_assistant/models.py`:
+- Удалён `tenant` FK (избыточен, нарушал чистоту tenant schema).
+- `herMes_conversation_id → hermes_conversation_id`.
+
+`apps/ai_assistant/migrations/0001_initial.py`: перегенерирован под новую схему модели (БД пустая по подтверждению).
+
+`apps/ai_assistant/api.py`, `apps/ai_assistant/consumers.py`: убраны `tenant=tenant`/`tenant_id=tenant.id` из фильтров и `objects.create()`.
+
+`apps/ai_assistant/tests/__init__.py`: удалён дубликат тестов (был полным копи-пейстом `test_ai_assistant.py`).
+
+`docker-compose.yml`: `working_dir: /app → /srv/app` для frontend, все volume-mount-ы перенесены (`./frontend:/srv/app`, `./docs/user-guide:/srv/app/src/docs/user-guide:ro`, `frontend_node_modules:/srv/app/node_modules`).
+
+`frontend/src/api/crm.ts`: `CrmContact` расширен (`position/messenger_id/source/esign_agreement_signed_at/esign_agreement_id`); добавлены `CrmDealContractRef`, `CrmDealChatSessionRef`; `CrmDeal` получил `contracts/chat_sessions/source` рефы.
+
+`frontend/src/api/telephony.ts`: `IvrMenu.options: Array<Record<string, unknown>>` → `IvrMenuOption[]` (`{digit, action}`).
+
+`frontend/src/api/http.ts`: переписан — retry-логика вынесена из `onResponseError` в обёртку `api()`; импортирован `MappedResponseType` для корректного return-type generic.
+
+`frontend/src/api/auth.ts`: `register(payload: Record<string, unknown>)` → `register(payload: RegisterPayload)`. RegisterPayload экспортируется и импортируется в `stores/auth.ts`.
+
+`frontend/src/views/TeamView.vue`: добавлен пропущенный `const activeTab = ref<...>('members')` (использовался в template без объявления).
+
+`frontend/src/views/TelephonyView.vue`: убран cast `(ivr.options as IvrOption[])`, push в options теперь корректно создаёт все поля.
+
+12 кастов `(... as any)` устранены в `ContactDrawer.vue`, `ContactsView.vue`, `CRMView.vue` (последний удалён в C1).
+
+`frontend/tsconfig.json`: добавлен `"skipLibCheck": true`.
+
+**Фаза B — Backend архитектура:**
+
+`apps/tenants/services.py` (новый): публичный domain-сервис с `ensure_default_pipeline()` и `provision_tenant(tenant)`. Все шаги тенант-провижининга (preferences seeding, pipeline seeding) идут через эту единую точку.
+
+`apps/users/api.py`: импорт `_seed_default_pipeline` через границу app удалён, вызов заменён на `provision_tenant(tenant)`.
+
+`apps/tenants/onboarding_api.py`: вызовы `_seed_default_pipeline()` заменены на `ensure_default_pipeline()` из сервиса; локальное определение функции удалено.
+
+`apps/users/auth_api.py` (новый, ~390 LOC): login/register/refresh/logout/me/organizations/switch-tenant/invite-check/invite-accept + private helpers (`_set_refresh_cookie`, `_resolve_auth_username`, `active_joined_memberships_queryset`, `build_invite_link`, `next_available_username`).
+
+`apps/users/team_api.py` (новый, ~270 LOC): list_users/invite/role/role-permissions/deactivate/resend-invite + `_normalize_membership_role`/`_normalize_email`.
+
+`apps/users/managers_api.py` (новый, ~80 LOC): manager_profiles CRUD + days-off; импортирует `users_router` из `team_api` (side-effect attaches endpoints). Так URL остаются стабильными.
+
+`apps/users/api.py` (shim, 18 LOC): re-exports `auth_router`, `users_router`. Side-effect import `from . import managers_api` для регистрации endpoint-ов.
+
+`apps/users/auth_api.py`: `except Exception:` для `RefreshToken(raw)` и `.blacklist()` сужены до `TokenError` (ninja-jwt).
+
+`apps/contracts/api.py`, `apps/core/channels_auth.py`: JWT broad except → `TokenError | User.DoesNotExist | KeyError`.
+
+`apps/crm/api.py:665`: `except Exception:` → `except User.DoesNotExist:`.
+
+`apps/contracts/services.py:458`: silent pass на reopen PDF — конкретизирован `except (FileNotFoundError, OSError):` + `logger.warning`.
+
+`apps/contracts/public_views.py:159`: добавлен `logger.exception` для broad except (email delivery).
+
+`apps/ai_assistant/services.py`: добавлен `logger`. Broad except → `Contact.DoesNotExist` для contact lookup; `requests.RequestException` для Hermes-уведомления (с `logger.warning`).
+
+`apps/telephony/tasks.py`: оставлено broad `except Exception:` с явным комментарием «greenswitch raises plain Exception subclasses» — это defense-in-depth против внешней библиотеки без публичной иерархии исключений.
+
+**Фаза C — Frontend:**
+
+Удалён `frontend/src/views/CRMView.vue` (2023 LOC). Создано три view взамен:
+- `CompaniesView.vue` (167 LOC) — компании CRUD; `/app/companies`.
+- `PipelinesView.vue` (480 LOC) — воронки + stages + триггеры с двумя tabs; `/app/pipelines`.
+- `StatsView.vue` (135 LOC) — pipeline + manager statistics; `/app/stats`.
+
+Дубликаты Kanban (DealsView), Contacts (ContactsView), Tasks (TasksView) — оставлены как единая точка правды; в CRMView они дублировались.
+
+`frontend/src/router/index.ts`:
+- Импорт CRMView удалён, добавлены CompaniesView/PipelinesView/StatsView.
+- `/app/crm` → redirect на `/app/deals`.
+- Top-level `/crm` → redirect на `/app/deals`.
+
+`frontend/src/layouts/SidebarNav.vue`: добавлены пункты «Компании», «Воронки», «Аналитика CRM» в первой группе.
+
+`frontend/src/utils/logger.ts` (новый): scoped logger (`createLogger(scope)`) с уровнями debug/info/warn/error; `debug/info` молчат в production (`import.meta.env.DEV`).
+
+`frontend/src/stores/notifications.ts`, `frontend/src/stores/ai.ts`, `CompaniesView/PipelinesView/StatsView`: `console.log/console.error` → `log.debug/log.error`.
+
+**Фаза E — Документы:**
+
+`docs/DECISIONS.md`: исправлена нумерация — DEC-007 (дубль) → DEC-007a; DEC-020 (Presence) → DEC-A01; DEC-021 (branding) → DEC-A02; DEC-XXX → DEC-029. Добавлены DEC-031 (UI error handling — отделён от DEC-030) и DEC-032 (полный рефакторинг).
+
+`docs/KNOWN_ISSUES.md`: #4, #5, #6 закрыты со ссылкой на DEC-032; добавлен открытый #11 (отсутствие CI).
+
+`docs/TASK_STATE.md`: запись #22 о DEC-032.
+
+### Файлы (33 файлов изменено, 5 удалено, 6 созданных):
+
+**Backend (изменено):**
+- `apps/ai_assistant/models.py`, `apps/ai_assistant/migrations/0001_initial.py`
+- `apps/ai_assistant/api.py`, `apps/ai_assistant/consumers.py`
+- `apps/ai_assistant/services.py`, `apps/ai_assistant/tests/__init__.py`, `apps/ai_assistant/tests/test_ai_assistant.py`
+- `apps/users/api.py` (shim), `apps/tenants/onboarding_api.py`
+- `apps/contracts/api.py`, `apps/contracts/services.py`, `apps/contracts/public_views.py`
+- `apps/core/channels_auth.py`, `apps/crm/api.py`, `apps/telephony/tasks.py`
+
+**Backend (новые):**
+- `apps/tenants/services.py`
+- `apps/users/auth_api.py`, `apps/users/team_api.py`, `apps/users/managers_api.py`
+
+**Frontend (изменено):**
+- `docker-compose.yml`, `frontend/tsconfig.json`
+- `frontend/src/api/crm.ts`, `frontend/src/api/telephony.ts`, `frontend/src/api/http.ts`, `frontend/src/api/http.test.ts`, `frontend/src/api/auth.ts`
+- `frontend/src/router/index.ts`, `frontend/src/router/guards.ts`, `frontend/src/layouts/SidebarNav.vue`
+- `frontend/src/stores/auth.ts`, `frontend/src/stores/notifications.ts`, `frontend/src/stores/ai.ts`
+- `frontend/src/views/TeamView.vue`, `frontend/src/views/TelephonyView.vue`, `frontend/src/views/ContactsView.vue`, `frontend/src/components/ContactDrawer.vue`
+- `frontend/nginx.conf`, `.gitignore`
+
+**Frontend (новые):**
+- `frontend/src/utils/logger.ts`
+- `frontend/src/views/CompaniesView.vue`, `frontend/src/views/PipelinesView.vue`, `frontend/src/views/StatsView.vue`
+
+**Frontend (удалено):**
+- `frontend/src/views/CRMView.vue` (2023 LOC)
+
+**Deployment (новые):**
+- `vps-deployment/` — production Docker Compose, deploy-скрипт, env-шаблон
+
+### Валидация:
+- `docker compose run --rm web python manage.py check` → 0 issues ✅
+- `manage.py test apps --keepdb` → 118/118 ✅ (включая 7/7 ai_assistant + 17/17 ранее падавших test_auth_api/test_invites_api/test_tenant_resolver)
+- `manage.py migrate_schemas --tenant ai_assistant` зеро + applied на 33 tenant schemas — поле `hermes_conversation_id` без `tenant_id` подтверждено в `org-crm`.
+- `npm run typecheck` → зелёный ✅ (был 20+ ошибок до начала)
+- `npm run test` → 5/5 vitest ✅
+- SPA HTTP smoke: `GET /, /app, /app/dashboard, /app/companies, /app/pipelines, /app/stats, /app/crm, /login` → все 200 (`/app/crm` redirect на `/app/deals`)
+
+### Дополнительные изменения (в рамках DEC-032):
+
+**`frontend/nginx.conf`**: добавлены location `/static/` (Django collected-static из shared volume) и `/assets/` (Vite build assets с immutable long-term cache).
+
+**`frontend/src/router/guards.ts`**: добавлен token-presence guard — если токен валидный, но `user === null` (race при обновлении страницы), делается `me()` до редиректа на login. Страхует от false-positive logout после refresh-страницы в edge-сценариях.
+
+**`.gitignore`**: добавлены паттерны `.env.prod`, `.env.local`, `.env.*.local` для локальных/продакшн-переопределений.
+
+**`vps-deployment/`**: production-конфиг для развёртывания на VPS — Docker Compose (crm_prvms), deploy-скрипт, `.env.prod.example`, инструкция `DEPLOY.md`.
+
+### Риски:
+- DEC-032 — большой объём изменений (5 фаз). Регрессии возможны в редко-исполняемых ветвях кода (например, telephony ESL fallback, billing webhook parsing, OAuth callback amocrm/bitrix24). Backend tests покрывают smoke-сценарии, но не нагрузочные/edge cases.
+- KNOWN_ISSUES #11 (отсутствие CI) — нет автоматической защиты от регрессий между ручными прогонами.
+- D-фаза (pytest-django миграция, e2e тесты) пропущена по согласованию с пользователем — текущее покрытие остаётся базовым (smoke/integration).
+- Удаление CRMView.vue: уникальные функции (companies/pipelines/triggers/stats) перенесены в новые views, но **переадресация `/app/crm` → `/app/deals`** меняет UX для пользователей, которые привыкли к табовому интерфейсу. Sidebar обновлён со всеми новыми пунктами.
+
+---
+
+## 2026-05-10 — Functional hardening: messengers, session, deals, distribution
+
+### Корневая причина:
+После редизайна 4 критичных функциональных контура перестали работать:
+1. **auto_create_lead в мессенджерах** — Pipeline/Stage не создавались при регистрации тенанта (только при шаге 2 онбординга). При первом сообщении пользователя в бота `route_incoming_message` не находил pipeline → Deal не создавался → `session.crm_lead_id` оставался пустым → повторяющийся silent-failure.
+2. **Выход при рефреше страницы** — Cookie `SameSite='None'` без `Secure` в dev-режиме (HTTP) приводила к отклонению куки браузерами на не-localhost хостах. В dev-режиме `SameSite='Lax'` достаточно для кросс-портовых запросов на localhost.
+3. **В модалке сделки пропала кнопка создания контакта/компании** — `DealsView.vue` (`/app/deals`) не имел quick-create диалогов, которые были в `CRMView.vue` (`/app/crm`).
+4. **Распределение не работало** — `try_distribute()` вызывалась с trigger `'new_deal'`, но дефолтное правило в онбординге создавалось с trigger `'new_lead'`. Синонимный фоллбек был задокументирован, но не реализован.
+
+### Изменения:
+
+**apps/users/api.py (регистрация + кука):**
+- `register()`: добавлен вызов `_seed_default_pipeline()` после создания тенанта (рядом с `seed_default_preferences`)
+- Импорт `_seed_default_pipeline` из `apps.tenants.onboarding_api`
+- `_set_refresh_cookie()`: `samesite='Lax' if DEBUG else 'None'`, `secure=not DEBUG` — в dev `Lax+Secure=False` (работает на localhost), в prod `None+Secure=True`
+
+**apps/tenants/onboarding_api.py:**
+- `onboarding_skip()`: добавлен `_seed_default_pipeline()` при пропуске онбординга
+- `_apply_distribution_step()`: `trigger='new_lead'` → `trigger='new_deal'`
+
+**apps/channels/tasks.py:**
+- `route_incoming_message()` auto_create_lead: обёрнут в try/except с логированием в message.error
+- Запрос Pipeline: `filter(is_default=True, is_active=True)`, fallback `filter(is_active=True)`
+- Запрос Stage: `pipeline.stages.order_by('sort_order', 'id').first()` (Stage не имеет `is_active`)
+
+**apps/distribution/services.py:**
+- `try_distribute()`: реализован синонимный фоллбек — если `'new_deal'` не нашёл правило, пробует `'new_lead'` и наоборот
+
+**apps/distribution/models.py:**
+- `DistributionLog.SOURCE_CHOICES`: добавлен `('builtin_crm', 'Встроенная CRM')`
+
+**frontend/src/views/DealsView.vue:**
+- Добавлены `canCreateContact`, `canCreateCompany` computed
+- В форме создания сделки: контакт/компания с `select-with-add` + `+` кнопкой
+- В форме редактирования сделки: то же самое
+- Диалоги `showQuickContact`/`showQuickCompany` (имя, фамилия, телефон, email / название, ИНН, телефон)
+- `submitQuickContact()` / `submitQuickCompany()`: создание через API, авто-выбор в форме
+- CSS: `.select-with-add`, `.flex-1`
+
+### Файлы (8 файлов изменено):
+- `apps/users/api.py`
+- `apps/tenants/onboarding_api.py`
+- `apps/channels/tasks.py`
+- `apps/distribution/services.py`
+- `apps/distribution/models.py`
+- `frontend/src/views/DealsView.vue`
+- `docs/DEV_LOG.md`
+- `docs/*` (RELEASE_NOTES, TASK_STATE, DECISIONS, KNOWN_ISSUES)
+
+### Валидация:
+- `docker compose down` / `up -d --build` ✅
+- `manage.py check` → 0 issues ✅
+- Frontend build: 686 modules ✅
+- Frontend tests: 5/5 ✅
+- Distribution tests: 2/2 ✅
+- Channels tests: 3/3 ✅ (auto_create_lead + error handling)
+- Onboarding tests: 1/1 ✅
+- CRM tests: 8/8 ✅
+
+### Риски:
+- Пре-экзистинг: 1 tenant-тест падает с `ai_assistant_aiconversation` (KNOWN_ISSUES #5)
+- Долгий cold-start тестов из-за создания БД (решается `--keepdb`)
+
+### Дополнение 2026-05-10 (сессия — второе исправление):
+После исправления cookie SameSite пользователь всё ещё выходил при рефреше. Корневая причина:
+1. `auth.ts:39` — `isAuthenticated` требовал `state.user && getAccessToken()`. При сбое `me()` после успешного refresh'а `user` оставался null → `isAuthenticated = false` → logout.
+2. `auth.ts:52-56` — catch в `initialize()` обнулял `user`, `organizations`, `tenant_slug` даже при валидном токене.
+**Исправлено:**
+- `isAuthenticated` → `getAccessToken() !== null` (токен — источник истины для аутентификации)
+- catch в `initialize()`: не обнуляет slug/organizations; не обнуляет user если он уже был
+- `apps/users/api.py:375`: `samesite='None'` всегда (Lax не отправляет куки при cross-origin `fetch()`)
+**Изменённые файлы:** `frontend/src/stores/auth.ts`, `apps/users/api.py`
 
 ### Корневая причина:
 После редизайна пользователи сообщили о неработающих кнопках в онбординге и других разделах. Аудит выявил системный паттерн: API-вызовы без обработки ошибок во всех view. Основные проблемы:

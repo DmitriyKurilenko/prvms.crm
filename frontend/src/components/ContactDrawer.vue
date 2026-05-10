@@ -10,7 +10,7 @@
         <div class="avatar avatar-lg" :style="{ background: avatarColor }">{{ initials }}</div>
         <div class="drawer-header-info">
           <div class="drawer-name">{{ contact.first_name }} {{ contact.last_name }}</div>
-          <div class="drawer-sub">{{ (contact as any).position || 'Контакт' }}</div>
+          <div class="drawer-sub">{{ contact.position || 'Контакт' }}</div>
         </div>
         <div class="drawer-actions">
           <button class="drawer-action-btn" title="Позвонить" @click="callContact">
@@ -63,14 +63,14 @@
             <i class="pi pi-id-card info-icon" />
             <div>
               <div class="info-label">Должность</div>
-              <div class="info-val">{{ (contact as any).position || '—' }}</div>
+              <div class="info-val">{{ contact.position || '—' }}</div>
             </div>
           </div>
-          <div v-if="(contact as any).messenger_id" class="info-row">
+          <div v-if="contact.messenger_id" class="info-row">
             <i class="pi pi-telegram info-icon" />
             <div>
               <div class="info-label">Мессенджер</div>
-              <div class="info-val">{{ (contact as any).messenger_id }}</div>
+              <div class="info-val">{{ contact.messenger_id }}</div>
             </div>
           </div>
           <div class="info-row">
@@ -80,7 +80,7 @@
               <div class="info-val">{{ formatDate(contact.created_at) }}</div>
             </div>
           </div>
-          <div v-if="(contact as any).esign_agreement_signed_at" class="info-row">
+          <div v-if="contact.esign_agreement_signed_at" class="info-row">
             <i class="pi pi-verified info-icon" style="color: #22c55e" />
             <div>
               <div class="info-label">ЭДО</div>

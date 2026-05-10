@@ -13,6 +13,7 @@ from apps.core.tenant import get_request_tenant
 from apps.integrations.models import ManagerProfile
 from apps.users.models import Membership, User
 from apps.distribution.models import DistributionRule
+from apps.tenants.services import ensure_default_pipeline
 
 onboarding_router = Router(tags=['onboarding'], auth=JWTAuth())
 
@@ -51,6 +52,7 @@ def onboarding_skip(request):
     tenant = get_request_tenant(request)
     tenant.onboarding_step = 5
     tenant.save(update_fields=['onboarding_step'])
+    ensure_default_pipeline()
     return {'detail': 'ok', 'onboarding_step': 5}
 
 
@@ -71,7 +73,7 @@ def _apply_crm_mode_step(tenant, payload: dict):
         tenant.crm_mode = crm_mode
         tenant.save(update_fields=['crm_mode'])
     if crm_mode == 'builtin':
-        _seed_default_pipeline()
+        ensure_default_pipeline()
 
 
 def _apply_managers_step(tenant, payload: dict):
@@ -165,35 +167,12 @@ def _apply_distribution_step(payload: dict):
     DistributionRule.objects.get_or_create(
         name='Основное правило',
         defaults={
-            'trigger': 'new_lead',
+            'trigger': 'new_deal',
             'strategy': strategy,
             'priority': 0,
             'is_active': True,
         },
     )
-
-
-def _seed_default_pipeline():
-    """Create a default sales pipeline with typical stages if none exists."""
-    from apps.crm.models import Pipeline, Stage
-
-    if Pipeline.objects.exists():
-        return
-
-    pipeline = Pipeline.objects.create(name='Продажи', is_default=True, sort_order=0)
-    stages = [
-        ('Новая заявка', 'open', '#3B82F6', 0),
-        ('Квалификация', 'open', '#8B5CF6', 1),
-        ('Предложение', 'open', '#F59E0B', 2),
-        ('Переговоры', 'open', '#EF4444', 3),
-        ('Согласование', 'open', '#10B981', 4),
-        ('Успешно закрыта', 'won', '#22C55E', 5),
-        ('Проиграна', 'lost', '#6B7280', 6),
-    ]
-    Stage.objects.bulk_create([
-        Stage(pipeline=pipeline, name=name, stage_type=stype, color=color, sort_order=order)
-        for name, stype, color, order in stages
-    ])
 
 
 def _next_available_username(seed: str) -> str:

@@ -13,7 +13,7 @@ describe('api http client', () => {
   })
 
   it('adds authorization and tenant headers to requests', async () => {
-    const fetchMock = vi.fn(async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => {
       return new Response(JSON.stringify({ status: 'ok' }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' }
@@ -27,7 +27,7 @@ describe('api http client', () => {
     await api('/healthz', { baseURL: 'http://example.local' })
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    const [input, init] = fetchMock.mock.calls[0] as [Request | string, RequestInit | undefined]
+    const [input, init] = fetchMock.mock.calls[0]
     const headers =
       init?.headers !== undefined
         ? new Headers(init.headers)

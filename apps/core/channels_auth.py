@@ -5,6 +5,7 @@ from urllib.parse import parse_qs
 from channels.db import database_sync_to_async
 from channels.middleware import BaseMiddleware
 from django.contrib.auth.models import AnonymousUser
+from ninja_jwt.exceptions import TokenError
 from ninja_jwt.tokens import AccessToken
 
 from apps.users.models import User
@@ -18,7 +19,8 @@ def _get_user_by_access_token(token: str):
         if not user_id:
             return AnonymousUser()
         return User.objects.filter(id=user_id, is_active=True).first() or AnonymousUser()
-    except Exception:
+    except TokenError:
+        # Invalid / expired access token — treat as anonymous on the WS layer.
         return AnonymousUser()
 
 

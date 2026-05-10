@@ -2,12 +2,11 @@ from django.db import models
 
 
 class AIConversation(models.Model):
-    """Диалог пользователя с AI-ассистентом."""
-    tenant = models.ForeignKey(
-        'tenants.Tenant',
-        on_delete=models.CASCADE,
-        related_name='ai_conversations',
-    )
+    """Диалог пользователя с AI-ассистентом.
+
+    Живёт в tenant schema — изоляция по тенанту обеспечивается схемой,
+    отдельный FK на Tenant не нужен.
+    """
     user = models.ForeignKey(
         'users.User',
         on_delete=models.CASCADE,
@@ -28,7 +27,7 @@ class AIConversation(models.Model):
         related_name='ai_conversations',
     )
     title = models.CharField(max_length=200, blank=True)
-    herMes_conversation_id = models.CharField(max_length=200, blank=True)
+    hermes_conversation_id = models.CharField(max_length=200, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

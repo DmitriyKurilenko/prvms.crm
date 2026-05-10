@@ -1,0 +1,193 @@
+services:
+  db:
+    image: postgres:18-alpine
+    restart: always
+    expose:
+      - "5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql
+      - /opt/backups:/backups
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
+  redis:
+    image: redis:8-alpine
+    restart: always
+    expose:
+      - "6379"
+    networks:
+      - backend
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+        reservations:
+          cpus: '0.05'
+          memory: 64M
+
+  web:
+    build:
+      context: /opt/kapitan_api
+      dockerfile: Dockerfile
+    restart: always
+    command: gunicorn config.wsgi:application --bind 0.0.0.0:8000 --timeout 120 --workers 2
+    expose:
+      - "8000"
+    volumes:
+      - static_data:/app/staticfiles
+      - media_data:/app/media
+    networks:
+      - backend
+      - proxy
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - /opt/kapitan_api/.env
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.kapitan_api.rule=Host(`kapitan.prvms.ru`)"
+      - "traefik.http.routers.kapitan_api.entrypoints=websecure"
+      - "traefik.http.routers.kapitan_api.tls.certresolver=le"
+      - "traefik.http.services.kapitan_api.loadbalancer.server.port=8000"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
+  celery_worker:
+    build:
+      context: /opt/kapitan_api
+      dockerfile: Dockerfile
+    restart: always
+    command: celery -A config worker -l info
+    volumes:
+      - static_data:/app/staticfiles
+      - media_data:/app/media
+    networks:
+      - backend
+      - proxy
+    depends_on:
+      - web
+      - redis
+    env_file:
+      - /opt/kapitan_api/.env
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
+  celery_beat:
+    build:
+      context: /opt/kapitan_api
+      dockerfile: Dockerfile
+    restart: always
+    command: celery -A config beat -l info
+    volumes:
+      - static_data:/app/staticfiles
+      - media_data:/app/media
+    networks:
+      - backend
+      - proxy
+    depends_on:
+      - web
+      - redis
+    env_file:
+      - /opt/kapitan_api/.env
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+        reservations:
+          cpus: '0.05'
+          memory: 64M
+
+  flower:
+    build:
+      context: /opt/kapitan_api
+      dockerfile: Dockerfile
+    restart: always
+    command: celery -A config flower --port=5555 --basic_auth=${FLOWER_USER}:${FLOWER_PASSWORD}
+    expose:
+      - "5555"
+    networks:
+      - backend
+      - proxy
+    depends_on:
+      - redis
+    env_file:
+      - /opt/kapitan_api/.env
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.kapitan_flower.rule=Host(`kapitan.prvms.ru`) && PathPrefix(`/flower`)"
+      - "traefik.http.routers.kapitan_flower.entrypoints=websecure"
+      - "traefik.http.routers.kapitan_flower.tls.certresolver=le"
+      - "traefik.http.services.kapitan_flower.loadbalancer.server.port=5555"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+        reservations:
+          cpus: '0.05'
+          memory: 64M
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  static_data:
+    driver: local
+  media_data:
+    driver: local
+
+networks:
+  backend:
+    driver: bridge
+    internal: true
+  proxy:
+    external: true
+    name: proxy
