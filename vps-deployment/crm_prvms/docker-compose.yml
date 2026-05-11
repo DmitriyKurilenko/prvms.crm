@@ -234,7 +234,10 @@ services:
       migrate:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost/ || exit 1"]
+      # busybox wget in nginx:alpine does not fall back IPv6 -> IPv4, and nginx
+      # listens IPv4-only here, so localhost (which resolves to ::1 first)
+      # gives "Connection refused". Force the IPv4 literal.
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/ || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3

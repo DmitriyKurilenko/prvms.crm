@@ -235,3 +235,32 @@
 - Зелёный `npm run typecheck`, 5/5 vitest, 118/118 Django tests.
 - Частная функция `_seed_default_pipeline` больше не импортируется через границу app — единая публичная точка через `apps.tenants.services.provision_tenant`.
 - Production console чище: только warn/error попадают в браузер.
+
+## DEC-033: Системная диагностика и перезапуск Traefik после деплоя (2026-05-11)
+**Контекст:** Проект `crm_prvms` на shared VPS не получал Let's Encrypt сертификат, хотя остальные проекты работали. Точечный скрипт `fix-crm-https.sh` маскировал проблему, но не устранял первопричину. Traefik не видел Docker-роутеры CRM.
+**Решение:**
+- Удалён временный `fix-crm-https.sh`. Вся логика восстановления встроена в общие скрипты.
+- `fix-https.sh`: добавлена проверка типа сети `proxy` (overlay + attachable), проверка роутеров через Traefik Dashboard API (`localhost:8080/api/http/routers`), принудительный перезапуск Traefik после ремонта.
+- `start-all.sh`: после запуска всех проектов Traefik перезапускается, чтобы гарантированно увидеть все контейнеры (Docker provider `watch=true` иногда пропускает события при быстрых `compose up`).
+- `check-https.sh`: добавлена проверка `driver=overlay`/`attachable=true` для сети `proxy` и проверка наличия каждого проектного роутера в Traefik API.
+- `crm_prvms/deploy.sh`: после `docker compose up -d` Traefik перезапускается, чтобы подхватить новые/пересозданные контейнеры.
+**Последствия:** Любой деплой или перезапуск стека гарантирует, что Traefik перечитывает Docker-конфигурацию. Сетевая целостность `proxy` проверяется автоматически. Точечные скрипты больше не нужны.
+
+## DEC-034: HealthCheckBypassMiddleware + IPv4-литерал для liveness-probe (2026-05-11)
+**Контекст:** Диагностика DEC-033 устранила симптом (Traefik не видел роутеры), но при следующем деплое сертификат снова не выдался. Debug-лог Traefik показал `Filtering unhealthy or starting container` для `crm_prvms-web` и `crm_prvms-frontend-app` — Traefik 2.x **намеренно** не регистрирует роутеры контейнеров со статусом `unhealthy`/`starting`. Причины unhealthy оказались две, обе системные:
+1. `web` healthcheck бил `curl http://localhost:8000/healthz`, но Django возвращал 404 — `django_tenants.middleware.main.TenantMainMiddleware` стоит перед URL-резолвом и не находит домен `localhost`/`127.0.0.1` в shared schema `Domain`, поэтому отдаёт 404 ещё до того, как `config/urls.py` получает шанс отработать. `SHOW_PUBLIC_IF_NO_TENANT_FOUND=True` поведение не меняет в актуальной версии django-tenants в этой конфигурации.
+2. `frontend-app` healthcheck использовал `wget -q --spider http://localhost/`. Busybox-`wget` в `nginx:alpine` резолвит `localhost` в `::1` первым и **не** делает fallback на IPv4, а nginx слушает только IPv4 (entrypoint `10-listen-on-ipv6-by-default.sh` пропускает добавление IPv6-listen из-за «differs from packaged» конфига).
+
+**Решение:**
+- `apps/core/middleware.py`: новый `HealthCheckBypassMiddleware`, отвечает `JsonResponse({'status':'ok'})` на `/healthz` и `/healthz/` **до** любых других middleware.
+- `config/settings.py`: `HealthCheckBypassMiddleware` поставлен первым в `MIDDLEWARE`, до `TenantMainMiddleware`.
+- `vps-deployment/crm_prvms/docker-compose.yml`: healthcheck `frontend-app` использует `http://127.0.0.1/` вместо `localhost` (IPv4-литерал, обход busybox-wget без IPv6-fallback).
+- `vps-deployment/scripts/start-all.sh`: добавлен preflight `crm_prvms`: если `PUBLIC_HOSTNAME` отсутствует/пуст в `.env.prod`, проект не стартует — Traefik-лейблы шаблонизированы на этой переменной и без неё дают `Host(``)`.
+- `.gitignore`: убран блок-исключение `/vps-deployment` (тёрло отслеживание полезных файлов); добавлены прицельные паттерны `vps-deployment/**/.env*`, `acme.json`, `logs/`, `media/`. Удалён случайный снапшот `vps-deployment/crm_prvms/.venv.current_on_server` с production-секретами.
+
+**Последствия:**
+- Liveness-probe больше не зависит от состояния тенантов/доменов — endpoint работает с любого `Host` header, до tenant resolution.
+- Контейнер `frontend-app` становится healthy через 30 секунд после старта без костылей с curl/wget внутри образа.
+- `start-all.sh` обрывает запуск CRM до того, как Traefik увидит контейнер с пустым `Host(``)` лейблом — fail-fast вместо silent-fail.
+- Любая утечка `.env.prod` или серверного снапшота в репозиторий заблокирована на уровне `.gitignore`.
+- DEC-033 (перезапуск Traefik) остаётся как defensive measure — устраняет редкие случаи пропуска docker-events. Не отменяется.

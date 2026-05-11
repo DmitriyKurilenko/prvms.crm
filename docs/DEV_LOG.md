@@ -1,5 +1,64 @@
 # Dev Log
 
+## 2026-05-11 (2) — Корневое исправление HTTPS: healthcheck → tenant middleware → Traefik filtering (DEC-034)
+
+### Корневая причина:
+DEC-033 устранил часть проблем (стало проще диагностировать, перезапуск Traefik подхватывает свежие контейнеры), но Let's Encrypt-сертификат для `crm.prvms.ru` всё равно не выдавался. Debug-лог Traefik (`--log.level=DEBUG`) показал точную причину: `Filtering unhealthy or starting container` для `crm_prvms-web` и `crm_prvms-frontend-app`. Traefik 2.x **намеренно** не регистрирует роутеры контейнеров в статусе `unhealthy`/`starting` — это документированное поведение Docker provider. Дальнейший анализ дал две независимые причины unhealthy:
+
+1. **web → 404 на `/healthz`.** Endpoint существует в `config/urls.py`, но `django_tenants.middleware.main.TenantMainMiddleware` стоит **перед** URL-резолвом. Docker healthcheck бьёт `curl http://localhost:8000/healthz`, домен `localhost` отсутствует в shared `Domain` table — middleware возвращает 404 до того, как `config/urls.py` получит запрос. `SHOW_PUBLIC_IF_NO_TENANT_FOUND=True` в этой конфигурации поведение не меняет.
+2. **frontend-app → connection refused.** Healthcheck `wget -q --spider http://localhost/`. Busybox-wget в `nginx:alpine` резолвит `localhost` → `::1` и не делает fallback на IPv4. Nginx слушает только IPv4 (entrypoint `10-listen-on-ipv6-by-default.sh` сам сообщает, что не дописал IPv6-listen: `default.conf differs from packaged version`).
+
+Дополнительный триггер (изначальный пусковой механизм): серверный `.env.prod` был создан без `PUBLIC_HOSTNAME`. Compose интерполировал лейбл в `Host(``)`, и Traefik сразу отбрасывал такие роутеры. После добавления переменной всплыла настоящая причина — unhealthy filter.
+
+### Изменения:
+
+**Backend:**
+- `apps/core/middleware.py`: добавлен `HealthCheckBypassMiddleware`. Отвечает `JsonResponse({'status':'ok'})` на `/healthz` и `/healthz/` **до** любых других middleware. Liveness-probe больше не зависит от состояния тенантов.
+- `config/settings.py`: `HealthCheckBypassMiddleware` поставлен первым в `MIDDLEWARE`, перед `TenantMainMiddleware`.
+
+**Infra:**
+- `vps-deployment/crm_prvms/docker-compose.yml`: healthcheck `frontend-app` использует `http://127.0.0.1/` вместо `localhost`. Комментарий в файле объясняет почему — busybox wget без IPv6→IPv4 fallback.
+- `vps-deployment/scripts/start-all.sh`: добавлен preflight в `check_build_prereqs` для `crm_prvms` — отказ запуска при отсутствии `PUBLIC_HOSTNAME` в `.env.prod`. Fail-fast вместо silent-fail с `Host(``)`.
+
+**Безопасность репозитория:**
+- `.gitignore`: убран блок-исключение `/vps-deployment` (мешал отслеживать полезные файлы — скрипты, compose, шаблоны). Добавлены прицельные паттерны `vps-deployment/**/.env*`, `acme.json`, `logs/`, `media/`. Шаблон `.venv*` обобщён, чтобы поймать любые серверные снапшоты.
+- Удалён `vps-deployment/crm_prvms/.venv.current_on_server` — снимок production env с реальными секретами (SECRET_KEY, DB_PASSWORD, FIELD_ENCRYPTION_KEY, HERMES_API_KEY, OPENCODE_API_TOKEN). Файл лежал untracked, но в репозитории — теоретически мог попасть в коммит. Рекомендована ротация затронутых ключей на сервере.
+
+### Валидация:
+- `docker compose run --rm web python manage.py check` — проходит.
+- `bash -n vps-deployment/scripts/start-all.sh` — синтаксис ок.
+- `docker compose config` для `crm_prvms` — лейблы интерполируют `Host(\`crm.prvms.ru\`)` при заполненном `.env.prod`; fail-fast при пустом.
+
+### Риски:
+- `HealthCheckBypassMiddleware` обходит весь стек, включая CSRF/auth. Это корректно для liveness-probe, но эндпоинт намеренно ничего не проверяет в БД/Redis — это readiness-probe, а не healthcheck зависимостей. Если потребуется проверять зависимости, добавить отдельный `/readyz` после tenant middleware.
+- DEC-033 (рестарт Traefik в `start-all.sh`/`deploy.sh`/`fix-https.sh`) сохранён — устраняет редкие пропуски Docker-events. Не дублирует DEC-034.
+
+### План для сервера (на следующий деплой):
+1. `cd /opt/crm_prvms && git pull`
+2. Убедиться что `/opt/crm_prvms/.env.prod` содержит `PUBLIC_HOSTNAME=crm.prvms.ru` (если нет — `echo PUBLIC_HOSTNAME=crm.prvms.ru >> .env.prod`).
+3. `./deploy.sh` (он сам пересоберёт образы web/frontend-app, контейнеры станут healthy, Traefik подхватит роутеры, Let's Encrypt выдаст сертификат за ~60 секунд).
+4. `sudo /opt/scripts/check-https.sh` — итоговая проверка.
+
+## 2026-05-11 — Системное исправление HTTPS на shared VPS (DEC-033)
+
+### Корневая причина:
+Проект `crm_prvms` на shared VPS не получал Let's Encrypt сертификат. В логах Traefik отсутствовали записи о создании роутеров для CRM. Временный скрипт `fix-crm-https.sh` маскировал проблему перезапусками, но не устранял первопричину.
+
+### Изменения:
+- **Удалён** `vps-deployment/scripts/fix-crm-https.sh` (временное точечное решение).
+- **`vps-deployment/scripts/fix-https.sh`**: добавлены `inspect_proxy_network()` (проверка overlay/attachable), `check_traefik_routes()` (curl к `localhost:8080/api/http/routers`), `restart_traefik_to_discover()` (down/up после всех проектов).
+- **`vps-deployment/scripts/start-all.sh`**: добавлен `restart_traefik()` — вызывается после цикла запуска всех проектов.
+- **`vps-deployment/scripts/check-https.sh`**: проверка `driver=overlay`/`attachable=true` для сети `proxy`; `check_traefik_routes()` — валидирует наличие каждого проектного роутера.
+- **`vps-deployment/crm_prvms/deploy.sh`**: добавлен `restart_traefik()` после `bring_up`.
+
+### Валидация:
+- `docker compose config` валиден для `traefik` и `crm_prvms`.
+- bash syntax check: `bash -n` для всех изменённых `.sh` — ок.
+
+### Риски:
+- Перезапуск Traefik добавляет ~15 секунд к `start-all.sh` и `deploy.sh`.
+- Если Traefik Dashboard (порт 8080) недоступен, `check_traefik_routes()` вернёт ошибку — это ожидаемое поведение.
+
 ## 2026-05-10 — Полный рефакторинг A-E (DEC-032)
 
 ### Корневая причина:

@@ -72,6 +72,7 @@ AUTH_USER_MODEL = 'users.User'
 
 # ---------- Middleware ----------
 MIDDLEWARE = [
+    'apps.core.middleware.HealthCheckBypassMiddleware',
     'django_tenants.middleware.main.TenantMainMiddleware',
     'apps.core.middleware.EnsureTenantContextMiddleware',
     'corsheaders.middleware.CorsMiddleware',

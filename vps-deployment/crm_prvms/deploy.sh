@@ -202,6 +202,13 @@ bring_up() {
   print_success "Compose up -d completed"
 }
 
+restart_traefik() {
+  print_info "Restarting Traefik to pick up new containers..."
+  (cd /opt/traefik && docker compose down >/dev/null 2>&1 && sleep 3 && docker compose up -d >/dev/null 2>&1) || true
+  sleep 10
+  print_success "Traefik restarted"
+}
+
 # ---------- Health checks -----------------------------------------------------
 
 wait_for_health() {
@@ -259,6 +266,7 @@ main() {
   build_images
   run_migrate_and_collectstatic
   bring_up
+  restart_traefik
   wait_for_health
   show_status
 
