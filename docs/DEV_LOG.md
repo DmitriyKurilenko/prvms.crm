@@ -1,5 +1,50 @@
 # Dev Log
 
+## 2026-05-11 (3) — Финальная доводка HTTPS: дроп frontend-app healthcheck + симлинки compose self-heal (DEC-034)
+
+### Что осталось не пофикшено после DEC-034 первой итерации:
+После выкатки правок (DEC-034 v1) на сервер `/` всё равно отдавало 404. Дебаг показал:
+1. **`/opt/crm_prvms/docker-compose.yml` оказался копией**, а не симлинком на `vps-deployment/crm_prvms/docker-compose.yml`. Git pull обновлял источник, но компоуз-файл, по которому реально стартует стек, оставался замороженным. `docker compose up -d` использовал старый healthcheck (`localhost`) → контейнер unhealthy → Traefik не регистрирует роутер → 404 на любом пути.
+2. Healthcheck для `frontend-app` через busybox-wget остаётся хрупким: он чувствителен к IPv6/IPv4-резолву, PATH, наличию `wget` нужного билда. Каждый малейший сбой делает контейнер `unhealthy`, и Traefik сразу его выкидывает — это слишком хрупкая ситуация для SPA-nginx, который вообще не нуждается в health-проверке.
+
+### Изменения (поверх DEC-034 v1):
+
+**`vps-deployment/crm_prvms/docker-compose.yml`:**
+- `frontend-app`: healthcheck **полностью удалён**. Traefik v2 docker provider трактует контейнеры без healthcheck как healthy и сразу регистрирует роутеры. nginx со статикой не падает; если упадёт — Docker restart policy поднимет. Комментарий в файле объясняет почему.
+- `web`: healthcheck переписан на `curl -fsS http://127.0.0.1:8000/healthz -o /dev/null` — IPv4-литерал вместо `localhost`, `-fsS` для надёжного non-zero exit при HTTP-ошибке. Работает благодаря `HealthCheckBypassMiddleware`.
+
+**`vps-deployment/crm_prvms/deploy.sh`:**
+- Новая функция `ensure_root_layout()` пересоздаёт симлинки `/opt/crm_prvms/docker-compose.yml`, `deploy.sh`, `.env.prod.example` → `vps-deployment/crm_prvms/*` каждый раз при запуске. Если файл оказался копией — он переименовывается в `<file>.copy_replaced_<timestamp>.bak`, и на его месте создаётся симлинк. Запускается **первым шагом** main(), до проверки env и compose.
+- `bring_up()` теперь использует `up -d --remove-orphans --force-recreate` — гарантирует, что compose-level изменения (healthcheck, labels) фактически попадают в свежесозданные контейнеры, а не игнорируются кешем.
+- `wait_for_health()` ждёт `web=healthy` (HealthCheckBypassMiddleware → liveness independent of tenants) и `frontend-app=Up` (без healthcheck больше не существует "healthy" статус, контейнер просто running).
+
+**`vps-deployment/scripts/start-all.sh`:**
+- Зеркальная функция `ensure_crm_root_symlinks()` вызывается из `prepare_project_env` для `crm_prvms`. То же самое поведение — обнаружила копию → бэкапит и пересоздаёт симлинк. Так не понадобится отдельный fix-команды на сервере: первый же `start-all.sh` или `deploy.sh` после `git pull` чинит layout.
+
+### Валидация:
+- `bash -n` на `deploy.sh`, `start-all.sh`, `check-https.sh`, `fix-https.sh` — все чистые.
+- `docker compose config` рендерит compose с правильным web healthcheck (`curl ... 127.0.0.1`) и **без** healthcheck у frontend-app.
+- `manage.py check` — clean (изменений в Django-коде в этой итерации нет, всё держится на DEC-034 v1).
+
+### Деплой на сервер (после git pull):
+```bash
+cd /opt/crm_prvms
+git pull
+./vps-deployment/crm_prvms/deploy.sh   # или прежний путь — оба работают
+```
+`deploy.sh` сам:
+1. Пересоздаст симлинки `/opt/crm_prvms/docker-compose.yml`, `deploy.sh`, `.env.prod.example`.
+2. Соберёт образы.
+3. Прогонит миграции и collectstatic.
+4. Force-recreate всех контейнеров (старый frontend-app с healthcheck исчезнет, новый — без него).
+5. Перезапустит Traefik (defensive measure из DEC-033).
+
+Через 30–60 секунд после `up -d`: контейнеры running/healthy, Traefik видит все три роутера, Let's Encrypt выдаёт сертификат.
+
+### Риски:
+- frontend-app без healthcheck → если nginx-конфиг сломан после деплоя, Traefik будет роутить трафик на бракованный контейнер. Митигация: nginx-конфиг в репо (`frontend/nginx.conf`) проверяется на CI/локально; SPA-build верифицируется `vite build` шагом в Dockerfile.frontend.
+- `--force-recreate` добавляет ~10 секунд к каждому деплою. Цена приемлемая за гарантию что compose-level изменения применились.
+
 ## 2026-05-11 (2) — Корневое исправление HTTPS: healthcheck → tenant middleware → Traefik filtering (DEC-034)
 
 ### Корневая причина:

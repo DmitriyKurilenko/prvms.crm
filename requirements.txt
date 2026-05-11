@@ -1,0 +1,25 @@
+# Версии зафиксированы на апрель 2026. Обновлять осознанно.
+Django>=5.2,<5.3
+django-ninja==1.6.2
+django-tenants==3.10.1
+psycopg[binary]==3.3.3
+celery[redis]==5.6.3
+# celery/kombu[redis] (5.6.x) currently requires redis-py < 6.5
+redis==6.4.0
+weasyprint==68.1
+django-fernet-encrypted-fields==0.3.1
+gunicorn==25.3.0
+requests==2.33.1
+python-telegram-bot==21.11.1
+httpx==0.28.1
+greenswitch==0.0.19
+django-ninja-jwt==5.3.3
+django-cors-headers==4.7.0
+django-environ==0.12.0
+dj-database-url==2.2.0
+channels==4.2.0
+channels-redis==4.2.1
+uvicorn[standard]==0.34.0
+Pillow==11.2.1
+yookassa==3.10.0
+django-storages[s3]==1.14.6

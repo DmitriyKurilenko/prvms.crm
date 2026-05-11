@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.2.2] — 2026-05-11
+
+### Fixed (DEC-034 addendum: production HTTPS — three remaining failure modes)
+
+After `0.2.1` was deployed the homepage on `crm.prvms.ru` still returned 404. Debug-level Traefik logs revealed three structural issues that survived `0.2.1`:
+
+**`/opt/crm_prvms/docker-compose.yml` was a stale copy, not a symlink.** At initial server setup the file got copied instead of `ln -sf`'d to `vps-deployment/crm_prvms/docker-compose.yml`. Every subsequent `git pull` updated the source file but `docker compose up` kept consuming the frozen copy — so the `0.2.1` healthcheck fix never reached the running container.
+
+**`frontend-app` healthcheck removed entirely.** Fighting busybox-`wget` over `localhost` / `::1` / `127.0.0.1` / PATH inside `nginx:alpine` is a losing battle for a static-file container. Any resolution or wget-variant quirk makes the container `unhealthy` and Traefik filters its routers. nginx serving an SPA is reliable; if it dies, Docker's restart policy handles it. Traefik v2 treats containers without a healthcheck as healthy and registers their routers immediately.
+
+**`bring_up()` now uses `--force-recreate`.** Without it, `docker compose up -d` may decide the image hash is unchanged and skip container recreation, leaving the previous compose-level config (healthcheck command, labels) in place. Force-recreate guarantees compose-level changes actually propagate.
+
+### Added
+
+- **`/VERSION`** — single source of truth for the project version (was implicit in `docs/VERSIONING.md` text). [`docs/VERSIONING.md`](docs/VERSIONING.md) now describes the bump-checklist and points to `/VERSION`.
+- **`vps-deployment/crm_prvms/deploy.sh`**: `ensure_root_layout()` idempotently rewrites `/opt/crm_prvms/{docker-compose.yml,deploy.sh,.env.prod.example}` as symlinks to `vps-deployment/crm_prvms/*` on every run. Any pre-existing regular file is backed up to `<file>.copy_replaced_<unix-ts>.bak`. Makes the copy-vs-symlink class of bug structurally impossible.
+- **`vps-deployment/scripts/start-all.sh`**: mirror `ensure_crm_root_symlinks()` in `prepare_project_env`, so first-time setup or drift gets repaired on the next `start-all.sh` run too.
+
+### Changed
+
+- `web` healthcheck rewritten to use `127.0.0.1` literal instead of `localhost`. Marginal — `curl` does IPv4 fallback — but removes the extra RTT and makes behavior deterministic.
+
 ## [0.2.1] — 2026-05-11
 
 ### Fixed (DEC-034: HTTPS root cause)

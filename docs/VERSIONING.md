@@ -4,11 +4,27 @@
 `MAJOR.MINOR.PATCH` (SemVer)
 
 ## Текущая версия
-0.2.1
+
+Единый источник истины — файл [`/VERSION`](../VERSION) в корне репозитория.
+Это единственное место, где значение нужно править при bump-е.
+
+## Bump-чеклист
+
+При каждом релизе:
+1. Обновить `/VERSION` (одна строка, без префиксов).
+2. Добавить новую секцию `## [X.Y.Z] — YYYY-MM-DD` сверху в [`/CHANGELOG.md`](../CHANGELOG.md).
+3. В commit message использовать префикс `X.Y.Z:`.
+4. Если затронуты пользователи — добавить блок в [`/docs/RELEASE_NOTES.md`](RELEASE_NOTES.md) (по-русски, без технических деталей).
+
+## Когда что бампать
+
+- **PATCH (`0.2.x`)** — bug fixes, hardening, security hygiene, рефакторинг без видимых пользователю изменений.
+- **MINOR (`0.x.0`)** — новая пользовательская функциональность, обратно-совместимые изменения API.
+- **MAJOR (`x.0.0`)** — breaking changes (пока проект `0.y.z`, MAJOR не зарезервирован под совместимость — после стабилизации API перейдём на `1.0.0`).
 
 ## Формат коммитов
 ```
-тип(скоуп): описание
+X.Y.Z: тип(скоуп): описание
 
 Тело (опционально)
 ```
@@ -23,7 +39,7 @@
 
 ### Примеры
 ```
-feat(tenants): add Tenant model with django-tenants
-fix(auth): refresh token cookie not set with Secure flag
-docs: update DECISIONS.md with DEC-005
+0.3.0: feat(tenants): add Tenant model with django-tenants
+0.2.2: fix(auth): refresh token cookie not set with Secure flag
+0.2.1: docs: update DECISIONS.md with DEC-005
 ```
