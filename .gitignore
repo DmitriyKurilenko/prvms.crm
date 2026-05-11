@@ -17,7 +17,7 @@ build/
 .mypy_cache/
 .pytest_cache/
 celerybeat*
-*.txt
+cookies.txt
 
 ./claude
 

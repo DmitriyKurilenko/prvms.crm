@@ -287,9 +287,49 @@ check_build_prereqs() {
   return 0
 }
 
+ensure_crm_root_symlinks() {
+  # crm_prvms ships its compose/deploy under vps-deployment/crm_prvms/.
+  # Convention at /opt/crm_prvms/ is a symlink — but a copy left over from
+  # initial setup is silently fatal because git pull updates the source
+  # while the active runtime file stays frozen (e.g. a healthcheck change
+  # never takes effect). Rewrite the symlinks every start.
+  local root="/opt/crm_prvms"
+  [ -d "$root" ] || return 0
+  [ -d "$root/vps-deployment/crm_prvms" ] || return 0
+
+  local pair
+  for pair in \
+    "docker-compose.yml:vps-deployment/crm_prvms/docker-compose.yml" \
+    ".env.prod.example:vps-deployment/crm_prvms/.env.prod.example" \
+    "deploy.sh:vps-deployment/crm_prvms/deploy.sh"; do
+    local link="${pair%%:*}"
+    local target="${pair#*:}"
+    local link_path="${root}/${link}"
+    local target_path="${root}/${target}"
+
+    [ -e "${target_path}" ] || continue
+
+    if [ -L "${link_path}" ]; then
+      [ "$(readlink "${link_path}")" = "${target}" ] && continue
+      rm -f "${link_path}"
+    elif [ -e "${link_path}" ]; then
+      local backup="${link_path}.copy_replaced_$(date +%s).bak"
+      mv "${link_path}" "${backup}"
+      log "crm_prvms: replaced stale copy ${link} → backup ${backup##*/}"
+    fi
+
+    (cd "${root}" && ln -s "${target}" "${link}")
+    log "crm_prvms: ${link} → ${target}"
+  done
+}
+
 prepare_project_env() {
   local project="$1"
   local project_dir="/opt/${project}"
+
+  if [ "$project" = "crm_prvms" ]; then
+    ensure_crm_root_symlinks
+  fi
 
   if [ ! -f "${project_dir}/.env" ] && [ -f "${project_dir}/.env.example" ]; then
     cp "${project_dir}/.env.example" "${project_dir}/.env"

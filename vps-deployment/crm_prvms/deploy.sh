@@ -13,6 +13,9 @@ set -Eeuo pipefail
 
 ENV_FILE=".env.prod"
 COMPOSE_FILE="docker-compose.yml"
+COMPOSE_SOURCE="vps-deployment/crm_prvms/docker-compose.yml"
+DEPLOY_SOURCE="vps-deployment/crm_prvms/deploy.sh"
+ENV_EXAMPLE_SOURCE="vps-deployment/crm_prvms/.env.prod.example"
 DRY_RUN=false
 SKIP_PULL=false
 SKIP_BUILD=false
@@ -64,6 +67,56 @@ detect_compose() {
 
 compose_cmd() {
   ${COMPOSE_BIN} -f "${COMPOSE_FILE}" --env-file "${ENV_FILE}" "$@"
+}
+
+# ---------- Root-level layout self-heal ---------------------------------------
+#
+# Convention:
+#   /opt/crm_prvms/docker-compose.yml      → vps-deployment/crm_prvms/docker-compose.yml
+#   /opt/crm_prvms/deploy.sh               → vps-deployment/crm_prvms/deploy.sh
+#   /opt/crm_prvms/.env.prod.example       → vps-deployment/crm_prvms/.env.prod.example
+#
+# If these were ever copied (instead of symlinked) the working copy diverges
+# from git silently — git pull updates the source under vps-deployment/ but
+# the active runtime files stay frozen. That is exactly how crm.prvms.ru got
+# stuck with an old healthcheck for a week. We rewrite the symlinks every
+# deploy to make this class of bug structurally impossible.
+
+ensure_root_layout() {
+  print_info "Ensuring /opt/crm_prvms/* symlinks point at vps-deployment/crm_prvms/*..."
+
+  if [ ! -f "${COMPOSE_SOURCE}" ]; then
+    print_error "${COMPOSE_SOURCE} not found — is this a git checkout of the project?"
+    exit 1
+  fi
+
+  _ensure_symlink "${COMPOSE_SOURCE}" "${COMPOSE_FILE}"
+  _ensure_symlink "${DEPLOY_SOURCE}"  "deploy.sh"
+  _ensure_symlink "${ENV_EXAMPLE_SOURCE}" ".env.prod.example"
+}
+
+_ensure_symlink() {
+  local target="$1"   # path relative to repo root
+  local link="$2"     # path at repo root
+  local current
+
+  if [ -L "${link}" ]; then
+    current="$(readlink "${link}")"
+    if [ "${current}" = "${target}" ]; then
+      print_success "${link} → ${target} (ok)"
+      return
+    fi
+    rm -f "${link}"
+  elif [ -e "${link}" ]; then
+    # Regular file (a copy) — back up once, then replace with the symlink.
+    local backup
+    backup="${link}.copy_replaced_$(date +%s).bak"
+    mv "${link}" "${backup}"
+    print_info "Replaced stale copy ${link} → backup at ${backup}"
+  fi
+
+  ln -s "${target}" "${link}"
+  print_success "${link} → ${target}"
 }
 
 # ---------- Env file validation ----------------------------------------------
@@ -197,8 +250,8 @@ run_migrate_and_collectstatic() {
 }
 
 bring_up() {
-  print_info "Bringing up containers..."
-  compose_cmd up -d --remove-orphans
+  print_info "Bringing up containers (force-recreate so compose-level changes — healthcheck, labels — actually take effect)..."
+  compose_cmd up -d --remove-orphans --force-recreate
   print_success "Compose up -d completed"
 }
 
@@ -212,15 +265,19 @@ restart_traefik() {
 # ---------- Health checks -----------------------------------------------------
 
 wait_for_health() {
-  print_info "Waiting for services to become healthy..."
+  # web has a healthcheck (HealthCheckBypassMiddleware answers /healthz).
+  # frontend-app deliberately has no healthcheck — we only wait for "running"
+  # to know nginx started. Traefik registers no-healthcheck containers
+  # immediately.
+  print_info "Waiting for services to be ready..."
   local timeout=180
   local elapsed=0
   while [ $elapsed -lt $timeout ]; do
-    local web_ok frontend_ok
+    local web_ok frontend_running
     web_ok=$(compose_cmd ps web | tail -n +2 | grep -c "healthy" || true)
-    frontend_ok=$(compose_cmd ps frontend-app | tail -n +2 | grep -c "healthy" || true)
-    if [ "$web_ok" -ge 1 ] && [ "$frontend_ok" -ge 1 ]; then
-      print_success "web + frontend-app are healthy"
+    frontend_running=$(compose_cmd ps frontend-app | tail -n +2 | grep -c "Up" || true)
+    if [ "$web_ok" -ge 1 ] && [ "$frontend_running" -ge 1 ]; then
+      print_success "web healthy, frontend-app running"
       return 0
     fi
     sleep 5
@@ -228,7 +285,7 @@ wait_for_health() {
     echo -n "."
   done
   echo ""
-  print_error "Services did not become healthy within ${timeout}s"
+  print_error "Services did not become ready within ${timeout}s"
   print_info "Container status:"
   compose_cmd ps
   print_info "Recent web logs:"
@@ -250,6 +307,7 @@ main() {
   echo ""
 
   detect_compose
+  ensure_root_layout
   check_required_env
   pin_runtime_env_from_file
   validate_compose

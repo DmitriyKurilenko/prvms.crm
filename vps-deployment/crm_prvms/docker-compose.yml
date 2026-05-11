@@ -132,7 +132,11 @@ services:
     env_file:
       - ./.env.prod
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8000/healthz || exit 1"]
+      # HealthCheckBypassMiddleware answers /healthz before any tenant/auth
+      # middleware, so this works regardless of Domain/Tenant state. IPv4
+      # literal avoids the IPv6 -> IPv4 round-trip and matches the actual
+      # interface gunicorn binds (0.0.0.0:8000).
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/healthz -o /dev/null || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -233,15 +237,12 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
-    healthcheck:
-      # busybox wget in nginx:alpine does not fall back IPv6 -> IPv4, and nginx
-      # listens IPv4-only here, so localhost (which resolves to ::1 first)
-      # gives "Connection refused". Force the IPv4 literal.
-      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/ || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
+    # No healthcheck on purpose: nginx serving static SPA files is reliable
+    # enough that probing it via busybox wget (which is finicky about IPv6,
+    # PATH and 127.0.0.1 vs localhost) creates more outages than it prevents.
+    # Traefik v2 docker provider treats containers without a healthcheck as
+    # healthy and will register their routers immediately. If nginx dies,
+    # Docker's restart policy handles recovery.
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=proxy"
