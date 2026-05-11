@@ -127,15 +127,32 @@ get_server_ip() {
 
 extract_domains_from_compose() {
   local compose_file="$1"
+  local project="$2"
+  local domains
+
   if command -v rg >/dev/null 2>&1; then
-    rg -o 'Host\(`[^`]+`\)' "$compose_file" 2>/dev/null \
+    domains="$(rg -o 'Host\(`[^`]+`\)' "$compose_file" 2>/dev/null \
       | sed -E 's/Host\(`([^`]+)`\)/\1/' \
-      | sort -u
+      | sort -u)"
   else
-    grep -oE 'Host\(`[^`]+`\)' "$compose_file" 2>/dev/null \
+    domains="$(grep -oE 'Host\(`[^`]+`\)' "$compose_file" 2>/dev/null \
       | sed -E 's/Host\(`([^`]+)`\)/\1/' \
-      | sort -u
+      | sort -u)"
   fi
+
+  # For crm_prvms, resolve ${PUBLIC_HOSTNAME} from .env.prod
+  if [ "$project" = "crm_prvms" ] && echo "$domains" | grep -q 'PUBLIC_HOSTNAME'; then
+    local env_file="/opt/crm_prvms/.env.prod"
+    if [ -f "$env_file" ]; then
+      local hostname
+      hostname="$(grep -E '^PUBLIC_HOSTNAME=' "$env_file" | tail -n 1 | cut -d '=' -f2- || true)"
+      if [ -n "$hostname" ]; then
+        domains="$(echo "$domains" | sed "s/\${PUBLIC_HOSTNAME}/${hostname}/g")"
+      fi
+    fi
+  fi
+
+  echo "$domains"
 }
 
 resolve_domain_ip() {
@@ -182,7 +199,7 @@ check_dns_preflight() {
         warn "DNS mismatch: ${domain} -> ${resolved} (expected ${host_ip})"
         mismatched=$((mismatched + 1))
       fi
-    done < <(extract_domains_from_compose "$compose_file")
+    done < <(extract_domains_from_compose "$compose_file" "$project")
   done
 
   if [ "$checked" -eq 0 ]; then
@@ -236,6 +253,21 @@ check_build_prereqs() {
         return 1
       fi
       ;;
+  esac
+
+  # crm_prvms templates Traefik labels with ${PUBLIC_HOSTNAME}. If the var is
+  # missing from .env.prod the labels become Host(``) → Traefik silently drops
+  # the routers and the project cannot get a Let's Encrypt certificate.
+  if [ "$project" = "crm_prvms" ] && [ -f "${project_dir}/.env.prod" ]; then
+    if ! grep -qE '^[[:space:]]*PUBLIC_HOSTNAME=[^[:space:]]+' "${project_dir}/.env.prod"; then
+      echo "❌ crm_prvms: PUBLIC_HOSTNAME missing or empty in ${project_dir}/.env.prod"
+      echo "   Traefik labels will not interpolate and HTTPS routing will silently fail."
+      echo "   Fix: copy from .env.prod.example or 'echo PUBLIC_HOSTNAME=<domain> >> .env.prod'"
+      return 1
+    fi
+  fi
+
+  case "$project" in
     druzhina)
       if [ ! -f "${project_dir}/Dockerfile" ]; then
         echo "❌ druzhina: missing ${project_dir}/Dockerfile"
@@ -407,6 +439,12 @@ print_summary() {
   echo
 }
 
+restart_traefik() {
+  log "Restarting Traefik to discover all containers..."
+  (cd /opt/traefik && docker compose down >/dev/null 2>&1 && sleep 3 && docker compose up -d >/dev/null 2>&1) || true
+  sleep 10
+}
+
 main() {
   log "🚀 Starting all services..."
   require_docker
@@ -419,6 +457,7 @@ main() {
     start_project "$project"
   done
 
+  restart_traefik
   print_summary
 
   if [ "${#FAILED[@]}" -gt 0 ]; then

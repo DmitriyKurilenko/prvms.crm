@@ -23,6 +23,14 @@
 10. ~~В DealsView не было быстрого создания контакта/компании.~~
     - Исправлено: quick-create диалоги + `+` кнопки в формах создания/редактирования
 
+## Закрытые (2026-05-11)
+
+12. ~~crm.prvms.ru не получает Let's Encrypt сертификат на shared VPS.~~
+    - **Истинная причина (выявлена debug-логами Traefik):** Traefik 2.x намеренно не регистрирует роутеры для контейнеров со статусом `unhealthy`/`starting` (`Filtering unhealthy or starting container`). Контейнеры `web` и `frontend-app` были unhealthy по двум независимым причинам: (а) `web` healthcheck бил `/healthz`, но `django_tenants.TenantMainMiddleware` не находил `localhost` в Domain table и возвращал 404 до URL-резолва; (б) `frontend-app` healthcheck использовал busybox-wget на `localhost`, который резолвит `::1` и не делает IPv4-fallback, а nginx слушал только IPv4.
+    - **Дополнительная причина (исходный триггер):** В серверном `.env.prod` отсутствовал `PUBLIC_HOSTNAME`, на котором шаблонизированы Traefik-лейблы. Без него лейблы становились `Host(``)` и Traefik их отбрасывал.
+    - **Исправление (DEC-034):** `HealthCheckBypassMiddleware` отвечает на `/healthz` до tenant resolution; healthcheck `frontend-app` использует `127.0.0.1`; в `start-all.sh` добавлен preflight на `PUBLIC_HOSTNAME`. DEC-033 (перезапуск Traefik) сохранён как defensive measure.
+    - **Файлы:** `apps/core/middleware.py`, `config/settings.py`, `vps-deployment/crm_prvms/docker-compose.yml`, `vps-deployment/scripts/start-all.sh`, `.gitignore`
+
 ## Открытые
 
 1. Для внешних CRM в production всё ещё требуется финальная валидация на реальных аккаунтах маркетплейсов amoCRM/Битрикс24 (боевые app credentials + реальный callback домен).

@@ -10,7 +10,7 @@ media/
 staticfiles/
 node_modules/
 frontend/dist/
-.venv/
+.venv*
 *.egg-info/
 dist/
 build/
@@ -20,3 +20,12 @@ celerybeat*
 *.txt
 
 ./claude
+
+# vps-deployment: track scripts/compose/templates, ignore secrets and runtime state.
+vps-deployment/**/.env
+vps-deployment/**/.env.prod
+vps-deployment/**/.env.local
+vps-deployment/**/.env.*.local
+vps-deployment/**/acme.json
+vps-deployment/**/logs/
+vps-deployment/**/media/

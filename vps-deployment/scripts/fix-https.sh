@@ -175,7 +175,7 @@ recreate_patched_projects() {
 router_name_for() {
   local project="$1"
   case "$project" in
-    crm_prvms)  echo "crm_prvms" ;;
+    crm_prvms)  echo "crm-spa" ;;
     rent_django) echo "rent_django" ;;
     kapitan_api) echo "kapitan_api" ;;
     kupi_slona) echo "kupi_slona" ;;
@@ -197,13 +197,61 @@ ensure_traefik() {
   fi
 }
 
-ensure_proxy_network_health() {
-  if ! docker network inspect "$PROXY_NET" >/dev/null 2>&1; then
-    issue "Network '${PROXY_NET}' does not exist"
-    log "Creating overlay '${PROXY_NET}'..."
+inspect_proxy_network() {
+  echo
+  echo "── Network '${PROXY_NET}' inspection ───────────────"
+  local driver attachable
+  driver="$(docker network inspect -f '{{.Driver}}' "$PROXY_NET" 2>/dev/null || echo 'missing')"
+  attachable="$(docker network inspect -f '{{.Attachable}}' "$PROXY_NET" 2>/dev/null || echo 'n/a')"
+  echo "  driver=${driver}, attachable=${attachable}"
+
+  if [ "$driver" != "overlay" ] || [ "$attachable" != "true" ]; then
+    issue "Network '${PROXY_NET}' is not overlay/attachable (driver=${driver}, attachable=${attachable}). HTTPS routing will break."
+    log "Recreating '${PROXY_NET}' as overlay attachable..."
+    # Disconnect all containers first, then recreate
+    local cid
+    while IFS= read -r cid; do
+      [ -n "$cid" ] || continue
+      docker network disconnect -f "$PROXY_NET" "$cid" >/dev/null 2>&1 || true
+    done < <(docker network inspect -f '{{range .Containers}}{{.Name}}{{"\n"}}{{end}}' "$PROXY_NET" 2>/dev/null)
+    docker network rm "$PROXY_NET" >/dev/null 2>&1 || true
     docker network create -d overlay --attachable "$PROXY_NET" >/dev/null
-    fix "Created network ${PROXY_NET}"
+    fix "Recreated '${PROXY_NET}' as overlay attachable"
   fi
+}
+
+check_traefik_routes() {
+  echo
+  echo "── Traefik HTTP routers ──────────────────────"
+  local routers_json
+  routers_json="$(curl -s http://localhost:8080/api/http/routers 2>/dev/null || true)"
+  if [ -z "$routers_json" ] || [ "$routers_json" = "null" ]; then
+    issue "Cannot reach Traefik API at http://localhost:8080/api/http/routers"
+    return
+  fi
+
+  local missing=0
+  for p in "${PROJECTS[@]}"; do
+    local rname
+    rname="$(router_name_for "$p")"
+    if [ -z "$rname" ]; then
+      continue
+    fi
+    if echo "$routers_json" | grep -q "\"${rname}\""; then
+      echo "  ✅ ${p}: router '${rname}' found"
+    else
+      echo "  ❌ ${p}: router '${rname}' NOT found"
+      missing=$((missing + 1))
+    fi
+  done
+
+  if [ "$missing" -gt 0 ]; then
+    issue "${missing} Traefik router(s) missing. Traefik may not see containers (wrong network, missing labels, or stale provider cache)."
+  fi
+}
+
+ensure_proxy_network_health() {
+  inspect_proxy_network
 
   if [ -n "$TRAEFIK_CID" ]; then
     local nets
@@ -216,6 +264,13 @@ ensure_proxy_network_health() {
       (cd /opt/traefik && docker compose up -d --force-recreate) >/dev/null 2>&1 || true
     fi
   fi
+}
+
+restart_traefik_to_discover() {
+  log "Restarting Traefik to discover all containers..."
+  (cd /opt/traefik && docker compose down >/dev/null 2>&1 && sleep 3 && docker compose up -d >/dev/null 2>&1) || true
+  sleep 10
+  TRAEFIK_CID="$(docker ps -qf 'name=^traefik-traefik' | head -1)"
 }
 
 scan_project() {
@@ -355,7 +410,8 @@ main() {
     scan_project "$p"
   done
 
-  reload_traefik_routes
+  restart_traefik_to_discover
+  check_traefik_routes
 
   print_acme_state
   print_acme_errors

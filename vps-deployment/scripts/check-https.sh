@@ -35,15 +35,32 @@ get_server_ip() {
 
 extract_domains_from_compose() {
   local compose_file="$1"
+  local project="$2"
+  local domains
+
   if command -v rg >/dev/null 2>&1; then
-    rg -o 'Host\(`[^`]+`\)' "$compose_file" 2>/dev/null \
+    domains="$(rg -o 'Host\(`[^`]+`\)' "$compose_file" 2>/dev/null \
       | sed -E 's/Host\(`([^`]+)`\)/\1/' \
-      | sort -u
+      | sort -u)"
   else
-    grep -oE 'Host\(`[^`]+`\)' "$compose_file" 2>/dev/null \
+    domains="$(grep -oE 'Host\(`[^`]+`\)' "$compose_file" 2>/dev/null \
       | sed -E 's/Host\(`([^`]+)`\)/\1/' \
-      | sort -u
+      | sort -u)"
   fi
+
+  # For crm_prvms, resolve ${PUBLIC_HOSTNAME} from .env.prod
+  if [ "$project" = "crm_prvms" ] && echo "$domains" | grep -q 'PUBLIC_HOSTNAME'; then
+    local env_file="/opt/crm_prvms/.env.prod"
+    if [ -f "$env_file" ]; then
+      local hostname
+      hostname="$(grep -E '^PUBLIC_HOSTNAME=' "$env_file" | tail -n 1 | cut -d '=' -f2- || true)"
+      if [ -n "$hostname" ]; then
+        domains="$(echo "$domains" | sed "s/\${PUBLIC_HOSTNAME}/${hostname}/g")"
+      fi
+    fi
+  fi
+
+  echo "$domains"
 }
 
 resolve_domain_ip() {
@@ -72,7 +89,14 @@ check_prerequisites() {
   fi
 
   if docker network inspect proxy >/dev/null 2>&1; then
-    ok "Docker network 'proxy' exists"
+    local driver attachable
+    driver="$(docker network inspect -f '{{.Driver}}' proxy)"
+    attachable="$(docker network inspect -f '{{.Attachable}}' proxy)"
+    if [ "$driver" = "overlay" ] && [ "$attachable" = "true" ]; then
+      ok "Docker network 'proxy' exists (overlay, attachable)"
+    else
+      err "Docker network 'proxy' has wrong driver/attachable (driver=${driver}, attachable=${attachable})"
+    fi
   else
     err "Docker network 'proxy' does not exist"
   fi
@@ -86,6 +110,39 @@ check_prerequisites() {
   else
     warn "Command 'ss' not found. Port check skipped."
   fi
+}
+
+check_traefik_routes() {
+  echo
+  echo "Traefik routers:"
+  local routers_json
+  routers_json="$(curl -s http://localhost:8080/api/http/routers 2>/dev/null || true)"
+  if [ -z "$routers_json" ] || [ "$routers_json" = "null" ]; then
+    err "Cannot reach Traefik API at http://localhost:8080/api/http/routers"
+    return
+  fi
+
+  local project compose_file rname
+  for project in "${PROJECTS[@]}"; do
+    compose_file="/opt/${project}/docker-compose.yml"
+    [ -f "$compose_file" ] || continue
+    rname=""
+    case "$project" in
+      crm_prvms)  rname="crm-spa" ;;
+      rent_django) rname="rent_django" ;;
+      kapitan_api) rname="kapitan_api" ;;
+      kupi_slona) rname="kupi_slona" ;;
+      bookstack)  rname="bookstack" ;;
+      druzhina)   rname="druzhina" ;;
+      vybra)      rname="vybra" ;;
+      *)          continue ;;
+    esac
+    if [ -n "$rname" ] && echo "$routers_json" | grep -q "\"${rname}\""; then
+      ok "Router '${rname}' (${project}) found"
+    else
+      err "Router '${rname}' (${project}) NOT found in Traefik"
+    fi
+  done
 }
 
 check_dns() {
@@ -117,7 +174,7 @@ check_dns() {
       else
         err "DNS mismatch ${domain} -> ${resolved} (expected ${host_ip})"
       fi
-    done < <(extract_domains_from_compose "$compose_file")
+    done < <(extract_domains_from_compose "$compose_file" "$project")
   done
 
   if [ "$checked" -eq 0 ]; then
@@ -147,6 +204,7 @@ main() {
   check_prerequisites
   echo
   check_dns
+  check_traefik_routes
   check_traefik_logs
   echo
   echo "Summary: errors=${ERRORS}, warnings=${WARNINGS}"
