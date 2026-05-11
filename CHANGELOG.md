@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.2.4] — 2026-05-11
+
+### Added (CI/CD via GitHub Actions)
+
+End-to-end pipeline in [`.github/workflows/ci.yml`](.github/workflows/ci.yml). Single file, three jobs:
+
+- **backend** — runs on every PR and push. Spins up Postgres 17 + Redis 7.4 as service containers, installs system deps for WeasyPrint/psycopg, then: `manage.py check`, `makemigrations --check --dry-run` (catches the latent-debt class of bug that 0.2.3 cleaned up — any future model drift fails CI), `manage.py test apps`. Python pinned to 3.13 to match the production Dockerfile.
+- **frontend** — Node 24, `npm ci`, `npm run typecheck`, `npm run test` (vitest), `npm run build` with `VITE_API_URL=https://crm.prvms.ru/api` to verify the prod bundle compiles.
+- **deploy** — runs only on push to `main` after both CI jobs pass. SSH-deploys to the VPS using the existing `vps-deployment/crm_prvms/deploy.sh`. Singleton concurrency group `production-deploy` so two deploys can never overlap; `cancel-in-progress: false` so a newer commit never aborts an in-flight deploy. Smoke tests `/healthz` (12 attempts × 10s = 2 min) and `/` (homepage) after deploy. GitHub environment `production` declared so an approval gate can be enabled later without code changes.
+
+[`.github/SECRETS.md`](.github/SECRETS.md) documents the three secrets needed (`SSH_HOST`, `SSH_PRIVATE_KEY`, `SSH_PORT`), one-time server-side SSH-key setup, branch-protection rules to prevent direct push to `main`, and the optional approval gate.
+
+### Notes
+- CI uses dummy values for `SECRET_KEY` / `FIELD_ENCRYPTION_KEY` / `SALT_KEY` baked into the workflow — there are no real secrets in CI runs. Production secrets stay on the VPS in `/opt/crm_prvms/.env.prod`.
+- Deploy step uses `git reset --hard ${DEPLOY_SHA}` so CI is the single source of truth for what `main` looks like on the server. Untracked `.env.prod` is preserved by `reset --hard` (it does not touch untracked files).
+
 ## [0.2.3] — 2026-05-11
 
 ### Migrations
