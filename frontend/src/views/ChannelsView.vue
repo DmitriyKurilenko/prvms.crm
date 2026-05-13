@@ -210,7 +210,7 @@ const editingId = ref<number | null>(null)
 const defaultForm = () => ({
   name: '',
   channel_type: 'telegram',
-  credentials: {} as Record<string, string>,
+  credentials: { bot_token: '', send_url: '', auth_token: '', webhook_token: '' },
   auto_create_lead: true,
   welcome_message: '',
   is_active: true,
@@ -249,6 +249,19 @@ const loadChannels = async () => {
 }
 
 const submitChannel = async () => {
+  if (!form.name.trim()) {
+    toast.add({ severity: 'warn', summary: 'Заполните название', detail: 'Укажите название канала.', life: 4000 })
+    return
+  }
+  if (form.channel_type === 'telegram' && !form.credentials.bot_token?.trim()) {
+    toast.add({ severity: 'warn', summary: 'Укажите Bot Token', detail: 'Для Telegram необходимо указать Bot Token от @BotFather.', life: 5000 })
+    return
+  }
+  if (form.channel_type === 'max' && !form.credentials.bot_token?.trim()) {
+    toast.add({ severity: 'warn', summary: 'Укажите Bot Token', detail: 'Для MAX необходимо указать Bot Token.', life: 5000 })
+    return
+  }
+
   const body = {
     name: form.name,
     channel_type: form.channel_type,
@@ -257,6 +270,7 @@ const submitChannel = async () => {
     welcome_message: form.welcome_message,
     is_active: form.is_active,
   }
+  console.log('[Channels] submitChannel body:', JSON.stringify(body, null, 2))
   try {
     if (editingId.value) {
       await api(`/channels/${editingId.value}/`, { method: 'PATCH', body })

@@ -32,7 +32,7 @@ def register_telegram_webhook(channel: MessengerChannel, webhook_base_url: str, 
             json={
                 'url': url,
                 'secret_token': secret_token,
-                'allowed_updates': ['message'],
+                'allowed_updates': ['message', 'edited_message'],
             },
             timeout=15,
         )
@@ -40,7 +40,7 @@ def register_telegram_webhook(channel: MessengerChannel, webhook_base_url: str, 
         if body.get('ok'):
             return True, body.get('description', 'ok')
         return False, body.get('description', resp.text[:300])
-    except Exception as exc:  # noqa: BLE001
+    except requests.RequestException as exc:
         return False, str(exc)[:500]
 
 
@@ -55,7 +55,7 @@ def unregister_telegram_webhook(bot_token: str) -> tuple[bool, str]:
         )
         body = resp.json()
         return bool(body.get('ok')), body.get('description', '')
-    except Exception as exc:  # noqa: BLE001
+    except requests.RequestException as exc:
         return False, str(exc)[:300]
 
 
@@ -69,7 +69,7 @@ def get_telegram_webhook_info(bot_token: str) -> dict:
             timeout=10,
         )
         return resp.json().get('result', {})
-    except Exception as exc:  # noqa: BLE001
+    except requests.RequestException as exc:
         return {'error': str(exc)[:300]}
 
 
@@ -107,7 +107,7 @@ def register_max_webhook(channel: MessengerChannel, webhook_base_url: str, tenan
         if body.get('success'):
             return True, 'Webhook зарегистрирован'
         return False, body.get('message', resp.text[:300])
-    except Exception as exc:  # noqa: BLE001
+    except requests.RequestException as exc:
         return False, str(exc)[:500]
 
 
@@ -126,7 +126,7 @@ def unregister_max_webhook(channel: MessengerChannel) -> tuple[bool, str]:
         )
         body = resp.json()
         return bool(body.get('success')), body.get('message', '')
-    except Exception as exc:  # noqa: BLE001
+    except requests.RequestException as exc:
         return False, str(exc)[:300]
 
 
@@ -141,21 +141,30 @@ def get_max_webhook_info(bot_token: str) -> dict:
             timeout=10,
         )
         return resp.json()
-    except Exception as exc:  # noqa: BLE001
+    except requests.RequestException as exc:
         return {'error': str(exc)[:300]}
 
 
-def normalize_incoming_payload(channel_type: str, payload: dict) -> dict:
+def normalize_incoming_payload(channel_type: str, payload: dict) -> dict | None:
+    """Extract chat_id, username, text, etc. from a provider-specific webhook payload.
+
+    Returns *None* when the payload should be ignored (e.g. MAX ``bot_started``
+    or an unsupported Telegram update type).
+    """
     if channel_type == 'telegram':
-        message = payload.get('message') or payload
+        # Telegram sends the whole Update object.  We care about *message*
+        # and *edited_message*; everything else is ignored.
+        message = payload.get('message') or payload.get('edited_message')
+        if not message:
+            return None
         sender = message.get('from', {})
         chat = message.get('chat', {})
         return {
-            'chat_id': str(chat.get('id') or payload.get('chat_id') or payload.get('from') or 'unknown'),
-            'username': sender.get('username') or sender.get('first_name') or payload.get('username') or '',
+            'chat_id': str(chat.get('id') or 'unknown'),
+            'username': sender.get('username') or sender.get('first_name') or '',
             'phone': payload.get('phone', ''),
             'text': message.get('text') or payload.get('text') or '',
-            'message_id': str(message.get('message_id') or payload.get('message_id') or ''),
+            'message_id': str(message.get('message_id') or ''),
             'attachments': payload.get('attachments') or [],
         }
 
@@ -170,12 +179,17 @@ def normalize_incoming_payload(channel_type: str, payload: dict) -> dict:
         }
 
     if channel_type == 'max':
-        # MAX Update: {update_type, timestamp, message: {sender, recipient, timestamp, body, ...}}
+        # MAX sends {update_type, timestamp, message: {...}}
+        update_type = payload.get('update_type', '')
+        if update_type not in {'message_created', 'bot_started'}:
+            return None
+        # bot_started has no chat text — ignore for message routing
+        if update_type == 'bot_started':
+            return None
         message = payload.get('message') or {}
         sender = message.get('sender') or {}
         recipient = message.get('recipient') or {}
         body = message.get('body') or {}
-        # chat_id: recipient.chat_id for group chats, sender.user_id for direct
         chat_id = str(
             recipient.get('chat_id')
             or sender.get('user_id')
@@ -250,5 +264,5 @@ def send_outgoing(channel: MessengerChannel, external_chat_id: str, text: str, a
             return True, str(msg.get('body', {}).get('mid', ''))
 
         return False, f'Unsupported channel type: {channel.channel_type}'
-    except Exception as exc:  # noqa: BLE001
+    except requests.RequestException as exc:
         return False, str(exc)[:500]

@@ -29,8 +29,10 @@ class ChannelsBridgeTest(TenantAPITestCase):
             status='active',
         )
 
-    def test_normalize_incoming_payload_for_telegram_and_whatsapp(self):
-        telegram_payload = {
+    # ---------- normalize_incoming_payload ----------
+
+    def test_normalize_telegram_message(self):
+        payload = {
             'message': {
                 'message_id': 11,
                 'text': 'hello',
@@ -38,17 +40,63 @@ class ChannelsBridgeTest(TenantAPITestCase):
                 'from': {'username': 'john'},
             }
         }
-        telegram = normalize_incoming_payload('telegram', telegram_payload)
-        self.assertEqual(telegram['chat_id'], '777')
-        self.assertEqual(telegram['username'], 'john')
-        self.assertEqual(telegram['text'], 'hello')
+        result = normalize_incoming_payload('telegram', payload)
+        self.assertIsNotNone(result)
+        self.assertEqual(result['chat_id'], '777')
+        self.assertEqual(result['username'], 'john')
+        self.assertEqual(result['text'], 'hello')
 
-        wa_payload = {'from': '+79990000000', 'name': 'Client', 'body': 'hey'}
-        whatsapp = normalize_incoming_payload('whatsapp', wa_payload)
-        self.assertEqual(whatsapp['phone'], '+79990000000')
-        self.assertEqual(whatsapp['text'], 'hey')
+    def test_normalize_telegram_edited_message(self):
+        payload = {
+            'update_id': 1,
+            'edited_message': {
+                'message_id': 22,
+                'text': 'edited',
+                'chat': {'id': 888},
+                'from': {'first_name': 'Jane'},
+            }
+        }
+        result = normalize_incoming_payload('telegram', payload)
+        self.assertIsNotNone(result)
+        self.assertEqual(result['chat_id'], '888')
+        self.assertEqual(result['username'], 'Jane')
+        self.assertEqual(result['text'], 'edited')
 
-    def test_route_incoming_message_creates_session_message_and_deal_for_builtin_crm(self):
+    def test_normalize_telegram_unsupported_update_returns_none(self):
+        payload = {'update_id': 1, 'callback_query': {'id': 'q1'}}
+        result = normalize_incoming_payload('telegram', payload)
+        self.assertIsNone(result)
+
+    def test_normalize_whatsapp(self):
+        payload = {'from': '+79990000000', 'name': 'Client', 'body': 'hey'}
+        result = normalize_incoming_payload('whatsapp', payload)
+        self.assertEqual(result['phone'], '+79990000000')
+        self.assertEqual(result['text'], 'hey')
+
+    def test_normalize_max_message_created(self):
+        payload = {
+            'update_type': 'message_created',
+            'message': {
+                'sender': {'user_id': 'u42', 'name': 'MaxUser'},
+                'recipient': {'chat_id': 'c99'},
+                'body': {'text': 'hi', 'mid': 'm1'},
+            }
+        }
+        result = normalize_incoming_payload('max', payload)
+        self.assertIsNotNone(result)
+        self.assertEqual(result['chat_id'], 'c99')
+        self.assertEqual(result['username'], 'MaxUser')
+        self.assertEqual(result['text'], 'hi')
+        self.assertEqual(result['message_id'], 'm1')
+
+    def test_normalize_max_bot_started_returns_none(self):
+        payload = {'update_type': 'bot_started', 'user_id': 'u1'}
+        result = normalize_incoming_payload('max', payload)
+        self.assertIsNone(result)
+
+    # ---------- route_incoming_message ----------
+
+    def test_route_incoming_creates_session_message_and_deal(self):
         payload = {
             'message': {
                 'message_id': 12,
@@ -67,6 +115,92 @@ class ChannelsBridgeTest(TenantAPITestCase):
         self.assertEqual(message.text, 'Need help')
         self.assertTrue(session.crm_lead_id)
         self.assertEqual(Deal.objects.count(), 1)
+
+    def test_route_incoming_ignores_unsupported_update(self):
+        payload = {'update_id': 1, 'callback_query': {'id': 'q1'}}
+        result = route_incoming_message(self.tenant.id, self.channel.id, payload)
+        self.assertEqual(result['status'], 'ignored')
+
+    def test_route_incoming_no_pipeline_sets_error(self):
+        Pipeline.objects.all().delete()
+        Stage.objects.all().delete()
+        payload = {
+            'message': {
+                'message_id': 13,
+                'text': 'No pipeline',
+                'chat': {'id': 999},
+                'from': {'username': 'bob'},
+            }
+        }
+        result = route_incoming_message(self.tenant.id, self.channel.id, payload)
+        self.assertEqual(result['status'], 'ok')
+        session = ChatSession.objects.get(external_chat_id='999')
+        message = MessageLog.objects.get(chat_session=session)
+        self.assertFalse(message.delivered)
+        self.assertIn('Воронка или этап не настроены', message.error)
+        self.assertEqual(Deal.objects.count(), 0)
+
+    def test_route_incoming_pipeline_without_stage_sets_error(self):
+        Stage.objects.all().delete()
+        payload = {
+            'message': {
+                'message_id': 14,
+                'text': 'No stage',
+                'chat': {'id': 888},
+                'from': {'username': 'carol'},
+            }
+        }
+        result = route_incoming_message(self.tenant.id, self.channel.id, payload)
+        self.assertEqual(result['status'], 'ok')
+        session = ChatSession.objects.get(external_chat_id='888')
+        message = MessageLog.objects.get(chat_session=session)
+        self.assertFalse(message.delivered)
+        self.assertIn('Воронка или этап не настроены', message.error)
+        self.assertEqual(Deal.objects.count(), 0)
+
+    def test_route_incoming_auto_create_lead_disabled(self):
+        self.channel.auto_create_lead = False
+        self.channel.save(update_fields=['auto_create_lead'])
+        payload = {
+            'message': {
+                'message_id': 15,
+                'text': 'Disabled',
+                'chat': {'id': 777},
+                'from': {'username': 'dave'},
+            }
+        }
+        result = route_incoming_message(self.tenant.id, self.channel.id, payload)
+        self.assertEqual(result['status'], 'ok')
+        session = ChatSession.objects.get(external_chat_id='777')
+        self.assertFalse(session.crm_lead_id)
+        self.assertEqual(Deal.objects.count(), 0)
+
+    def test_route_incoming_external_crm_creates_chat_id(self):
+        self.tenant.crm_mode = 'amocrm'
+        self.tenant.save(update_fields=['crm_mode'])
+        self.channel.auto_create_lead = True
+        self.channel.save(update_fields=['auto_create_lead'])
+
+        with patch('apps.channels.tasks.get_adapter_for_tenant') as mock_adapter:
+            adapter = mock_adapter.return_value
+            adapter.register_chat_channel.return_value = 'amo_chat_1'
+            adapter.send_message_to_crm.return_value = 'amo_msg_1'
+            payload = {
+                'message': {
+                    'message_id': 16,
+                    'text': 'External',
+                    'chat': {'id': 666},
+                    'from': {'username': 'eve'},
+                }
+            }
+            result = route_incoming_message(self.tenant.id, self.channel.id, payload)
+            self.assertEqual(result['status'], 'ok')
+            session = ChatSession.objects.get(external_chat_id='666')
+            self.assertEqual(session.crm_chat_id, 'amo_chat_1')
+            message = MessageLog.objects.get(chat_session=session)
+            self.assertEqual(message.crm_message_id, 'amo_msg_1')
+
+    # ---------- route_outgoing_message ----------
 
     @patch('apps.channels.tasks.send_outgoing', return_value=(False, 'provider error'))
     def test_route_outgoing_message_logs_delivery_error(self, _mock_send):
