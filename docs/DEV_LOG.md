@@ -1,5 +1,61 @@
 # Dev Log
 
+## 2026-05-13 — Исправление создания сделок из Telegram/MAX + рефакторинг мессенджер-каналов (DEC-035)
+
+### Корневая причина:
+Пользователи сообщали, что сделки не создаются от входящих сообщений в Telegram и MAX. Аудит выявил четыре независимые проблемы:
+1. **Telegram `edited_message` не обрабатывался** — `normalize_incoming_payload` брал `payload.get('message') or payload`, и если update содержал `edited_message`, возвращался весь Update-объект. `chat_id` становился `'unknown'`, сообщения сливались в одну сессию или терялись.
+2. **MAX `bot_started` создавал мусорную сессию** — update без `message` возвращал `chat_id='unknown'`, и все `bot_started` события сливались в одну `ChatSession`.
+3. **Отсутствие Pipeline/Stage — silent failure** — если пользователь удалил воронку или этапы, `auto_create_lead` просто пропускал блок `if pipeline:` и `if stage:` без логирования. Сообщение сохранялось, но сделка не создавалась, и ops не видели причину.
+4. **Широкий `except Exception`** — любая ошибка при создании сделки (включая баги в `_build_contact` или `Deal.objects.create`) проглатывалась, логировалась, но `message.error` был пустым, если ошибка происходила до записи.
+
+### Изменения:
+
+**`apps/channels/providers.py`:**
+- `normalize_incoming_payload` возвращает `dict | None`.
+- Telegram: `message = payload.get('message') or payload.get('edited_message')`; остальное (`callback_query`, `inline_query`) → `None`.
+- MAX: `update_type == 'bot_started'` → `None`; `message_created` → корректная нормализация.
+- `register_telegram_webhook`: `allowed_updates` расширен до `['message', 'edited_message']`.
+- `send_outgoing`: `except Exception` → `except requests.RequestException`.
+
+**`apps/channels/tasks.py`:**
+- `_find_pipeline_and_stage()` — явный поиск с логированием `warning` при отсутствии pipeline или stage.
+- `_build_contact()` — выделенная функция для создания/поиска контакта.
+- `_auto_create_lead()` — выделенная функция; при отсутствии pipeline/stage записывает `message.error = 'Воронка или этап не настроены — сделка не создана'` и `delivered=False`.
+- `_sync_to_external_crm()` — выделенная функция для внешних CRM.
+- `route_incoming_message`: проверка `normalized is None` → возврат `{'status': 'ignored'}`.
+- Узкие `except` вокруг `_auto_create_lead` и `_sync_to_external_crm`.
+
+**`apps/channels/public_views.py`:**
+- Добавлено `logger.info` для принятых webhook'ов.
+- Добавлено `logger.warning` для 404 (tenant/channel не найден) и 403 (невалидный токен).
+
+**`apps/channels/tests/test_bridge.py`:**
+- Расширен с 3 до 13 тестов.
+- Новые тесты: `edited_message`, `callback_query` (ignored), MAX `message_created`, MAX `bot_started` (ignored), отсутствие Pipeline, отсутствие Stage, `auto_create_lead=False`, внешняя CRM (`amocrm`).
+
+### Валидация:
+- `docker compose run --rm web python manage.py check` → 0 issues.
+- `docker compose run --rm web python manage.py test --keepdb` → 128/128 OK.
+- `docker compose run --rm frontend npm run typecheck` → зелёный.
+- `docker compose run --rm frontend npm run test` → 5/5 OK.
+
+### Файлы:
+- `apps/channels/tasks.py`
+- `apps/channels/providers.py`
+- `apps/channels/public_views.py`
+- `apps/channels/tests/test_bridge.py`
+- `docs/DECISIONS.md`
+- `docs/DEV_LOG.md`
+- `docs/KNOWN_ISSUES.md`
+- `docs/TASK_STATE.md`
+
+### Риски:
+- `normalize_incoming_payload` теперь возвращает `None` для `callback_query` и `inline_query`. Ранее они создавали сессию с `chat_id='unknown'` — это было багом, но если кто-то полагался на это поведение (маловероятно), поведение изменилось.
+- `allowed_updates: ['message', 'edited_message']` в `register_telegram_webhook` — Telegram больше не будет слать `callback_query` на webhook. Если в будущем понадобятся кнопки, нужно будет расширить список.
+
+---
+
 ## 2026-05-11 (3) — Финальная доводка HTTPS: дроп frontend-app healthcheck + симлинки compose self-heal (DEC-034)
 
 ### Что осталось не пофикшено после DEC-034 первой итерации:

@@ -31,16 +31,20 @@ def channel_webhook(request, tenant_slug: str, channel_type: str, channel_id: in
     with schema_context('public'):
         tenant = Tenant.objects.filter(slug=tenant_slug, is_active=True).first()
     if not tenant:
+        logger.warning('Webhook for unknown tenant: %s', tenant_slug)
         return JsonResponse({'detail': 'Tenant not found'}, status=404)
 
     with tenant_context(tenant):
         payload = _request_payload(request)
         channel = MessengerChannel.objects.filter(id=channel_id, channel_type=channel_type, is_active=True).first()
         if not channel:
+            logger.warning('Webhook for unknown channel: tenant=%s type=%s id=%s', tenant_slug, channel_type, channel_id)
             return JsonResponse({'detail': 'Channel not found'}, status=404)
         if not _validate_webhook_token(request, channel, payload):
+            logger.warning('Invalid webhook token for channel %s', channel.id)
             return JsonResponse({'detail': 'Invalid channel token'}, status=403)
 
+    logger.info('Webhook accepted: tenant=%s channel=%s type=%s', tenant_slug, channel.id, channel_type)
     route_incoming_message.delay(tenant.id, channel.id, payload)
     return JsonResponse({'detail': 'ok'})
 

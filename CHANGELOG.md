@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.2.5] — 2026-05-13
+
+### Fixed (Messenger channels)
+
+Messenger pipeline rewrite — four independent bugs fixed in a single pass:
+
+**`normalize_incoming_payload` returns `None` for unsupported update types.**
+Previously, a Telegram `edited_message` update would fall through to `payload.get('message') or payload`, returning the whole Update object and producing `chat_id='unknown'`. Incoming messages from the same user would either be lost or merged into a single session. MAX `bot_started` events created ghost sessions with `chat_id='unknown'`. Now: Telegram `edited_message` is correctly routed to the session; `callback_query`, `inline_query` and other unsupported types return `None` and are ignored. MAX `bot_started` returns `None` and is ignored.
+
+**`register_telegram_webhook` now requests `edited_message` updates.**
+`allowed_updates` expanded from `['message']` to `['message', 'edited_message']`.
+
+**Explicit pipeline/stage lookup with user-visible failure.**
+`_find_pipeline_and_stage()` logs a warning when no pipeline or no stage is found. `_auto_create_lead()` writes `message.error = 'Воронка или этап не настроены — сделка не создана'` and sets `delivered=False` so ops can see the exact cause in the UI instead of a silent missing deal.
+
+**Bare `except Exception` replaced with typed handlers.**
+All `providers.py` functions (and outbound path in `tasks.py`) now use `requests.RequestException` instead of a bare `except`, so network failures, HTTP errors and timeouts are properly distinguished from programming errors.
+
+### Refactored
+
+- `apps/channels/tasks.py`: three helper functions extracted — `_find_pipeline_and_stage()`, `_build_contact()`, `_auto_create_lead()`, `_sync_to_external_crm()`. Source length unchanged but logical units are now independently testable.
+- `apps/channels/tests/test_bridge.py`: coverage expanded from 3 to 13 tests covering normal message, edited message, unsupported updates (Telegram and MAX), missing pipeline, missing stage, `auto_create_lead=False`, and external CRM sync.
+- `apps/channels/public_views.py`: structured `logger.info`/`logger.warning` added at every webhook entry/exit point.
+
+### Infrastructure
+
+- `vps-deployment/crm_prvms/docker-compose.yml`: Redis `command` rewritten from YAML block scalar (`>`) to JSON array to fix argument parsing bug that produced `requirepass "--maxmemory" "256mb"`.
+
 ## [0.2.4] — 2026-05-11
 
 ### Added (CI/CD via GitHub Actions)
