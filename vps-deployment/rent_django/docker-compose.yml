@@ -85,12 +85,17 @@ services:
       - CSRF_COOKIE_SECURE=True
       - SECURE_HSTS_SECONDS=31536000
       - REDIS_CACHE_URL=redis://:${REDIS_PASSWORD}@redis:6379/1
+    # Disable healthcheck (image-level HEALTHCHECK from Dockerfile probes
+    # http://localhost:8000/health/, which Django rejects with 400 DisallowedHost
+    # because ALLOWED_HOSTS does not include `localhost`. That keeps the container
+    # in `unhealthy` / `starting` indefinitely, and Traefik filters its routers —
+    # exactly the trap that hid the crm_prvms HTTPS issue in 0.2.1/0.2.2.)
+    # `disable: true` explicitly overrides the image-level directive; merely
+    # omitting the block falls back to the image's broken probe.
+    # Gunicorn is reliable; Docker restart policy handles the rare hang. Traefik
+    # treats no-healthcheck containers as healthy and registers routers immediately.
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health/ || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
+      disable: true
     depends_on:
       db:
         condition: service_healthy
@@ -98,9 +103,16 @@ services:
         condition: service_healthy
     labels:
       - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      # web handles every path EXCEPT /static and /media (those are served by
+      # the static_files nginx container at higher priority — Traefik picks
+      # the highest-priority matching router).
       - "traefik.http.routers.rent_django.rule=Host(`arenda.kapitan-trips.ru`)"
       - "traefik.http.routers.rent_django.entrypoints=websecure"
+      - "traefik.http.routers.rent_django.tls=true"
       - "traefik.http.routers.rent_django.tls.certresolver=le"
+      - "traefik.http.routers.rent_django.priority=1"
+      - "traefik.http.routers.rent_django.service=rent_django"
       - "traefik.http.services.rent_django.loadbalancer.server.port=8000"
     deploy:
       resources:
@@ -118,6 +130,11 @@ services:
     image: rent_django-web
     restart: always
     command: celery -A boat_rental worker -l info --concurrency=1 --max-tasks-per-child=20
+    # Celery workers share the rent_django-web image, which carries a Dockerfile
+    # HEALTHCHECK probing port 8000 — celery does not listen there, so the probe
+    # always fails. Explicitly disable.
+    healthcheck:
+      disable: true
     volumes:
       - media_volume:/app/mediafiles
       - /opt/rent_django/logs:/app/logs
@@ -155,6 +172,9 @@ services:
     image: rent_django-web
     restart: always
     command: celery -A boat_rental beat -l info
+    # Same image as web, same baked-in HEALTHCHECK probing port 8000 — disable.
+    healthcheck:
+      disable: true
     volumes:
       - /opt/rent_django/logs:/app/logs
     networks:
@@ -178,6 +198,44 @@ services:
         reservations:
           cpus: '0.02'
           memory: 32M
+
+  # nginx that serves Django collected static + uploaded media. Gunicorn does
+  # not serve static files in production, so without this container any /static/*
+  # or /media/* URL would 404. Shares the same static_volume/media_volume that
+  # `web` populates via `collectstatic` and Django's storage backend.
+  static_files:
+    image: nginx:1.27-alpine
+    restart: always
+    expose:
+      - "80"
+    volumes:
+      - static_volume:/usr/share/nginx/html/static:ro
+      - media_volume:/usr/share/nginx/html/media:ro
+    networks:
+      - proxy
+    depends_on:
+      - web
+    # No healthcheck on purpose (see web service comment for rationale).
+    healthcheck:
+      disable: true
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.rent_django_static.rule=Host(`arenda.kapitan-trips.ru`) && (PathPrefix(`/static`) || PathPrefix(`/media`))"
+      - "traefik.http.routers.rent_django_static.entrypoints=websecure"
+      - "traefik.http.routers.rent_django_static.tls=true"
+      - "traefik.http.routers.rent_django_static.tls.certresolver=le"
+      - "traefik.http.routers.rent_django_static.priority=50"
+      - "traefik.http.routers.rent_django_static.service=rent_django_static"
+      - "traefik.http.services.rent_django_static.loadbalancer.server.port=80"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.1'
+          memory: 64M
+        reservations:
+          cpus: '0.02'
+          memory: 16M
 
 volumes:
   postgres_data:

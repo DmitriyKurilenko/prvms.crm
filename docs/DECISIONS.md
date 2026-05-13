@@ -271,3 +271,18 @@ v1 не закрыла проблему до конца — на сервере 
 - **`frontend-app` healthcheck удалён полностью.** Бороться с busybox-wget над `localhost`/`127.0.0.1`/IPv6/IPv4/PATH — это бесконечная борьба с инструментом, не предназначенным для liveness-probe. nginx со статикой не падает; Traefik трактует контейнеры без healthcheck как healthy и сразу регистрирует их роутеры. Если nginx умрёт — Docker restart policy поднимет. Чище и надёжнее.
 - **`bring_up()` теперь использует `--force-recreate`** — гарантирует, что compose-level изменения (healthcheck, labels) фактически применяются. Без этого compose может посчитать что image hash тот же → контейнер не пересоздаётся → старый healthcheck остаётся.
 - **`web` healthcheck переписан на `127.0.0.1`** для консистентности — не критично (curl делает IPv4 fallback), но устраняет лишний RTT и делает поведение детерминированным.
+
+## DEC-035: Messenger incoming pipeline — explicit failure visibility + update-type filtering (2026-05-13)
+**Контекст:** Сделки из Telegram/MAX не создавались при входящих сообщениях. Аудит показал несколько системных проблем: (1) `normalize_incoming_payload` для Telegram не обрабатывал `edited_message` — весь update попадал в `payload`, `chat_id` становился `'unknown'`, сообщения терялись или сливались в одну сессию; (2) MAX `bot_started` update создавал пустую сессию с `chat_id='unknown'`; (3) при отсутствии Pipeline или Stage `auto_create_lead` молча пропускал создание сделки без логирования и без записи ошибки в UI; (4) `except Exception` в `tasks.py` проглатывал реальные баги, оставляя ops без диагностики.
+
+**Решение:**
+- `apps/channels/providers.py`: `normalize_incoming_payload` теперь возвращает `dict | None`. Telegram: `message = payload.get('message') or payload.get('edited_message')`; всё остальное (`callback_query`, `inline_query` и т.д.) — `None`. MAX: `update_type == 'bot_started'` → `None`; `message_created` — корректная нормализация. `allowed_updates` в `register_telegram_webhook` расширен до `['message', 'edited_message']`.
+- `apps/channels/tasks.py`: `_find_pipeline_and_stage()` — явный поиск с логированием причины отказа; `_auto_create_lead()` — выделенная функция; если pipeline/stage отсутствуют, `message.error` заполняется человекочитаемым текстом и `delivered=False`, чтобы ops видели проблему в UI. Узкие `except` вокруг `_auto_create_lead` и `_sync_to_external_crm`. Проверка `normalized is None` в `route_incoming_message` — возвращает `{'status': 'ignored'}`.
+- `apps/channels/public_views.py`: добавлено `logger.info` для каждого принятого webhook и `logger.warning` для 404/403.
+- `apps/channels/tests/test_bridge.py`: расширен с 3 до 13 тестов — покрытие: `edited_message`, `callback_query` (ignored), MAX `message_created`, MAX `bot_started` (ignored), отсутствие Pipeline, отсутствие Stage, `auto_create_lead=False`, внешняя CRM.
+
+**Последствия:**
+- Любой отказ создания сделки теперь виден в `MessageLog.error` и в логах — больше нет silent failures.
+- Неподдерживаемые update-типы не создают мусорных `ChatSession` с `chat_id='unknown'`.
+- Telegram `edited_message` корректно маршрутизируется в существующую сессию.
+- Новый код покрыт тестами; регрессии будут ловиться CI.

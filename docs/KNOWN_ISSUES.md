@@ -23,6 +23,13 @@
 10. ~~В DealsView не было быстрого создания контакта/компании.~~
     - Исправлено: quick-create диалоги + `+` кнопки в формах создания/редактирования
 
+## Закрытые (2026-05-13)
+
+13. ~~Не создаются сделки от входящих сообщений в Telegram/MAX.~~
+    - **Истинная причина:** `normalize_incoming_payload` для Telegram не обрабатывал `edited_message` (весь Update попадал как payload, `chat_id='unknown'`). MAX `bot_started` создавал мусорную сессию с `chat_id='unknown'`. При отсутствии Pipeline/Stage `auto_create_lead` молча пропускал создание сделки без логирования. `except Exception` проглатывал реальные ошибки.
+    - **Исправление (DEC-035):** `normalize_incoming_payload` возвращает `None` для неподдерживаемых update-типов (Telegram `callback_query`, MAX `bot_started`). `_find_pipeline_and_stage()` с явным логированием. `_auto_create_lead()` записывает `message.error` при отсутствии pipeline/stage. Узкие `except` вокруг создания сделки и синхронизации с внешней CRM. Покрытие тестами расширено с 3 до 13 тестов.
+    - **Файлы:** `apps/channels/tasks.py`, `apps/channels/providers.py`, `apps/channels/public_views.py`, `apps/channels/tests/test_bridge.py`
+
 ## Закрытые (2026-05-11)
 
 12. ~~crm.prvms.ru не получает Let's Encrypt сертификат на shared VPS.~~

@@ -71,16 +71,126 @@ def _broadcast_session_update(tenant_slug: str, channel_id: int, session: ChatSe
     )
 
 
+def _find_pipeline_and_stage() -> tuple | None:
+    """Find active pipeline and its first stage for deal creation.
+
+    Returns (pipeline, stage) or logs the exact reason and returns None.
+    """
+    from apps.crm.models import Pipeline, Stage
+
+    pipeline = (
+        Pipeline.objects.filter(is_default=True, is_active=True).order_by('id').first()
+        or Pipeline.objects.filter(is_active=True).order_by('id').first()
+    )
+    if not pipeline:
+        logger.warning('No active Pipeline found; cannot create deal')
+        return None
+    stage = pipeline.stages.order_by('sort_order', 'id').first()
+    if not stage:
+        logger.warning('Pipeline %s has no stages; cannot create deal', pipeline.id)
+        return None
+    return pipeline, stage
+
+
+def _build_contact(normalized: dict, channel: MessengerChannel, external_chat_id: str) -> 'Contact':
+    """Get or create a CRM Contact from normalized incoming payload."""
+    from apps.crm.models import Contact
+
+    phone = str(normalized.get('phone', ''))
+    name = str(normalized.get('username', 'Клиент'))[:100] or 'Клиент'
+
+    if phone:
+        contact, _ = Contact.objects.get_or_create(
+            phone=phone,
+            defaults={'first_name': name, 'source': channel.channel_type},
+        )
+    else:
+        messenger_key = f'{channel.channel_type}:{external_chat_id}'
+        contact, _ = Contact.objects.get_or_create(
+            messenger_id=messenger_key,
+            defaults={'first_name': name, 'source': channel.channel_type},
+        )
+        if not contact.messenger_id:
+            contact.messenger_id = messenger_key
+            contact.save(update_fields=['messenger_id'])
+    return contact
+
+
+def _auto_create_lead(
+    channel: MessengerChannel,
+    session: ChatSession,
+    message: MessageLog,
+    normalized: dict,
+    external_chat_id: str,
+) -> None:
+    """Create a Deal + Contact for a builtin-CRM tenant.
+
+    Writes *message.error* and sets *delivered=False* when creation
+    is impossible due to missing pipeline/stage so that ops can see
+    the failure in the UI / logs.
+    """
+    from apps.crm.models import Deal
+    from apps.distribution.services import ensure_builtin_manager_profiles, try_distribute
+
+    contact = _build_contact(normalized, channel, external_chat_id)
+    result = _find_pipeline_and_stage()
+    if result is None:
+        message.error = 'Воронка или этап не настроены — сделка не создана'
+        message.delivered = False
+        message.save(update_fields=['error', 'delivered'])
+        return
+    pipeline, stage = result
+
+    deal = Deal.objects.create(
+        name=f'Диалог {channel.name}: {external_chat_id}',
+        pipeline=pipeline,
+        stage=stage,
+        contact=contact,
+        source=channel.channel_type,
+    )
+    session.crm_lead_id = str(deal.id)
+    session.crm_contact_id = str(contact.id)
+    session.save(update_fields=['crm_lead_id', 'crm_contact_id'])
+    if not deal.responsible_id:
+        ensure_builtin_manager_profiles()
+        try_distribute('new_deal', 'deal', str(deal.id))
+
+
+def _sync_to_external_crm(
+    tenant: Tenant,
+    channel: MessengerChannel,
+    session: ChatSession,
+    message: MessageLog,
+    external_chat_id: str,
+) -> None:
+    """Forward incoming message to an external CRM adapter."""
+    adapter = get_adapter_for_tenant(tenant)
+    if not session.crm_chat_id:
+        session.crm_chat_id = adapter.register_chat_channel(str(channel.id), channel.name, '')
+        session.save(update_fields=['crm_chat_id'])
+    crm_message_id = adapter.send_message_to_crm(
+        scope_id=session.crm_contact_id or external_chat_id,
+        chat_id=session.crm_chat_id or external_chat_id,
+        sender={'name': session.external_user_name or 'Client'},
+        text=message.text,
+        attachments=message.attachments,
+    )
+    if crm_message_id:
+        message.crm_message_id = str(crm_message_id)
+        message.save(update_fields=['crm_message_id'])
+
+
 @shared_task
 def route_incoming_message(tenant_id: int, channel_id: int, payload: dict):
-    from apps.crm.models import Contact, Deal, Pipeline, Stage
-
     with schema_context('public'):
         tenant = Tenant.objects.get(id=tenant_id)
 
     with tenant_context(tenant):
         channel = MessengerChannel.objects.get(id=channel_id, is_active=True)
         normalized = normalize_incoming_payload(channel.channel_type, payload)
+        if normalized is None:
+            logger.info('Ignoring unsupported update type for channel %s', channel_id)
+            return {'status': 'ignored', 'reason': 'unsupported_update_type'}
         external_chat_id = str(normalized.get('chat_id', 'unknown'))
         session, _ = ChatSession.objects.get_or_create(
             channel=channel,
@@ -105,69 +215,18 @@ def route_incoming_message(tenant_id: int, channel_id: int, payload: dict):
 
         if channel.auto_create_lead and not session.crm_lead_id and tenant.crm_mode == 'builtin':
             try:
-                from apps.distribution.services import ensure_builtin_manager_profiles, try_distribute
-
-                phone = str(normalized.get('phone', ''))
-                name = str(normalized.get('username', 'Клиент'))[:100] or 'Клиент'
-
-                if phone:
-                    contact, _ = Contact.objects.get_or_create(
-                        phone=phone,
-                        defaults={'first_name': name, 'source': channel.channel_type},
-                    )
-                else:
-                    messenger_key = f'{channel.channel_type}:{external_chat_id}'
-                    contact, _ = Contact.objects.get_or_create(
-                        messenger_id=messenger_key,
-                        defaults={'first_name': name, 'source': channel.channel_type},
-                    )
-                    if not contact.messenger_id:
-                        contact.messenger_id = messenger_key
-                        contact.save(update_fields=['messenger_id'])
-                pipeline = (
-                    Pipeline.objects.filter(is_default=True, is_active=True).order_by('id').first()
-                    or Pipeline.objects.filter(is_active=True).order_by('id').first()
-                )
-                if pipeline:
-                    stage = pipeline.stages.order_by('sort_order', 'id').first()
-                    if stage:
-                        deal = Deal.objects.create(
-                            name=f'Диалог {channel.name}: {external_chat_id}',
-                            pipeline=pipeline,
-                            stage=stage,
-                            contact=contact,
-                            source=channel.channel_type,
-                        )
-                        session.crm_lead_id = str(deal.id)
-                        session.crm_contact_id = str(contact.id)
-                        session.save(update_fields=['crm_lead_id', 'crm_contact_id'])
-                        if not deal.responsible_id:
-                            ensure_builtin_manager_profiles()
-                            try_distribute('new_deal', 'deal', str(deal.id))
-            except Exception as exc:
+                _auto_create_lead(channel, session, message, normalized, external_chat_id)
+            except Exception:
                 logger.exception('Auto-create lead failed for channel %s message %s', channel.id, message.id)
-                message.error = str(exc)[:500]
+                message.error = 'Ошибка при автоматическом создании сделки'
                 message.delivered = False
                 message.save(update_fields=['error', 'delivered'])
         elif channel.auto_create_lead and tenant.crm_mode != 'builtin':
             try:
-                adapter = get_adapter_for_tenant(tenant)
-                if not session.crm_chat_id:
-                    session.crm_chat_id = adapter.register_chat_channel(str(channel.id), channel.name, '')
-                    session.save(update_fields=['crm_chat_id'])
-                crm_message_id = adapter.send_message_to_crm(
-                    scope_id=session.crm_contact_id or external_chat_id,
-                    chat_id=session.crm_chat_id or external_chat_id,
-                    sender={'name': session.external_user_name or 'Client'},
-                    text=message.text,
-                    attachments=message.attachments,
-                )
-                if crm_message_id:
-                    message.crm_message_id = str(crm_message_id)
-                    message.save(update_fields=['crm_message_id'])
-            except Exception as exc:  # noqa: BLE001
+                _sync_to_external_crm(tenant, channel, session, message, external_chat_id)
+            except Exception:
                 logger.exception('CRM sync failed for message %s on tenant %s', message.id, tenant.schema_name)
-                message.error = str(exc)[:500]
+                message.error = 'Ошибка синхронизации с внешней CRM'
                 message.delivered = False
                 message.save(update_fields=['error', 'delivered'])
 
