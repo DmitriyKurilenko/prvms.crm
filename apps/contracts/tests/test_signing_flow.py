@@ -35,7 +35,7 @@ class ContractSigningFlowTest(TenantAPITestCase):
             created_by=self.owner,
         )
 
-    @patch('apps.contracts.services._send_otp')
+    @patch('apps.contracts.signing._send_otp')
     def test_send_for_signing_creates_session(self, _mock_send_otp):
         session = send_for_signing(self.contract, 'client@example.com')
         self.assertIsNotNone(session.token)
@@ -44,7 +44,7 @@ class ContractSigningFlowTest(TenantAPITestCase):
         self.contract.refresh_from_db()
         self.assertEqual(self.contract.status, 'sent')
 
-    @patch('apps.contracts.services._send_otp')
+    @patch('apps.contracts.signing._send_otp')
     def test_request_otp_sends_code(self, _mock_send_otp):
         session = send_for_signing(self.contract, 'client@example.com')
         test_otp = request_signing_otp(str(session.token))
@@ -52,7 +52,7 @@ class ContractSigningFlowTest(TenantAPITestCase):
         session.refresh_from_db()
         self.assertNotEqual(session.otp_code_hash, '')
 
-    @patch('apps.contracts.services._send_otp')
+    @patch('apps.contracts.signing._send_otp')
     def test_verify_invalid_otp_increments_attempts(self, _mock_send_otp):
         session = send_for_signing(self.contract, 'client@example.com')
         request_signing_otp(str(session.token))
@@ -65,8 +65,8 @@ class ContractSigningFlowTest(TenantAPITestCase):
         self.assertIsNone(session.verified_at)
 
     @patch('apps.contracts.tasks.notify_contract_signed.delay')
-    @patch('apps.contracts.services._send_otp')
-    @patch('apps.contracts.services._generate_otp', return_value='123456')
+    @patch('apps.contracts.signing._send_otp')
+    @patch('apps.contracts.signing._generate_otp', return_value='123456')
     def test_verify_success_signs_contract_and_marks_lookup_used(self, _mock_generate, _mock_send_otp, mock_notify):
         session = send_for_signing(self.contract, 'client@example.com')
         request_signing_otp(str(session.token))
@@ -89,8 +89,8 @@ class ContractSigningFlowTest(TenantAPITestCase):
 
         mock_notify.assert_called_once_with(self.tenant.id, self.contract.id)
 
-    @patch('apps.contracts.services._send_otp')
-    @patch('apps.contracts.services._generate_otp', return_value='111111')
+    @patch('apps.contracts.signing._send_otp')
+    @patch('apps.contracts.signing._generate_otp', return_value='111111')
     def test_verify_marks_contract_expired_when_otp_expired(self, _mock_generate, _mock_send_otp):
         session = send_for_signing(self.contract, 'client@example.com')
         request_signing_otp(str(session.token))

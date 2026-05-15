@@ -23,6 +23,13 @@
 10. ~~В DealsView не было быстрого создания контакта/компании.~~
     - Исправлено: quick-create диалоги + `+` кнопки в формах создания/редактирования
 
+## Закрытые (2026-05-15)
+
+14. ~~Регрессия инварианта DEC-032 «0 `as any`»: 11 `as any` во фронтенде (9 в `DealsView.vue`, 2 на границе SIP.js).~~
+    - **Истинная причина:** тип `CrmDeal` неполный — бэкенд (`get_deal`/`kanban_deals`) отдаёт `created_at/expected_close_date/loss_reason`, в типе их не было; часть кастов вообще лишние (поля уже были в типе). На границе SIP.js — нетипизированный доступ к `sessionDescriptionHandler.peerConnection` и `creds.sip_domain`.
+    - **Исправление (DEC-036):** `CrmDeal` дополнен; касты сняты; `contactLabel` принимает `number|null|undefined`; SIP.js типизирован через `Web.SessionDescriptionHandler` (namespace-экспорт `sip.js`) и `creds.sip_domain` (поле уже в `WebRTCCredentials`). `npm run typecheck` EXIT=0.
+    - **Файлы:** `frontend/src/api/crm.ts`, `frontend/src/views/DealsView.vue`, `frontend/src/composables/useSIPPhone.ts`
+
 ## Закрытые (2026-05-13)
 
 13. ~~Не создаются сделки от входящих сообщений в Telegram/MAX.~~
@@ -41,7 +48,7 @@
 ## Открытые
 
 1. Для внешних CRM в production всё ещё требуется финальная валидация на реальных аккаунтах маркетплейсов amoCRM/Битрикс24 (боевые app credentials + реальный callback домен).
-   - Файлы: `apps/integrations/api.py`, `apps/integrations/services.py`, `apps/integrations/adapters_amocrm.py`, `apps/integrations/adapters_bitrix24.py`
+   - Файлы: `apps/integrations/oauth_api.py` (OAuth start/callback, после DEC-036), `apps/integrations/connections_api.py`, `apps/integrations/services.py`, `apps/integrations/adapters_amocrm.py`, `apps/integrations/adapters_bitrix24.py`
    - План закрытия: production-hardening этап (staging QA прогон marketplace install + webhook events + auto token refresh на реальных CRM tenant-ах)
 
 2. `freeswitch` в профиле `telephony` остаётся экспериментальным; на ARM-хостах возможна нестабильность образа/медиа-контура.
@@ -55,3 +62,8 @@
 11. CI отсутствует — нет автоматического прогона `manage.py check`/тестов/typecheck/vitest при PR.
     - Файлы: нет `.github/workflows/`
     - План закрытия: добавить GitHub Actions workflow с матрицей backend (Python 3.13 + Postgres) + frontend (Node 24).
+
+15. `TelephonyView`/`ContractsView` — кандидаты на декомпозицию (P2-1 продолжение, DEC-036).
+    - **Контекст:** P2-1 выполнен полностью, включая ранее отложенный ChatsTab. `DealsView` 760→623, `IntegrationsView` 645→415, `ChannelsView` 605→452 — 9 новых презентационных компонентов; вся логика/WS остаётся в родителях. ChatsTab решён без эвристик: дочерний компонент владеет только scroll-DOM-узлом и экспонирует `scrollToBottom()` через `defineExpose`; родительские WS/send/load-обработчики вызывают его в тех же точках управления (1:1 перенос потока, не watcher-догадка) — проверяется `typecheck`+`vite build`. Все гейты зелёные.
+    - **Файлы:** `frontend/src/views/{TelephonyView,ContractsView}.vue` (≈555/554 LOC, ещё не декомпозированы)
+    - **План закрытия:** применить тот же паттерн «parent owns state, child presentational» + гейт `typecheck`/`vite build`; рекомендуется браузер-QA телефонии/договоров при следующем визуальном прогоне.

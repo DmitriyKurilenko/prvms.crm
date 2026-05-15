@@ -77,8 +77,11 @@ export interface CrmDeal {
   responsible_id: number | null
   contact_id: number | null
   company_id?: number | null
+  expected_close_date?: string | null
+  loss_reason?: string
   contracts?: CrmDealContractRef[]
   chat_sessions?: CrmDealChatSessionRef[]
+  created_at?: string
   updated_at: string
 }
 

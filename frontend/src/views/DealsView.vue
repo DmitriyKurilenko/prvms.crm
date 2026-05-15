@@ -70,7 +70,7 @@
               <div class="deal-name">{{ deal.name }}</div>
               <div v-if="deal.amount" class="deal-amount">{{ deal.amount.toLocaleString('ru') }} {{ deal.currency }}</div>
               <div class="deal-meta">
-                <span v-if="(deal as any).contact_id" class="deal-contact">{{ contactLabel((deal as any).contact_id) }}</span>
+                <span v-if="deal.contact_id" class="deal-contact">{{ contactLabel(deal.contact_id) }}</span>
               </div>
             </div>
           </div>
@@ -108,187 +108,63 @@
       </div>
     </section>
 
-    <!-- DEAL DETAIL DIALOG -->
-    <PDialog v-model:visible="showDealDetail" header="Сделка" :style="{ width: '640px', maxWidth: '95vw' }" modal>
-      <div v-if="dealDetail" class="form-grid">
-        <div>
-          <label class="field-label">Название *</label>
-          <PInputText v-model="dealEdit.name" class="w-full" :disabled="!canUpdateDeal" />
-        </div>
-        <div class="form-row-2">
-          <div>
-            <label class="field-label">Сумма</label>
-            <PInputText v-model.number="dealEdit.amount" type="number" class="w-full" :disabled="!canUpdateDeal" />
-          </div>
-          <div>
-            <label class="field-label">Валюта</label>
-            <PSelect v-model="dealEdit.currency" :options="currencies" optionLabel="label" optionValue="value" class="w-full" :disabled="!canUpdateDeal" />
-          </div>
-        </div>
-        <div class="form-row-2">
-          <div>
-            <label class="field-label">Контакт</label>
-            <div class="select-with-add">
-              <PSelect v-model="dealEdit.contact_id" :options="contactOptions" optionLabel="label" optionValue="value" placeholder="— не выбран —" showClear filter filterPlaceholder="Поиск…" class="flex-1" :disabled="!canUpdateDeal" />
-              <PButton v-if="canCreateContact && canUpdateDeal" icon="pi pi-plus" size="small" outlined @click="quickCreateTarget = 'deal-contact'; showQuickContact = true" />
-            </div>
-          </div>
-          <div>
-            <label class="field-label">Компания</label>
-            <div class="select-with-add">
-              <PSelect v-model="dealEdit.company_id" :options="companyOptions" optionLabel="label" optionValue="value" placeholder="— не выбрана —" showClear filter filterPlaceholder="Поиск…" class="flex-1" :disabled="!canUpdateDeal" />
-              <PButton v-if="canCreateCompany && canUpdateDeal" icon="pi pi-plus" size="small" outlined @click="quickCreateTarget = 'deal-company'; showQuickCompany = true" />
-            </div>
-          </div>
-        </div>
-        <div class="form-row-2">
-          <div>
-            <label class="field-label">Ответственный</label>
-            <PSelect v-model="dealEdit.responsible_id" :options="managerOptions" optionLabel="label" optionValue="value" placeholder="— не выбран —" showClear class="w-full" :disabled="!canUpdateDeal" />
-          </div>
-          <div>
-            <label class="field-label">Дата закрытия</label>
-            <PInputText v-model="dealEdit.expected_close_date" type="date" class="w-full" :disabled="!canUpdateDeal" />
-          </div>
-        </div>
-        <div class="form-row-2">
-          <div>
-            <label class="field-label">Источник</label>
-            <PSelect v-model="dealEdit.source" :options="sourceOptions" optionLabel="label" optionValue="value" placeholder="— не указан —" showClear class="w-full" :disabled="!canUpdateDeal" />
-          </div>
-          <div>
-            <label class="field-label">Причина проигрыша</label>
-            <PInputText v-model="dealEdit.loss_reason" class="w-full" :disabled="!canUpdateDeal" />
-          </div>
-        </div>
-        <div style="display: flex; gap: 8px; justify-content: flex-end">
-          <PButton v-if="canUpdateDeal" label="Сохранить" icon="pi pi-check" size="small" @click="saveDealEdit" />
-          <PButton v-if="canDeleteDeal" label="Удалить" icon="pi pi-trash" size="small" severity="danger" outlined @click="removeDeal" />
-        </div>
+    <DealDetailDialog
+      :visible="showDealDetail"
+      :deal="dealDetail"
+      :edit="dealEdit"
+      :contact-options="contactOptions"
+      :company-options="companyOptions"
+      :manager-options="managerOptions"
+      :source-options="sourceOptions"
+      :currencies="currencies"
+      :activity-type-options="activityTypeOptions"
+      :can-update="canUpdateDeal"
+      :can-delete="canDeleteDeal"
+      :can-create-contact="canCreateContact"
+      :can-create-company="canCreateCompany"
+      v-model:note-text="newNote"
+      v-model:note-type="newActivityType"
+      @update:visible="showDealDetail = $event"
+      @save="saveDealEdit"
+      @remove="removeDeal"
+      @add-note="addNote"
+      @quick-contact="quickCreateTarget = 'deal-contact'; showQuickContact = true"
+      @quick-company="quickCreateTarget = 'deal-company'; showQuickCompany = true"
+      @download-pdf="downloadPdf"
+    />
 
-        <!-- Contracts -->
-        <div v-if="dealDetail.contracts?.length" style="margin-top: 8px">
-          <PDivider />
-          <h4>Договоры</h4>
-          <div v-for="c in dealDetail.contracts" :key="c.id" class="contract-row">
-            <span>📄 {{ c.template_name || 'Договор' }} #{{ c.id }}</span>
-            <span :class="'status-badge status-' + c.status">{{ contractStatusLabel(c.status) }}</span>
-            <span class="tl-date">{{ formatDate(c.created_at) }}</span>
-            <PButton icon="pi pi-download" text size="small" @click="downloadPdf(c.id)" />
-          </div>
-        </div>
+    <DealFormDialog
+      :visible="showDealForm"
+      :form="dealForm"
+      :pipelines="pipelines"
+      :stage-options="dealFormStageOptions"
+      :contact-options="contactOptions"
+      :company-options="companyOptions"
+      :manager-options="managerOptions"
+      :source-options="sourceOptions"
+      :currencies="currencies"
+      :can-create-contact="canCreateContact"
+      :can-create-company="canCreateCompany"
+      @update:visible="showDealForm = $event"
+      @submit="submitDeal"
+      @pipeline-change="onDealPipelineChange"
+      @quick-contact="quickCreateTarget = 'deal-contact'; showQuickContact = true"
+      @quick-company="quickCreateTarget = 'deal-company'; showQuickCompany = true"
+    />
 
-        <PDivider />
-        <div class="activity-section">
-          <h4>Лог активности</h4>
-          <div class="activity-list">
-            <div v-for="a in dealDetail.activities" :key="a.id" class="timeline-item">
-              <span class="tl-icon">{{ activityIcon(a.type) }}</span>
-              <div class="tl-content">
-                <strong>{{ a.title }}</strong>
-                <div v-if="(a as any).body" class="tl-body">{{ (a as any).body }}</div>
-                <div class="tl-meta">
-                  <span class="tl-date">{{ formatDateTime(a.created_at) }}</span>
-                  <PTag :value="activityTypeLabel(a.type)" size="small" />
-                </div>
-              </div>
-            </div>
-            <div v-if="!dealDetail.activities?.length" class="empty-state">Нет активностей</div>
-          </div>
-          <div class="add-activity-row">
-            <PSelect v-model="newActivityType" :options="activityTypeOptions" optionLabel="label" optionValue="value" placeholder="Тип" style="width: 150px" :disabled="!canUpdateDeal" />
-            <PInputText v-model="newNote" placeholder="Заметка..." style="flex: 1" :disabled="!canUpdateDeal" />
-            <PButton v-if="canUpdateDeal" label="Добавить" size="small" @click="addNote" />
-          </div>
-        </div>
-      </div>
-    </PDialog>
+    <QuickContactDialog
+      :visible="showQuickContact"
+      :can-create="canCreateContact"
+      @update:visible="showQuickContact = $event"
+      @created="onQuickContactCreated"
+    />
 
-    <!-- NEW DEAL FORM -->
-    <PDialog v-model:visible="showDealForm" header="Новая сделка" :style="{ width: '500px', maxWidth: '95vw' }" modal>
-      <div class="form-grid">
-        <div>
-          <label class="field-label">Название *</label>
-          <PInputText v-model="dealForm.name" placeholder="Название сделки" class="w-full" />
-        </div>
-        <div class="form-row-2">
-          <div>
-            <label class="field-label">Воронка *</label>
-            <PSelect v-model="dealForm.pipeline_id" :options="pipelines" optionLabel="name" optionValue="id" placeholder="Воронка" @change="onDealPipelineChange" class="w-full" />
-          </div>
-          <div>
-            <label class="field-label">Стадия</label>
-            <PSelect v-model="dealForm.stage_id" :options="dealFormStageOptions" optionLabel="label" optionValue="value" placeholder="Первая стадия" class="w-full" />
-          </div>
-        </div>
-        <div class="form-row-2">
-          <div>
-            <label class="field-label">Сумма</label>
-            <PInputText v-model.number="dealForm.amount" placeholder="0" type="number" class="w-full" />
-          </div>
-          <div>
-            <label class="field-label">Валюта</label>
-            <PSelect v-model="dealForm.currency" :options="currencies" optionLabel="label" optionValue="value" class="w-full" />
-          </div>
-        </div>
-        <div class="form-row-2">
-          <div>
-            <label class="field-label">Контакт</label>
-            <div class="select-with-add">
-              <PSelect v-model="dealForm.contact_id" :options="contactOptions" optionLabel="label" optionValue="value" placeholder="— не выбран —" showClear filter filterPlaceholder="Поиск…" class="flex-1" />
-              <PButton v-if="canCreateContact" icon="pi pi-plus" size="small" outlined @click="quickCreateTarget = 'deal-contact'; showQuickContact = true" />
-            </div>
-          </div>
-          <div>
-            <label class="field-label">Компания</label>
-            <div class="select-with-add">
-              <PSelect v-model="dealForm.company_id" :options="companyOptions" optionLabel="label" optionValue="value" placeholder="— не выбрана —" showClear filter filterPlaceholder="Поиск…" class="flex-1" />
-              <PButton v-if="canCreateCompany" icon="pi pi-plus" size="small" outlined @click="quickCreateTarget = 'deal-company'; showQuickCompany = true" />
-            </div>
-          </div>
-        </div>
-        <div class="form-row-2">
-          <div>
-            <label class="field-label">Ответственный</label>
-            <PSelect v-model="dealForm.responsible_id" :options="managerOptions" optionLabel="label" optionValue="value" placeholder="— не выбран —" showClear class="w-full" />
-          </div>
-          <div>
-            <label class="field-label">Дата закрытия</label>
-            <PInputText v-model="dealForm.expected_close_date" type="date" class="w-full" />
-          </div>
-        </div>
-        <div>
-          <label class="field-label">Источник</label>
-          <PSelect v-model="dealForm.source" :options="sourceOptions" optionLabel="label" optionValue="value" placeholder="— не указан —" showClear class="w-full" />
-        </div>
-        <PButton label="Создать" :disabled="!dealForm.name || !dealForm.pipeline_id" @click="submitDeal" />
-      </div>
-    </PDialog>
-
-    <PDialog v-model:visible="showQuickContact" header="Быстрое создание контакта" :style="{ width: '400px', maxWidth: '95vw' }" modal>
-      <div class="form-grid">
-        <div class="form-row-2">
-          <div><label class="field-label">Имя *</label><PInputText v-model="quickContact.first_name" placeholder="Имя" class="w-full" /></div>
-          <div><label class="field-label">Фамилия</label><PInputText v-model="quickContact.last_name" placeholder="Фамилия" class="w-full" /></div>
-        </div>
-        <div class="form-row-2">
-          <div><label class="field-label">Телефон</label><PInputText v-model="quickContact.phone" placeholder="+7..." class="w-full" /></div>
-          <div><label class="field-label">Email</label><PInputText v-model="quickContact.email" placeholder="email@..." class="w-full" /></div>
-        </div>
-        <PButton label="Создать" @click="submitQuickContact" :disabled="!canCreateContact" />
-      </div>
-    </PDialog>
-
-    <PDialog v-model:visible="showQuickCompany" header="Быстрое создание компании" :style="{ width: '400px', maxWidth: '95vw' }" modal>
-      <div class="form-grid">
-        <div><label class="field-label">Название *</label><PInputText v-model="quickCompany.name" placeholder="Название" class="w-full" /></div>
-        <div class="form-row-2">
-          <div><label class="field-label">ИНН</label><PInputText v-model="quickCompany.inn" placeholder="ИНН" maxlength="12" class="w-full" /></div>
-          <div><label class="field-label">Телефон</label><PInputText v-model="quickCompany.phone" placeholder="+7..." class="w-full" /></div>
-        </div>
-        <PButton label="Создать" @click="submitQuickCompany" :disabled="!canCreateCompany" />
-      </div>
-    </PDialog>
+    <QuickCompanyDialog
+      :visible="showQuickCompany"
+      :can-create="canCreateCompany"
+      @update:visible="showQuickCompany = $event"
+      @created="onQuickCompanyCreated"
+    />
 
     <template #locked>
       <div class="surface-card" style="padding: 16px">Раздел доступен в плане CRM.</div>
@@ -298,17 +174,21 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { useToast } from 'primevue/usetoast'
+import { useApiCall } from '@/composables/useApiCall'
 import FeatureGate from '@/components/FeatureGate.vue'
+import QuickContactDialog from '@/components/QuickContactDialog.vue'
+import QuickCompanyDialog from '@/components/QuickCompanyDialog.vue'
+import DealFormDialog from '@/components/DealFormDialog.vue'
+import DealDetailDialog from '@/components/DealDetailDialog.vue'
 import * as crmApi from '@/api/crm'
 import type { CrmDeal, CrmActivity, KanbanColumn } from '@/api/crm'
 import { api, getAccessToken, getTenantSlug } from '@/api/http'
 import { useAuthStore } from '@/stores/auth'
 import { normalizeCrmPermissions } from '@/utils/crmPermissions'
-import { formatDate, formatDateTime } from '@/utils/datetime'
+import { formatDate } from '@/utils/datetime'
 
 const auth = useAuthStore()
-const toast = useToast()
+const { call } = useApiCall()
 const perms = computed(() => normalizeCrmPermissions(auth.user?.crm_permissions))
 const canCreateDeal = computed(() => perms.value.deals.can_create)
 const canUpdateDeal = computed(() => perms.value.deals.can_update)
@@ -343,7 +223,7 @@ const filter = reactive({ source: null as string | null, contact_id: null as num
 const contactOptions = computed(() => contacts.value.map(c => ({ label: `${c.first_name} ${c.last_name}`.trim(), value: c.id })))
 const companyOptions = computed(() => companies.value.map(c => ({ label: c.name, value: c.id })))
 const managerOptions = computed(() => managers.value.map(m => ({ label: m.name, value: m.id })))
-const contactLabel = (id: number) => contacts.value.find(c => c.id === id)?.first_name || ''
+const contactLabel = (id: number | null | undefined) => contacts.value.find(c => c.id === id)?.first_name || ''
 
 const filteredColumns = computed(() => {
   const hasF = filter.source || filter.contact_id || filter.company_id || filter.date
@@ -355,14 +235,14 @@ const filteredColumns = computed(() => {
   return columns.value.map(col => ({
     ...col,
     deals: col.deals.filter(d => {
-      if (filter.source && (d as any).source !== filter.source) return false
-      if (filter.contact_id && (d as any).contact_id !== filter.contact_id) return false
-      if (filter.company_id && (d as any).company_id !== filter.company_id) return false
-      if (filter.date && (d as any).created_at) {
-        const c = (d as any).created_at.slice(0, 10)
+      if (filter.source && d.source !== filter.source) return false
+      if (filter.contact_id && d.contact_id !== filter.contact_id) return false
+      if (filter.company_id && d.company_id !== filter.company_id) return false
+      if (filter.date && d.created_at) {
+        const c = d.created_at.slice(0, 10)
         if (filter.date === 'today' && c !== todayStr) return false
         if (filter.date === 'yesterday' && c !== yesterdayStr) return false
-        if (filter.date === 'week' && new Date((d as any).created_at) < weekAgo) return false
+        if (filter.date === 'week' && new Date(d.created_at) < weekAgo) return false
       }
       return true
     })
@@ -385,23 +265,19 @@ const colTotal = (col: KanbanColumn) => {
 }
 
 const loadPipelines = async () => {
-  try {
-    pipelines.value = await crmApi.listPipelines()
-    if (pipelines.value.length && !selectedPipeline.value) {
-      selectedPipeline.value = pipelines.value[0].id
-    }
-  } catch {
-    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось загрузить воронки.', life: 5000 })
+  const res = await call(() => crmApi.listPipelines(), 'Не удалось загрузить воронки.')
+  if (res === undefined) return
+  pipelines.value = res
+  if (pipelines.value.length && !selectedPipeline.value) {
+    selectedPipeline.value = pipelines.value[0].id
   }
 }
 
 const loadBoard = async () => {
   if (!selectedPipeline.value) return
-  try {
-    columns.value = await crmApi.kanbanDeals(selectedPipeline.value)
-  } catch {
-    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось загрузить доску сделок.', life: 5000 })
-  }
+  const pid = selectedPipeline.value
+  const res = await call(() => crmApi.kanbanDeals(pid), 'Не удалось загрузить доску сделок.')
+  if (res !== undefined) columns.value = res
 }
 
 let dragDealId: number | null = null
@@ -411,14 +287,10 @@ const onDragStart = (e: DragEvent, id: number) => {
 }
 const onDrop = async (_e: DragEvent, stageId: number) => {
   if (!canUpdateDeal.value || !dragDealId) return
-  try {
-    await crmApi.moveDeal(dragDealId, stageId)
-    dragDealId = null
-    await loadBoard()
-  } catch {
-    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось переместить сделку.', life: 5000 })
-    dragDealId = null
-  }
+  const id = dragDealId
+  const res = await call(() => crmApi.moveDeal(id, stageId), 'Не удалось переместить сделку.')
+  dragDealId = null
+  if (res !== undefined) await loadBoard()
 }
 
 onMounted(async () => {
@@ -433,54 +305,50 @@ onMounted(async () => {
 
 /* --- Deal detail --- */
 const showDealDetail = ref(false)
-const dealDetail = ref<(CrmDeal & { activities: CrmActivity[]; contracts?: any[] }) | null>(null)
+const dealDetail = ref<(CrmDeal & { activities: CrmActivity[] }) | null>(null)
 const dealEdit = reactive({ name: '', amount: null as number | null, currency: 'RUB', contact_id: null as number | null, company_id: null as number | null, responsible_id: null as number | null, expected_close_date: '', source: '', loss_reason: '' })
 const newNote = ref('')
 const newActivityType = ref('note')
 
 const openDeal = async (id: number) => {
-  try {
-    dealDetail.value = await crmApi.getDeal(id)
-    const d = dealDetail.value
-    Object.assign(dealEdit, { name: d.name, amount: d.amount, currency: d.currency, contact_id: d.contact_id, company_id: (d as any).company_id ?? null, responsible_id: d.responsible_id, expected_close_date: (d as any).expected_close_date || '', source: (d as any).source || '', loss_reason: (d as any).loss_reason || '' })
-    showDealDetail.value = true
-  } catch {
-    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось открыть сделку.', life: 5000 })
-  }
+  const d = await call(() => crmApi.getDeal(id), 'Не удалось открыть сделку.')
+  if (d === undefined) return
+  dealDetail.value = d
+  Object.assign(dealEdit, { name: d.name, amount: d.amount, currency: d.currency, contact_id: d.contact_id, company_id: d.company_id ?? null, responsible_id: d.responsible_id, expected_close_date: d.expected_close_date || '', source: d.source || '', loss_reason: d.loss_reason || '' })
+  showDealDetail.value = true
 }
 
 const saveDealEdit = async () => {
   if (!canUpdateDeal.value || !dealDetail.value || !dealEdit.name) return
-  try {
-    await crmApi.patchDeal(dealDetail.value.id, { ...dealEdit, expected_close_date: dealEdit.expected_close_date || null })
-    showDealDetail.value = false
-    await loadBoard()
-  } catch {
-    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось сохранить сделку.', life: 5000 })
-  }
+  const res = await call(
+    () => crmApi.patchDeal(dealDetail.value!.id, { ...dealEdit, expected_close_date: dealEdit.expected_close_date || null }),
+    'Не удалось сохранить сделку.',
+  )
+  if (res === undefined) return
+  showDealDetail.value = false
+  await loadBoard()
 }
 
 const removeDeal = async () => {
   if (!canDeleteDeal.value || !dealDetail.value) return
-  try {
-    await crmApi.deleteDeal(dealDetail.value.id)
-    showDealDetail.value = false
-    await loadBoard()
-  } catch {
-    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось удалить сделку.', life: 5000 })
-  }
+  const res = await call(() => crmApi.deleteDeal(dealDetail.value!.id), 'Не удалось удалить сделку.')
+  if (res === undefined) return
+  showDealDetail.value = false
+  await loadBoard()
 }
 
 const addNote = async () => {
   if (!canUpdateDeal.value || !dealDetail.value || !newNote.value.trim()) return
-  try {
-    await crmApi.createActivity({ activity_type: newActivityType.value, deal_id: dealDetail.value.id, title: newNote.value })
-    newNote.value = ''
-    newActivityType.value = 'note'
-    dealDetail.value = await crmApi.getDeal(dealDetail.value.id)
-  } catch {
-    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось добавить заметку.', life: 5000 })
-  }
+  const dealId = dealDetail.value.id
+  const res = await call(
+    () => crmApi.createActivity({ activity_type: newActivityType.value, deal_id: dealId, title: newNote.value }),
+    'Не удалось добавить заметку.',
+  )
+  if (res === undefined) return
+  newNote.value = ''
+  newActivityType.value = 'note'
+  const refreshed = await call(() => crmApi.getDeal(dealId), 'Не удалось добавить заметку.')
+  if (refreshed !== undefined) dealDetail.value = refreshed
 }
 
 const downloadPdf = (contractId: number) => {
@@ -520,59 +388,39 @@ const submitDeal = async () => {
     stageId = stages[0]?.id || null
   }
   if (!stageId) return
-  try {
-    await crmApi.createDeal({ name: dealForm.name, pipeline_id: dealForm.pipeline_id, stage_id: stageId, amount: dealForm.amount, currency: dealForm.currency, contact_id: dealForm.contact_id, company_id: dealForm.company_id, responsible_id: dealForm.responsible_id, expected_close_date: dealForm.expected_close_date || null, source: dealForm.source })
-    showDealForm.value = false
-    Object.assign(dealForm, { name: '', amount: null, currency: 'RUB', stage_id: null, contact_id: null, company_id: null, responsible_id: null, expected_close_date: '', source: '' })
-    await loadBoard()
-  } catch {
-    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось создать сделку.', life: 5000 })
-  }
+  const res = await call(
+    () => crmApi.createDeal({ name: dealForm.name, pipeline_id: dealForm.pipeline_id, stage_id: stageId, amount: dealForm.amount, currency: dealForm.currency, contact_id: dealForm.contact_id, company_id: dealForm.company_id, responsible_id: dealForm.responsible_id, expected_close_date: dealForm.expected_close_date || null, source: dealForm.source }),
+    'Не удалось создать сделку.',
+  )
+  if (res === undefined) return
+  showDealForm.value = false
+  Object.assign(dealForm, { name: '', amount: null, currency: 'RUB', stage_id: null, contact_id: null, company_id: null, responsible_id: null, expected_close_date: '', source: '' })
+  await loadBoard()
 }
 
-/* --- Quick-create inline --- */
+/* --- Quick-create (dialogs extracted to child components) --- */
 const quickCreateTarget = ref('')
 const showQuickContact = ref(false)
 const showQuickCompany = ref(false)
-const quickContact = reactive({ first_name: '', last_name: '', phone: '', email: '' })
-const quickCompany = reactive({ name: '', inn: '', phone: '' })
 
-const submitQuickContact = async () => {
-  if (!canCreateContact.value || !quickContact.first_name) return
-  try {
-    const res = await crmApi.createContact({ ...quickContact })
-    await crmApi.listContacts().then(r => (contacts.value = r))
-    if (quickCreateTarget.value === 'deal-contact') {
-      if (showDealForm.value) dealForm.contact_id = res.id
-      else dealEdit.contact_id = res.id
-    }
-    showQuickContact.value = false
-    Object.assign(quickContact, { first_name: '', last_name: '', phone: '', email: '' })
-  } catch {
-    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось создать контакт.', life: 5000 })
+const onQuickContactCreated = async (res: { id: number }) => {
+  const list = await call(() => crmApi.listContacts(), 'Не удалось создать контакт.')
+  if (list !== undefined) contacts.value = list
+  if (quickCreateTarget.value === 'deal-contact') {
+    if (showDealForm.value) dealForm.contact_id = res.id
+    else dealEdit.contact_id = res.id
   }
 }
 
-const submitQuickCompany = async () => {
-  if (!canCreateCompany.value || !quickCompany.name) return
-  try {
-    const res = await crmApi.createCompany({ ...quickCompany })
-    await crmApi.listCompanies().then(r => (companies.value = r))
-    if (quickCreateTarget.value === 'deal-company') {
-      if (showDealForm.value) dealForm.company_id = res.id
-      else dealEdit.company_id = res.id
-    }
-    showQuickCompany.value = false
-    Object.assign(quickCompany, { name: '', inn: '', phone: '' })
-  } catch {
-    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось создать компанию.', life: 5000 })
+const onQuickCompanyCreated = async (res: { id: number }) => {
+  const list = await call(() => crmApi.listCompanies(), 'Не удалось создать компанию.')
+  if (list !== undefined) companies.value = list
+  if (quickCreateTarget.value === 'deal-company') {
+    if (showDealForm.value) dealForm.company_id = res.id
+    else dealEdit.company_id = res.id
   }
 }
 
-/* --- Helpers --- */
-const activityIcon = (type: string) => ({ call: '📞', message: '💬', task: '✅', note: '📝', email: '📧', contract: '📄', stage_change: '🔄', system: '⚙️' }[type] || '📌')
-const activityTypeLabel = (type: string) => ({ call: 'Звонок', message: 'Сообщение', task: 'Задача', note: 'Заметка', email: 'Email', contract: 'Договор', stage_change: 'Смена стадии', system: 'Система' }[type] || type)
-const contractStatusLabel = (s: string) => ({ draft: 'Черновик', sent: 'Отправлен', viewed: 'Просмотрен', signed: 'Подписан', expired: 'Истёк' }[s] || s)
 </script>
 
 <style scoped>

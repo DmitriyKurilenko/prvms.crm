@@ -1,0 +1,160 @@
+"""Single source of truth for CRM request schemas.
+
+Previously each `*_api.py` module declared its own `XIn`/`XPatchIn`
+pair, so the create/patch contract for a given entity lived in two
+places and drifted easily. Collecting every pair here keeps each
+entity's full input contract reviewable in one screen.
+
+The `PatchIn` variants are intentionally hand-written (all fields
+optional, no defaults) rather than derived from `XIn` via
+metaprogramming: these schemas are the API validation contract and
+there is no per-field integration coverage that would catch a
+behaviour change from an automatic transform.
+"""
+from __future__ import annotations
+
+from ninja import Field, Schema
+
+
+# --- Contacts ---------------------------------------------------------------
+
+class ContactIn(Schema):
+    first_name: str
+    last_name: str = ''
+    phone: str = ''
+    email: str = ''
+    messenger_id: str = ''
+    position: str = ''
+    company_id: int | None = None
+    custom_fields: dict = {}
+    source: str = ''
+    responsible_id: int | None = None
+
+
+class ContactPatchIn(Schema):
+    first_name: str | None = None
+    last_name: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    messenger_id: str | None = None
+    position: str | None = None
+    company_id: int | None = None
+    custom_fields: dict | None = None
+    source: str | None = None
+    responsible_id: int | None = None
+
+
+# --- Companies --------------------------------------------------------------
+
+class CompanyIn(Schema):
+    name: str
+    inn: str = Field('', max_length=12)
+    phone: str = Field('', max_length=50)
+    email: str = ''
+    address: str = ''
+    website: str = ''
+    custom_fields: dict = {}
+    responsible_id: int | None = None
+
+
+class CompanyPatchIn(Schema):
+    name: str | None = None
+    inn: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    address: str | None = None
+    website: str | None = None
+    custom_fields: dict | None = None
+    responsible_id: int | None = None
+
+
+# --- Pipelines & Stages -----------------------------------------------------
+
+class PipelineIn(Schema):
+    name: str
+    is_default: bool = False
+    sort_order: int = 0
+    is_active: bool = True
+
+
+class PipelinePatchIn(Schema):
+    name: str | None = None
+    is_default: bool | None = None
+    sort_order: int | None = None
+    is_active: bool | None = None
+
+
+class StageIn(Schema):
+    name: str
+    stage_type: str = 'open'
+    color: str = '#3B82F6'
+    sort_order: int = 0
+    auto_action: dict = {}
+
+
+class StagePatchIn(Schema):
+    name: str | None = None
+    stage_type: str | None = None
+    color: str | None = None
+    sort_order: int | None = None
+    auto_action: dict | None = None
+
+
+# --- Deals ------------------------------------------------------------------
+
+class DealIn(Schema):
+    name: str
+    pipeline_id: int
+    stage_id: int
+    contact_id: int | None = None
+    company_id: int | None = None
+    amount: float | None = None
+    currency: str = 'RUB'
+    responsible_id: int | None = None
+    expected_close_date: str | None = None
+    loss_reason: str = ''
+    custom_fields: dict = {}
+    source: str = ''
+
+
+class DealPatchIn(Schema):
+    name: str | None = None
+    pipeline_id: int | None = None
+    stage_id: int | None = None
+    contact_id: int | None = None
+    company_id: int | None = None
+    amount: float | None = None
+    currency: str | None = None
+    responsible_id: int | None = None
+    expected_close_date: str | None = None
+    loss_reason: str | None = None
+    custom_fields: dict | None = None
+    source: str | None = None
+
+
+class DealMoveIn(Schema):
+    stage_id: int
+
+
+# --- Activities -------------------------------------------------------------
+
+class ActivityIn(Schema):
+    activity_type: str
+    deal_id: int | None = None
+    contact_id: int | None = None
+    responsible_id: int | None = None
+    title: str
+    body: str = ''
+    status: str = 'done'
+    due_date: str | None = None
+
+
+class ActivityPatchIn(Schema):
+    activity_type: str | None = None
+    deal_id: int | None = None
+    contact_id: int | None = None
+    responsible_id: int | None = None
+    title: str | None = None
+    body: str | None = None
+    status: str | None = None
+    due_date: str | None = None
