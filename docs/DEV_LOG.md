@@ -1,5 +1,42 @@
 # Dev Log
 
+## 2026-05-15 — Рефакторинг P0–P2: декомпозиция монолитных api/services + восстановление типобезопасности (DEC-036)
+
+### Что сделано:
+Поведение-сохраняющий рефакторинг по паттерну DEC-032 (sibling-модули + тонкий shim). 7 треков; P2-1 (декомпозиция `.vue`) выполнен в этой же сессии после усиления валидационного гейта `vite build` (см. раздел P2-1 ниже).
+
+- **P0-1** `apps/crm/api.py` (864 LOC) → `_api_common.py` + `contacts_api/companies_api/pipelines_api/deals_api/activities_api/stats_api` + shim (23 LOC).
+- **P0-2** `CrmDeal` дополнен (`created_at/expected_close_date/loss_reason`); сняты все 9 `as any` в `DealsView.vue` + 2 на границе SIP.js (`Web.SessionDescriptionHandler`, `creds.sip_domain`). Инвариант DEC-032 «0 `as any`» восстановлен.
+- **P1-1** `apps/integrations/api.py` (705 LOC) → `_api_common.py` + `connections_api/webhooks_api/oauth_api` + shim. Request/URL-coupled хелперы оставлены в API-слое (не в `services.py`).
+- **P1-2** `apps/contracts/services.py` (558 LOC) → `mapping/pdf/otp/esign_agreement/signing` + shim. Ацикличный граф импортов.
+- **P1-3** `composables/useApiCall.ts` (единая точка DEC-031); `DealsView.vue` полностью переведён (13 вызовов).
+- **P2-2** все CRM `XIn/XPatchIn` → `apps/crm/schemas.py`.
+- **P2-1** выполнен (декомпозиция `DealsView`/`IntegrationsView`/`ChannelsView` → 8 компонентов) — см. раздел P2-1 ниже.
+
+### Файлы:
+- **Backend:** `apps/crm/{_api_common,contacts_api,companies_api,pipelines_api,deals_api,activities_api,stats_api,schemas,api}.py`; `apps/integrations/{_api_common,connections_api,webhooks_api,oauth_api,api}.py`; `apps/contracts/{mapping,pdf,otp,esign_agreement,signing,services}.py`; `apps/contracts/tests/test_signing_flow.py` (патч-цели OTP перенаведены на `apps.contracts.signing.*`).
+- **Frontend:** `frontend/src/api/crm.ts` (`CrmDeal`), `frontend/src/views/DealsView.vue`, `frontend/src/composables/{useApiCall.ts,useSIPPhone.ts}`.
+
+### Валидация (Docker):
+- `docker compose run --rm web python manage.py check` → System check identified no issues.
+- `docker compose run --rm web python manage.py test apps` → **Ran 128 tests — OK**.
+- `docker compose run --rm web python manage.py test apps.crm apps.integrations apps.contracts` → 24/24 OK.
+- `docker compose run --rm --no-deps frontend npm run typecheck` → **EXIT=0, нет ошибок**.
+- `docker compose run --rm --no-deps frontend npm run test` → **5/5 passed**.
+
+### P2-1 (декомпозиция крупных `.vue` — выполнено в этой же сессии):
+Паттерн «parent owns state, child presentational»: вся логика/WS/loading остаются в родителе, дочерний компонент — презентационная оболочка, реактивные form-объекты передаются по ссылке, действия — через emits. Валидационный гейт усилен реальным `vite build` (полная компиляция `.vue`, резолв пропсов/импортов) — сильнее, чем `vue-tsc --noEmit`.
+- `DealsView` 760→623: `QuickContactDialog`, `QuickCompanyDialog`, `DealFormDialog`, `DealDetailDialog`.
+- `IntegrationsView` 645→415: `IntegrationSetupCard`, `ConnectionsTable`, `IntegrationErrorsDialog`.
+- `ChannelsView` 605→452: `ChannelsTab` + `ChatsTab`. ChatsTab владеет только scroll-DOM-узлом и экспонирует `scrollToBottom()` через `defineExpose`; WS-lifecycle/`sendMessage`/`loadMessages` в родителе вызывают его в тех же 4 точках, где раньше стоял `messagesContainer.scrollTop` — 1:1 перенос потока, проверяемый typecheck+build.
+- **Новые файлы:** `frontend/src/components/{QuickContactDialog,QuickCompanyDialog,DealFormDialog,DealDetailDialog,IntegrationSetupCard,ConnectionsTable,IntegrationErrorsDialog,ChannelsTab,ChatsTab}.vue` (9); изменены `frontend/src/views/{DealsView,IntegrationsView,ChannelsView}.vue`; `CHANGELOG.md` — секция `[0.2.6-dev] — unreleased` (VERSION остаётся `0.2.6-dev`, датируется при релизе).
+- **Валидация P2-1:** `npm run typecheck` EXIT=0; `npm run build` EXIT=0 (706 модулей, поэтапно после каждого view); `npm run test` 5/5. Backend не затронут.
+
+### Риски:
+- Поведение API и signing/ПЭП не изменено (чистое перемещение + shim re-export); shim сохраняет все внешние импорты.
+- P2-1 поведение-эквивалентен и проверен `typecheck`+`vite build`; реактивные form-объекты передаются по ссылке (тот же proxy), вся логика — в родителях. Полноценный browser-QA (Kanban DnD, детали сделки, диалоги интеграций/каналов) рекомендуется при следующем визуальном прогоне.
+- P2-1 выполнен полностью, включая ChatsTab (паттерн `defineExpose({scrollToBottom})`). Версия не бампалась — цикл `0.2.6-dev` уже шёл; CHANGELOG-секция помечена `unreleased`, дата проставляется при релизе (PATCH: рефакторинг без видимых пользователю изменений). Будущие кандидаты на тот же паттерн: `TelephonyView`/`ContractsView` (KNOWN_ISSUES #15).
+
 ## 2026-05-13 — Исправление создания сделок из Telegram/MAX + рефакторинг мессенджер-каналов (DEC-035)
 
 ### Корневая причина:

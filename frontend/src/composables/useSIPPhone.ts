@@ -1,5 +1,5 @@
 import { ref, type Ref } from 'vue'
-import { Invitation, Inviter, Registerer, SessionState, UserAgent } from 'sip.js'
+import { Invitation, Inviter, Registerer, SessionState, UserAgent, Web } from 'sip.js'
 import type { Session } from 'sip.js'
 import { getWebRTCCredentials } from '@/api/telephony'
 
@@ -27,7 +27,7 @@ export function useSIPPhone(remoteAudioEl: Ref<HTMLAudioElement | null>) {
   // ---------------------------------------------------------------------------
 
   function _attachAudio(session: Session) {
-    const sdh = session.sessionDescriptionHandler as any
+    const sdh = session.sessionDescriptionHandler as Web.SessionDescriptionHandler | undefined
     if (!sdh?.peerConnection) return
     sdh.peerConnection.addEventListener('track', (e: RTCTrackEvent) => {
       if (e.track.kind === 'audio' && remoteAudioEl.value && e.streams[0]) {
@@ -55,7 +55,7 @@ export function useSIPPhone(remoteAudioEl: Ref<HTMLAudioElement | null>) {
 
       const wssUrl = creds.wss_url || 'wss://localhost:7443'
       // Use sip_domain when provided (per-tenant isolation), fall back to WSS hostname
-      const sipDomain = (creds as any).sip_domain || new URL(wssUrl).hostname
+      const sipDomain = creds.sip_domain || new URL(wssUrl).hostname
       const uri = UserAgent.makeURI(`sip:${creds.extension}@${sipDomain}`)
       if (!uri) {
         error.value = 'Неверный SIP URI'

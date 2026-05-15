@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.2.6-dev] — unreleased
+
+### Refactor (P0–P2, DEC-036) — behaviour-preserving, no user-visible change
+
+Decomposition of monolithic modules following the DEC-032 pattern (sibling modules + thin back-compat shim). All public imports keep working unchanged.
+
+**Backend.**
+- `apps/crm/api.py` 864 LOC → 23-line shim + `_api_common` + `schemas` + domain modules `contacts_api`/`companies_api`/`pipelines_api`/`deals_api`/`activities_api`/`stats_api`.
+- `apps/integrations/api.py` 705 LOC → shim + `connections_api`/`webhooks_api`/`oauth_api` (`_api_common` for router/schemas/request-coupled helpers; `services.py` stays request-agnostic).
+- `apps/contracts/services.py` 558 LOC → shim + `mapping`/`pdf`/`otp`/`esign_agreement`/`signing` (acyclic import graph). `test_signing_flow` OTP patch targets repointed to `apps.contracts.signing.*` (behavioural assertions unchanged).
+- All CRM `XIn`/`XPatchIn` schemas centralised in `apps/crm/schemas.py`.
+
+**Frontend.**
+- Restored the DEC-032 “0 `as any`” invariant: `CrmDeal` completed (`created_at`/`expected_close_date`/`loss_reason`); SIP.js boundary typed via `Web.SessionDescriptionHandler`.
+- `useApiCall` composable — single enforcement point for the DEC-031 error-toast invariant; `DealsView` fully migrated.
+- View decomposition (pattern: parent owns state/WS/loading, child is presentational, reactive form objects passed by reference, actions via emits):
+  - `DealsView` 760→623 — `QuickContactDialog`, `QuickCompanyDialog`, `DealFormDialog`, `DealDetailDialog`.
+  - `IntegrationsView` 645→415 — `IntegrationSetupCard`, `ConnectionsTable`, `IntegrationErrorsDialog`.
+  - `ChannelsView` 605→452 — `ChannelsTab` and `ChatsTab` (WS lifecycle stays in the parent; `ChatsTab` owns only the scroll DOM node and exposes `scrollToBottom()` so the parent's WS/send/load handlers keep deciding *when* to scroll — a 1:1 control-flow-preserving relocation).
+
+**Validation gate** strengthened with a real `vite build` (full `.vue` compilation + component prop/import resolution) in addition to `vue-tsc --noEmit`.
+
+Validation: `manage.py check` clean; **128/128** backend tests; targeted crm/integrations/contracts 24/24; `npm run typecheck` EXIT=0; `npm run build` EXIT=0 (706 modules); **5/5** vitest.
+
 ## [0.2.5] — 2026-05-13
 
 ### Fixed (Messenger channels)

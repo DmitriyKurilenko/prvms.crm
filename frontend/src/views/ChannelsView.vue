@@ -11,193 +11,54 @@
       </div>
 
       <!-- ═══ CHANNELS TAB ═══ -->
-      <template v-if="activeTab === 'channels'">
-        <div class="surface-card" style="padding: 16px; margin-bottom: 12px">
-          <h3 style="margin: 0 0 12px">{{ editingId ? 'Редактировать канал' : 'Подключить канал' }}</h3>
-          <form @submit.prevent="submitChannel" style="display: flex; flex-direction: column; gap: 10px">
-            <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end">
-              <div style="min-width: 200px">
-                <label class="field-label">Название</label>
-                <PInputText v-model="form.name" placeholder="Мой Telegram бот" style="width: 100%" />
-              </div>
-              <div style="min-width: 180px">
-                <label class="field-label">Тип</label>
-                <PSelect v-model="form.channel_type" :options="typeOptions" optionLabel="label" optionValue="value"
-                  placeholder="Выберите тип" style="width: 100%" :disabled="!!editingId" />
-              </div>
-            </div>
-
-            <!-- Dynamic credentials -->
-            <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end">
-              <template v-if="form.channel_type === 'telegram'">
-                <div style="min-width: 300px; flex: 1">
-                  <label class="field-label">Bot Token</label>
-                  <PInputText v-model="form.credentials.bot_token" placeholder="123456:ABC-DEF..." style="width: 100%" />
-                </div>
-              </template>
-              <template v-if="form.channel_type === 'whatsapp' || form.channel_type === 'whatsapp_business'">
-                <div style="min-width: 250px; flex: 1">
-                  <label class="field-label">Send URL</label>
-                  <PInputText v-model="form.credentials.send_url" placeholder="https://api.provider.com/send" style="width: 100%" />
-                </div>
-                <div style="min-width: 200px">
-                  <label class="field-label">Auth Token</label>
-                  <PInputText v-model="form.credentials.auth_token" placeholder="Bearer token" style="width: 100%" />
-                </div>
-              </template>
-              <template v-if="form.channel_type === 'max'">
-                <div style="min-width: 300px; flex: 1">
-                  <label class="field-label">Bot Token</label>
-                  <PInputText v-model="form.credentials.bot_token" placeholder="AAHdqTcvCH1vGWJx..." style="width: 100%" />
-                </div>
-              </template>
-              <div style="min-width: 200px">
-                <label class="field-label">Webhook Token (опц.)</label>
-                <PInputText v-model="form.credentials.webhook_token" placeholder="Секрет для верификации" style="width: 100%" />
-              </div>
-            </div>
-
-            <div style="display: flex; gap: 16px; flex-wrap: wrap; align-items: center">
-              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer">
-                <input type="checkbox" v-model="form.auto_create_lead" />
-                <span class="field-label" style="margin: 0">Создавать сделку при первом сообщении</span>
-              </label>
-            </div>
-
-            <div>
-              <label class="field-label">Приветственное сообщение (опц.)</label>
-              <PTextarea v-model="form.welcome_message" rows="2" placeholder="Отправляется клиенту при первом обращении" style="width: 100%; max-width: 500px" />
-            </div>
-
-            <div style="display: flex; gap: 8px; align-items: center">
-              <PButton type="submit" :label="editingId ? 'Сохранить' : 'Подключить'" :icon="editingId ? 'pi pi-check' : 'pi pi-plus'" />
-              <PButton v-if="editingId" label="Отмена" text @click="cancelEdit" />
-            </div>
-          </form>
-        </div>
-
-        <div class="surface-card" style="padding: 16px">
-          <PDataTable :value="channels" size="small" stripedRows :paginator="true" :rows="20" :rowsPerPageOptions="[10, 20, 50]">
-            <PColumn field="name" header="Название" />
-            <PColumn header="Тип">
-              <template #body="{ data }">{{ typeLabel(data.channel_type) }}</template>
-            </PColumn>
-            <PColumn header="Статус">
-              <template #body="{ data }">
-                <div style="display: flex; align-items: center; gap: 6px">
-                  <PTag :value="statusLabel(data.status)" :severity="statusSeverity(data.status)" />
-                  <span v-if="data.status_detail" style="font-size: 0.75em; color: var(--text-muted)" :title="data.status_detail">ⓘ</span>
-                </div>
-              </template>
-            </PColumn>
-            <PColumn header="Автолид">
-              <template #body="{ data }">
-                <span :style="{ color: data.auto_create_lead ? '#16a34a' : 'var(--text-muted)' }">{{ data.auto_create_lead ? 'Да' : 'Нет' }}</span>
-              </template>
-            </PColumn>
-            <PColumn header="Webhook URL">
-              <template #body="{ data }">
-                <code style="font-size: 0.8em; word-break: break-all; cursor: pointer" @click="copyWebhook(data)" :title="'Нажмите чтобы скопировать'">
-                  {{ webhookUrl(data) }}
-                </code>
-              </template>
-            </PColumn>
-            <PColumn header="Активен">
-              <template #body="{ data }">
-                <span :style="{ color: data.is_active ? '#059669' : '#dc2626' }">{{ data.is_active ? 'Да' : 'Нет' }}</span>
-              </template>
-            </PColumn>
-            <PColumn header="">
-              <template #body="{ data }">
-                <PButton v-if="data.channel_type === 'telegram' || data.channel_type === 'max'" icon="pi pi-link" text size="small"
-                  @click="registerWebhook(data.id)" title="Зарегистрировать webhook" :severity="data.status === 'error' ? 'danger' : 'secondary'" />
-                <PButton icon="pi pi-pencil" text size="small" @click="startEdit(data)" />
-                <PButton icon="pi pi-power-off" text size="small" :severity="data.is_active ? 'warning' : 'success'"
-                  @click="toggleActive(data)" :title="data.is_active ? 'Деактивировать' : 'Активировать'" />
-                <PButton icon="pi pi-trash" text size="small" severity="danger" @click="removeChannel(data.id)" />
-              </template>
-            </PColumn>
-          </PDataTable>
-        </div>
-      </template>
+      <ChannelsTab
+        v-if="activeTab === 'channels'"
+        :form="form"
+        :editing-id="editingId"
+        :channels="channels"
+        :type-options="typeOptions"
+        :type-label="typeLabel"
+        :status-label="statusLabel"
+        :status-severity="statusSeverity"
+        :webhook-url="webhookUrl"
+        @submit="submitChannel"
+        @cancel="cancelEdit"
+        @edit="startEdit"
+        @toggle="toggleActive"
+        @remove="removeChannel"
+        @register-webhook="registerWebhook"
+        @copy-webhook="copyWebhook"
+      />
 
       <!-- ═══ CHATS TAB ═══ -->
-      <template v-if="activeTab === 'chats'">
-        <div style="display: flex; gap: 12px; height: calc(100vh - 280px); min-height: 300px; max-height: 700px">
-          <!-- Left: channel selector + sessions -->
-          <div class="surface-card" style="width: 320px; min-width: 260px; padding: 12px; display: flex; flex-direction: column; overflow: hidden">
-            <div style="margin-bottom: 10px">
-              <label class="field-label">Канал</label>
-              <PSelect v-model="selectedChannelId" :options="channelSelectOptions" optionLabel="label" optionValue="value"
-                placeholder="Выберите канал" style="width: 100%" @change="loadSessions" />
-            </div>
-            <div style="flex: 1; overflow-y: auto">
-              <div v-if="!sessions.length && selectedChannelId" style="color: var(--text-muted); padding: 12px">Нет чатов</div>
-              <div v-for="s in sessions" :key="s.id"
-                @click="selectSession(s)"
-                :style="{
-                  padding: '10px 8px', cursor: 'pointer', borderRadius: '6px',
-                  background: activeSessionId === s.id ? 'var(--p-primary-50)' : 'transparent',
-                  borderBottom: '1px solid var(--p-surface-200)'
-                }">
-                <div style="font-weight: 600; font-size: 0.9em">{{ s.external_user_name || s.external_chat_id }}</div>
-                <div style="font-size: 0.75em; color: var(--text-muted)">
-                  {{ formatDate(s.last_message_at) }}
-                  <span v-if="s.crm_lead_id" style="margin-left: 6px">📋 Сделка #{{ s.crm_lead_id }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Right: messages -->
-          <div class="surface-card" style="flex: 1; padding: 12px; display: flex; flex-direction: column; overflow: hidden">
-            <template v-if="activeSessionId">
-              <div style="font-weight: 600; margin-bottom: 8px; font-size: 0.9em; color: var(--text-muted)">
-                {{ activeSessionName }}
-              </div>
-              <div ref="messagesContainer" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding: 4px">
-                <div v-for="m in messages" :key="m.id"
-                  :style="{
-                    alignSelf: m.direction === 'out' ? 'flex-end' : 'flex-start',
-                    maxWidth: '75%',
-                    padding: '8px 12px',
-                    borderRadius: '12px',
-                    background: m.direction === 'out' ? 'var(--p-primary-100)' : 'var(--p-surface-100)',
-                    fontSize: '0.9em'
-                  }">
-                  <div>{{ m.text }}</div>
-                  <div style="font-size: 0.7em; color: var(--text-muted); text-align: right; margin-top: 2px">
-                    {{ formatTime(m.created_at) }}
-                    <span v-if="m.direction === 'out' && !m.delivered" style="color: #dc2626"> ✕</span>
-                  </div>
-                  <div v-if="m.error" style="font-size: 0.7em; color: #dc2626">{{ m.error }}</div>
-                </div>
-                <div v-if="!messages.length" style="color: var(--text-muted); padding: 20px; text-align: center">Нет сообщений</div>
-              </div>
-              <form @submit.prevent="sendMessage" style="display: flex; gap: 8px; margin-top: 8px">
-                <PInputText v-model="messageText" placeholder="Написать ответ…" style="flex: 1" />
-                <PButton type="button" icon="pi pi-comment" class="p-button-secondary" title="AI Ассистент" @click="openAIAssistant" :disabled="!activeSessionId" />
-                <PButton type="submit" icon="pi pi-send" :disabled="!messageText.trim()" />
-              </form>
-            </template>
-            <div v-else style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-muted)">
-              Выберите чат
-            </div>
-          </div>
-        </div>
-      </template>
+      <ChatsTab
+        v-if="activeTab === 'chats'"
+        ref="chatsTab"
+        v-model:selected-channel-id="selectedChannelId"
+        v-model:message-text="messageText"
+        :channel-select-options="channelSelectOptions"
+        :sessions="sessions"
+        :active-session-id="activeSessionId"
+        :active-session-name="activeSessionName"
+        :messages="messages"
+        @channel-change="loadSessions"
+        @select-session="selectSession"
+        @send-message="sendMessage"
+        @open-a-i-assistant="openAIAssistant"
+      />
     </section>
   </FeatureGate>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import { api, getAccessToken, getTenantSlug } from '@/api/http'
 import { refresh as refreshToken } from '@/api/auth'
 import FeatureGate from '@/components/FeatureGate.vue'
-import { formatDateTime, formatTime as fmtTime } from '@/utils/datetime'
+import ChannelsTab from '@/components/ChannelsTab.vue'
+import ChatsTab from '@/components/ChatsTab.vue'
 
 const route = useRoute()
 const toast = useToast()
@@ -333,7 +194,7 @@ const activeSessionId = ref<number | null>(null)
 const activeSessionName = ref('')
 const messages = ref<any[]>([])
 const messageText = ref('')
-const messagesContainer = ref<HTMLElement | null>(null)
+const chatsTab = ref<InstanceType<typeof ChatsTab> | null>(null)
 
 const channelSelectOptions = computed(() =>
   channels.value.map(c => ({ value: c.id, label: `${c.name} (${typeLabel(c.channel_type)})` }))
@@ -366,10 +227,7 @@ const selectSession = async (s: any) => {
 const loadMessages = async () => {
   if (!selectedChannelId.value || !activeSessionId.value) return
   messages.value = await api(`/channels/${selectedChannelId.value}/chats/${activeSessionId.value}/messages/`)
-  await nextTick()
-  if (messagesContainer.value) {
-    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
-  }
+  await chatsTab.value?.scrollToBottom()
 }
 
 const sendMessage = async () => {
@@ -394,8 +252,7 @@ const sendMessage = async () => {
     attachments: [], external_message_id: '', crm_message_id: '',
     delivered: false, error: '', created_at: new Date().toISOString(),
   })
-  await nextTick()
-  if (messagesContainer.value) messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+  await chatsTab.value?.scrollToBottom()
 
   await api(`/channels/${selectedChannelId.value}/send/`, {
     method: 'POST',
@@ -405,9 +262,6 @@ const sendMessage = async () => {
   // (the onmessage handler skips messages already in the list by positive id)
 }
 
-/* ── date formatting ── */
-const formatDate = (iso: string) => formatDateTime(iso, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', year: undefined })
-const formatTime = (iso: string) => fmtTime(iso)
 
 /* ── real-time WebSocket ── */
 let chatSocket: WebSocket | null = null
@@ -469,11 +323,7 @@ const connectChatWs = async () => {
           } else {
             messages.value.push(real)
           }
-          nextTick(() => {
-            if (messagesContainer.value) {
-              messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
-            }
-          })
+          chatsTab.value?.scrollToBottom()
         }
       }
       if (data.type === 'chat.session_update' && data.channel_id === selectedChannelId.value) {
@@ -575,10 +425,7 @@ const callAIAssistant = async (question: string) => {
       error: '',
       created_at: new Date().toISOString(),
     })
-    await nextTick()
-    if (messagesContainer.value) {
-      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
-    }
+    await chatsTab.value?.scrollToBottom()
   }
 }
 
