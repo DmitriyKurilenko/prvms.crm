@@ -35,7 +35,7 @@
     </div>
 
     <div class="surface-card" style="padding: 16px">
-      <PDataTable
+      <PDataTable v-responsive-table
         :value="events"
         stripedRows
         :paginator="true"

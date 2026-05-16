@@ -1,5 +1,12 @@
 # Известные проблемы
 
+## Закрытые (2026-05-16)
+
+16. ~~В мобильной версии не скрывается боковое меню; UI не адаптирован под мобильные.~~
+    - **Истинная причина (меню):** баг CSS-специфичности, не JS. `.layout-static .layout-sidebar` (специфичность `0,2,0`) всегда перебивал `@media (max-width:991px) .layout-sidebar` (`0,1,0`) — media query не добавляет специфичности, контейнер всегда несёт `layout-static`. Сайдбар был постоянно виден на телефоне.
+    - **Исправление (DEC-037):** layout-режимы разнесены по взаимоисключающим media-диапазонам (desktop → `min-width:992px`, mobile off-canvas → `max-width:991px`). Single-source адаптивный слой в `main.css` (form-сетки, section-header, dialog/drawer `max-width:95vw`, topbar). Директива `v-responsive-table` (class-agnostic, сверена с DOM PrimeVue 4.4) → карточный режим на ≤767px для всех 24 `PDataTable`. Tasks/Assistant 1-колоночные на ≤768px, tab-bar wrap.
+    - **Файлы:** `frontend/src/styles/main.css`, `frontend/src/directives/responsiveTable.ts`, `frontend/src/main.ts`, 21 view/component.
+
 ## Закрытые (2026-05-10)
 
 4. ~~`frontend` typecheck нестабилен из-за TS-несоответствий и `(... as any)` кастов.~~
@@ -67,3 +74,8 @@
     - **Контекст:** P2-1 выполнен полностью, включая ранее отложенный ChatsTab. `DealsView` 760→623, `IntegrationsView` 645→415, `ChannelsView` 605→452 — 9 новых презентационных компонентов; вся логика/WS остаётся в родителях. ChatsTab решён без эвристик: дочерний компонент владеет только scroll-DOM-узлом и экспонирует `scrollToBottom()` через `defineExpose`; родительские WS/send/load-обработчики вызывают его в тех же точках управления (1:1 перенос потока, не watcher-догадка) — проверяется `typecheck`+`vite build`. Все гейты зелёные.
     - **Файлы:** `frontend/src/views/{TelephonyView,ContractsView}.vue` (≈555/554 LOC, ещё не декомпозированы)
     - **План закрытия:** применить тот же паттерн «parent owns state, child presentational» + гейт `typecheck`/`vite build`; рекомендуется браузер-QA телефонии/договоров при следующем визуальном прогоне.
+
+17. Адаптивный UI (DEC-037) не прошёл браузер-QA на реальном устройстве — в среде разработки нет браузера.
+    - **Контекст:** Фикс специфичности sidebar детерминирован (доказуем по правилам каскада CSS), DOM-предположения директивы `v-responsive-table` сверены с исходниками PrimeVue 4.4, в собранном бандле подтверждены маркеры (`rt-cards`/`data-label`/media-queries), dev SPA отдаёт 200. Но визуальная проверка на устройстве/эмуляторе (off-canvas drawer + mask, карточные таблицы, формы в 1 колонку, диалоги ≤95vw, kanban-swipe, AI-ассистент) не выполнялась.
+    - **Файлы:** `frontend/src/styles/main.css`, `frontend/src/directives/responsiveTable.ts`, 21 view/component.
+    - **План закрытия:** прогон на эмуляторе (Chrome DevTools device toolbar) и реальном телефоне для ширин 320/375/414/768/1024px; зафиксировать результат в DEV_LOG.

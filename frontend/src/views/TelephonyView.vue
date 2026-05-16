@@ -38,7 +38,7 @@
           <PButton label="Сбросить" size="small" severity="secondary" @click="resetFilters" />
         </div>
 
-        <PDataTable :value="calls" size="small" stripedRows :paginator="true" :rows="20" :rowsPerPageOptions="[10, 20, 50]">
+        <PDataTable v-responsive-table :value="calls" size="small" stripedRows :paginator="true" :rows="20" :rowsPerPageOptions="[10, 20, 50]">
           <PColumn field="direction" header="Направление" style="width: 120px">
             <template #body="{ data }">{{ data.direction === 'inbound' ? '📞 Входящий' : '📤 Исходящий' }}</template>
           </PColumn>
@@ -76,7 +76,7 @@
         <div class="toolbar">
           <PButton label="Новый транк" icon="pi pi-plus" size="small" @click="showTrunkForm = true" />
         </div>
-        <PDataTable :value="trunks" size="small" stripedRows :paginator="true" :rows="20" :rowsPerPageOptions="[10, 20, 50]">
+        <PDataTable v-responsive-table :value="trunks" size="small" stripedRows :paginator="true" :rows="20" :rowsPerPageOptions="[10, 20, 50]">
           <PColumn field="name" header="Название" />
           <PColumn field="trunk_type" header="Тип" />
           <PColumn field="status" header="Статус">
@@ -98,7 +98,7 @@
         <div class="toolbar">
           <PButton label="Новый внутренний" icon="pi pi-plus" size="small" @click="showExtForm = true" />
         </div>
-        <PDataTable :value="extensions" size="small" stripedRows :paginator="true" :rows="20" :rowsPerPageOptions="[10, 20, 50]">
+        <PDataTable v-responsive-table :value="extensions" size="small" stripedRows :paginator="true" :rows="20" :rowsPerPageOptions="[10, 20, 50]">
           <PColumn field="extension" header="Номер" />
           <PColumn field="manager_id" header="Менеджер ID" />
           <PColumn field="webrtc_enabled" header="WebRTC">
@@ -142,7 +142,7 @@
         <div class="toolbar">
           <PButton label="Новая очередь" icon="pi pi-plus" size="small" @click="showQueueForm = true" />
         </div>
-        <PDataTable :value="queues" size="small" stripedRows :paginator="true" :rows="20" :rowsPerPageOptions="[10, 20, 50]">
+        <PDataTable v-responsive-table :value="queues" size="small" stripedRows :paginator="true" :rows="20" :rowsPerPageOptions="[10, 20, 50]">
           <PColumn field="name" header="Название" />
           <PColumn field="strategy" header="Стратегия" />
           <PColumn field="ring_timeout" header="Таймаут (с)" />

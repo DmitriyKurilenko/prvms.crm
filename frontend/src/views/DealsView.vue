@@ -83,7 +83,7 @@
 
       <!-- List view -->
       <div v-else class="surface-card" style="overflow: auto">
-        <PDataTable :value="flatDeals" size="small" stripedRows :paginator="flatDeals.length > 25" :rows="25">
+        <PDataTable v-responsive-table :value="flatDeals" size="small" stripedRows :paginator="flatDeals.length > 25" :rows="25">
           <PColumn field="name" header="Сделка" sortable>
             <template #body="{ data }">
               <a class="deal-link" @click.prevent="openDeal(data.id)">{{ data.name }}</a>
@@ -612,9 +612,7 @@ const onQuickCompanyCreated = async (res: { id: number }) => {
 .tl-date { font-size: 12px; color: var(--text-muted); }
 .add-activity-row { display: flex; gap: 6px; }
 
-/* Form */
-.form-grid { display: grid; gap: 12px; }
-.form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+/* Form — .form-grid / .form-row-2 are global primitives (styles/main.css), responsive there */
 .field-label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
 .w-full { width: 100%; }
 .select-with-add { display: flex; gap: 6px; align-items: flex-end; }

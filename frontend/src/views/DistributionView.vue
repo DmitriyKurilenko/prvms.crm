@@ -53,7 +53,7 @@
         </div>
 
         <div class="surface-card" style="padding: 16px">
-          <PDataTable :value="rules" size="small" stripedRows :paginator="true" :rows="20" :rowsPerPageOptions="[10, 20, 50]">
+          <PDataTable v-responsive-table :value="rules" size="small" stripedRows :paginator="true" :rows="20" :rowsPerPageOptions="[10, 20, 50]">
             <PColumn field="name" header="Название" />
             <PColumn header="Триггер">
               <template #body="{ data }">{{ triggerLabel(data.trigger) }}</template>
@@ -88,7 +88,7 @@
       <!-- LOG TAB -->
       <template v-if="activeTab === 'log'">
         <div class="surface-card" style="padding: 16px">
-          <PDataTable :value="logEntries" size="small" stripedRows :paginator="true" :rows="20" :rowsPerPageOptions="[10, 20, 50]">
+          <PDataTable v-responsive-table :value="logEntries" size="small" stripedRows :paginator="true" :rows="20" :rowsPerPageOptions="[10, 20, 50]">
             <PColumn header="Дата">
               <template #body="{ data }">{{ formatDateTime(data.created_at) }}</template>
             </PColumn>

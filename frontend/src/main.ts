@@ -8,6 +8,7 @@ import { definePreset } from '@primevue/themes'
 import App from './App.vue'
 import router from './router'
 import { installGuards } from './router/guards'
+import { responsiveTable } from './directives/responsiveTable'
 import { useUiStore } from './stores/ui'
 import './styles/main.css'
 
@@ -155,6 +156,8 @@ app.component('PToggleSwitch', ToggleSwitch)
 app.component('PProgressSpinner', ProgressSpinner)
 app.component('PInputNumber', InputNumber)
 app.component('PDrawer', Drawer)
+
+app.directive('responsive-table', responsiveTable)
 
 useUiStore(pinia).initTheme()
 

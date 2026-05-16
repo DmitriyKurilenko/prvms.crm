@@ -32,7 +32,7 @@
       </div>
 
       <div class="surface-card" style="padding: 16px; margin-top: 14px">
-        <PDataTable :value="users" :paginator="true" :rows="20" :rowsPerPageOptions="[10, 20, 50]" size="small" stripedRows>
+        <PDataTable v-responsive-table :value="users" :paginator="true" :rows="20" :rowsPerPageOptions="[10, 20, 50]" size="small" stripedRows>
           <PColumn field="email" header="Email" />
           <PColumn field="username" header="Имя" />
           <PColumn header="Роль">
@@ -67,7 +67,7 @@
     <!-- ═══ MANAGERS TAB ═══ -->
     <template v-if="activeTab === 'managers'">
       <div class="surface-card" style="padding: 16px">
-        <PDataTable :value="managers" :paginator="true" :rows="20" :rowsPerPageOptions="[10, 20, 50]" size="small" stripedRows>
+        <PDataTable v-responsive-table :value="managers" :paginator="true" :rows="20" :rowsPerPageOptions="[10, 20, 50]" size="small" stripedRows>
           <PColumn field="name" header="Менеджер" />
           <PColumn field="email" header="Email" />
           <PColumn header="Макс. сделок" style="width: 130px">
@@ -154,7 +154,7 @@
         <p style="margin-top: 0; color: var(--text-muted);">
           Настройка прав для сущностей «Сделки», «Контакты», «Компании»: просмотр, создание, редактирование, удаление и область видимости.
         </p>
-        <PDataTable :value="permissionRows" size="small" stripedRows :loading="permissionsLoading">
+        <PDataTable v-responsive-table :value="permissionRows" size="small" stripedRows :loading="permissionsLoading">
           <PColumn field="role_label" header="Роль" />
           <PColumn field="entity_label" header="Сущность" />
           <PColumn header="Просмотр" style="width: 110px">
@@ -459,6 +459,8 @@ onMounted(load)
 .tab-bar {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
+  overflow-x: auto;
 }
 
 .invite-link-box {

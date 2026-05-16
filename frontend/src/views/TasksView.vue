@@ -211,6 +211,12 @@ const priorityLabel = (t: Task) => {
   min-height: 0;
 }
 
+@media (max-width: 768px) {
+  .tasks-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Categories panel */
 .categories-panel {
   padding: 16px;

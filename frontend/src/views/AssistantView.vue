@@ -167,6 +167,16 @@ function formatTime(dateStr: string): string {
   min-height: 0;
 }
 
+@media (max-width: 768px) {
+  .assistant-layout {
+    grid-template-columns: 1fr;
+  }
+  /* Keep the chat reachable: cap the conversation list height on phones */
+  .conversations-panel {
+    max-height: 38vh;
+  }
+}
+
 .conversations-panel {
   display: flex;
   flex-direction: column;

@@ -1,6 +1,6 @@
 <template>
   <div class="surface-card table-card">
-    <PDataTable :value="connections" :loading="loading" size="small" stripedRows :paginator="true" :rows="20" :rowsPerPageOptions="[10, 20, 50]">
+    <PDataTable v-responsive-table :value="connections" :loading="loading" size="small" stripedRows :paginator="true" :rows="20" :rowsPerPageOptions="[10, 20, 50]">
       <PColumn field="name" header="Название" />
       <PColumn header="CRM">
         <template #body="{ data }">{{ crmLabel(data.crm_type) }}</template>

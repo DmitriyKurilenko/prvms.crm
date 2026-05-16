@@ -15,7 +15,7 @@
         <div class="toolbar">
           <PButton label="Сгенерировать договор" icon="pi pi-plus" size="small" @click="showGenerateForm = true" />
         </div>
-        <PDataTable :value="contracts" size="small" stripedRows :paginator="true" :rows="20" :rowsPerPageOptions="[10, 20, 50]">
+        <PDataTable v-responsive-table :value="contracts" size="small" stripedRows :paginator="true" :rows="20" :rowsPerPageOptions="[10, 20, 50]">
           <PColumn field="id" header="ID" />
           <PColumn field="template_name" header="Шаблон" />
           <PColumn field="status" header="Статус">
@@ -41,7 +41,7 @@
         <div class="toolbar">
           <PButton label="Новый шаблон" icon="pi pi-plus" size="small" @click="openEditor(null)" />
         </div>
-        <PDataTable :value="templates" size="small" stripedRows :paginator="true" :rows="20" :rowsPerPageOptions="[10, 20, 50]">
+        <PDataTable v-responsive-table :value="templates" size="small" stripedRows :paginator="true" :rows="20" :rowsPerPageOptions="[10, 20, 50]">
           <PColumn field="name" header="Название">
             <template #body="{ data }">
               {{ data.name }}
@@ -401,6 +401,8 @@ onMounted(load)
   display: flex;
   gap: 4px;
   margin-bottom: 14px;
+  flex-wrap: wrap;
+  overflow-x: auto;
 }
 
 .tab-btn {

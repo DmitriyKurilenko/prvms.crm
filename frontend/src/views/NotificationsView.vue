@@ -10,7 +10,7 @@
         <h3>История уведомлений</h3>
         <PButton v-if="canManage" label="Тест" icon="pi pi-send" size="small" @click="sendTest" />
       </div>
-      <PDataTable :value="items" :paginator="true" :rows="20" :rowsPerPageOptions="[10, 20, 50]">
+      <PDataTable v-responsive-table :value="items" :paginator="true" :rows="20" :rowsPerPageOptions="[10, 20, 50]">
         <PColumn field="title" header="Заголовок" />
         <PColumn field="body" header="Текст" />
         <PColumn field="sent_at" header="Дата" />
@@ -23,7 +23,7 @@
       <p style="color: var(--text-muted); margin-bottom: 16px; font-size: 0.9rem">
         Выберите, какие события и по каким каналам получать уведомления.
       </p>
-      <PDataTable :value="eventRows" :loading="prefsLoading">
+      <PDataTable v-responsive-table :value="eventRows" :loading="prefsLoading">
         <PColumn field="label" header="Событие" style="min-width: 200px" />
         <PColumn header="In-app" style="width: 100px; text-align: center">
           <template #body="{ data }">

@@ -114,8 +114,7 @@ defineEmits<{
 </script>
 
 <style scoped>
-.form-grid { display: grid; gap: 12px; }
-.form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+/* .form-grid / .form-row-2 are global primitives (styles/main.css) — responsive there */
 .field-label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
 .w-full { width: 100%; }
 .select-with-add { display: flex; gap: 6px; align-items: flex-end; }

@@ -29,7 +29,7 @@
 
       <!-- Table -->
       <div class="surface-card contacts-table-wrap">
-        <PDataTable
+        <PDataTable v-responsive-table
           :value="contacts"
           size="small"
           stripedRows
@@ -490,8 +490,7 @@ const avatarLetters = (c: CrmContact) => {
 .tl-date { font-size: 12px; color: var(--text-muted); }
 
 /* Form */
-.form-grid { display: grid; gap: 12px; }
-.form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+/* .form-grid / .form-row-2 are global primitives (styles/main.css) — responsive there. */
 .field-label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: var(--text); }
 .w-full { width: 100%; }
 .empty-state { color: var(--text-muted); padding: 24px; text-align: center; }
