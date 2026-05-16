@@ -301,43 +301,64 @@ h4 {
   background-color: var(--p-mask-background);
 }
 
-/* ── Layout modes (desktop) ───────────────────────────────────────── */
-.layout-static .layout-sidebar {
-  transform: translateX(0);
+/* ── Layout modes ─────────────────────────────────────────────────────
+   Desktop and mobile rules live in mutually-exclusive media queries so
+   that the desktop layout-mode selectors (`.layout-static .layout-sidebar`,
+   specificity 0,2,0) can never beat the mobile off-canvas rule
+   (`.layout-sidebar`, specificity 0,1,0) via specificity — media queries
+   add no specificity. Below 992px the sidebar is always an off-canvas
+   drawer toggled by `.layout-mobile-active`; the desktop static/overlay
+   modes simply do not exist at that width.
+   ─────────────────────────────────────────────────────────────────── */
+
+/* Desktop (≥ 992px): static / overlay menu modes */
+@media (min-width: 992px) {
+  .layout-static .layout-sidebar {
+    transform: translateX(0);
+  }
+
+  .layout-static-inactive .layout-sidebar {
+    transform: translateX(-100%);
+  }
+
+  .layout-static-inactive .layout-main-container {
+    padding-left: 1.5rem;
+  }
+
+  .layout-overlay .layout-sidebar {
+    transform: translateX(-100%);
+  }
+
+  .layout-overlay-active .layout-sidebar {
+    transform: translateX(0);
+  }
 }
 
-.layout-static-inactive .layout-sidebar {
-  transform: translateX(-100%);
-}
-
-.layout-static-inactive .layout-main-container {
-  padding-left: 1.5rem;
-}
-
-.layout-overlay .layout-sidebar {
-  transform: translateX(-100%);
-}
-
-.layout-overlay-active .layout-sidebar {
-  transform: translateX(0);
-}
-
-/* ── Responsive ───────────────────────────────────────────────────── */
+/* Mobile / tablet (≤ 991px): off-canvas drawer + overlay mask */
 @media (max-width: 991px) {
   .layout-topbar {
-    padding: 0 1rem;
+    padding: 0 0.75rem;
   }
   .layout-topbar-logo-container {
     width: auto;
+    min-width: 0;
+  }
+  .layout-topbar-actions {
+    gap: 0.25rem;
+    min-width: 0;
+  }
+  .topbar-org-select {
+    min-width: 0;
+    max-width: 130px;
   }
 
   .layout-sidebar {
     transform: translateX(-100%);
+    box-shadow: var(--shadow-lg);
   }
 
   .layout-main-container {
-    padding-left: 1rem;
-    padding-right: 1rem;
+    padding: calc(var(--topbar-height) + 1rem) 1rem 1rem;
   }
 
   .layout-mobile-active .layout-sidebar {
@@ -346,6 +367,24 @@ h4 {
 
   .layout-mobile-active .layout-mask {
     display: block;
+  }
+}
+
+/* Phone (≤ 640px): tighter content gutter */
+@media (max-width: 640px) {
+  .layout-main-container {
+    padding: calc(var(--topbar-height) + 0.75rem) 0.75rem 0.75rem;
+  }
+}
+
+/* Narrow phone (≤ 480px): reclaim topbar width — drop the wordmark,
+   keep the icon so the brand and the menu/actions still fit one row. */
+@media (max-width: 480px) {
+  .layout-topbar-logo span {
+    display: none;
+  }
+  .topbar-org-select {
+    max-width: 104px;
   }
 }
 
@@ -667,4 +706,159 @@ h4 {
 }
 .animate-scale {
   animation: scaleIn 0.2s ease;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   Responsive layer (single source of truth)
+
+   Repeated layout primitives (form grids, section headers, dialogs,
+   data tables) are adapted here once instead of per-view. Components
+   must NOT redefine `.form-grid` / `.form-row-2` / `.form-row-3` in
+   scoped styles — a scoped rule (specificity 0,2,0 via the [data-v-*]
+   attribute) would shadow the responsive collapse below.
+   ─────────────────────────────────────────────────────────────────── */
+
+/* Form grids — global primitives */
+.form-grid {
+  display: grid;
+  gap: 12px;
+}
+.form-row-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.form-row-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+}
+
+@media (max-width: 640px) {
+  .form-row-2,
+  .form-row-3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Section header — wrap title + actions on narrow screens */
+@media (max-width: 640px) {
+  .section-header {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .section-header .page-title {
+    font-size: 1.25rem;
+  }
+  .page-title {
+    font-size: 1.25rem;
+  }
+}
+
+/* Dialogs / drawers never exceed the viewport on small screens.
+   Desktop widths (set per-dialog via :style) stay intact since they
+   are below 95vw on a normal monitor. Single source — no per-dialog
+   maxWidth needed. */
+.p-dialog {
+  max-width: 95vw;
+}
+.p-dialog .p-dialog-content {
+  overflow-x: hidden;
+}
+.p-drawer {
+  max-width: 95vw;
+}
+
+@media (max-width: 640px) {
+  .p-dialog {
+    width: 95vw !important;
+  }
+}
+
+/* ── Responsive data tables (card mode on phones) ──────────────────────
+   The `v-responsive-table` directive marks the table root with
+   `.rt-cards` and copies each column header into `td[data-label]`.
+   Below 768px the table collapses into stacked cards: header row is
+   hidden, every row becomes a bordered card, and each cell shows its
+   column label on the left. Selectors are PrimeVue-class-agnostic
+   (generic table/thead/tbody/tr/td) so a PrimeVue minor upgrade can't
+   break the layout.
+   ─────────────────────────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  .rt-cards table,
+  .rt-cards thead,
+  .rt-cards tbody,
+  .rt-cards tbody > tr,
+  .rt-cards tbody > tr > td {
+    display: block;
+    width: 100%;
+  }
+
+  .rt-cards thead {
+    display: none;
+  }
+
+  .rt-cards tbody > tr {
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-md);
+    background: var(--surface-card);
+    margin-bottom: 10px;
+    padding: 4px 12px;
+  }
+
+  .rt-cards tbody > tr > td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    border: none !important;
+    padding: 9px 0;
+    text-align: right;
+    min-height: 0;
+  }
+
+  .rt-cards tbody > tr > td + td {
+    border-top: 1px solid var(--surface-border) !important;
+  }
+
+  .rt-cards tbody > tr > td::before {
+    content: attr(data-label);
+    flex: 0 0 38%;
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.75rem;
+    color: var(--text-color-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+
+  /* Action / label-less cells: no pseudo-label, give content full width */
+  .rt-cards tbody > tr > td[data-label=""]::before,
+  .rt-cards tbody > tr > td:not([data-label])::before {
+    content: none;
+  }
+  .rt-cards tbody > tr > td[data-label=""],
+  .rt-cards tbody > tr > td:not([data-label]) {
+    justify-content: flex-end;
+  }
+
+  /* Empty-message row stays a single centered block, not a card */
+  .rt-cards tbody > tr.rt-empty-row {
+    border: none;
+    background: transparent;
+    padding: 0;
+  }
+  .rt-cards tbody > tr.rt-empty-row > td {
+    display: block;
+    text-align: center;
+  }
+  .rt-cards tbody > tr.rt-empty-row > td::before {
+    content: none;
+  }
+
+  /* Paginator: let it wrap instead of overflowing */
+  .rt-cards .p-paginator {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
 }

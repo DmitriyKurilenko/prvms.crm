@@ -16,7 +16,7 @@
         </div>
 
         <div class="surface-card" style="padding: 12px; margin-top: 12px;">
-          <PDataTable
+          <PDataTable v-responsive-table
             :value="companies"
             size="small"
             stripedRows

@@ -1,6 +1,17 @@
 # Changelog
 
-## [0.2.6-dev] — unreleased
+## [0.2.6] — 2026-05-16
+
+### Mobile UI adaptation (DEC-037) — user-visible
+
+Root cause of "mobile sidebar won't hide" was a **CSS-specificity bug**, not JS: the desktop rule `.layout-static .layout-sidebar` (specificity 0,2,0) always beat the mobile media-query rule `.layout-sidebar` (0,1,0) — media queries add no specificity and the container always carries `.layout-static`. The sidebar stayed permanently visible on phones.
+
+- **Structural layout fix:** desktop static/overlay modes moved under `@media (min-width: 992px)`, mobile off-canvas drawer + mask under `@media (max-width: 991px)` — mutually-exclusive ranges remove the specificity collision structurally (no `!important` patch). JS (`useLayout`, `AppSidebar` route watcher) unchanged — it was already correct.
+- **Single-source responsive layer in `styles/main.css`:** `.form-grid/.form-row-2/.form-row-3` are now global primitives that collapse to one column ≤640px (scoped duplicates removed from 6 files so the global rule is not shadowed by `[data-v-*]` specificity); `.section-header` wraps ≤640px; `.p-dialog`/`.p-drawer` capped at `max-width: 95vw` globally (one place vs 12 per-dialog widths); topbar shrinks on ≤991px, wordmark hidden ≤480px.
+- **Card-mode tables:** new `v-responsive-table` directive tags the table root `.rt-cards` and copies each column header into `td[data-label]`; ≤767px every row becomes a labelled card, the empty/`colspan` row stays a single block. Selectors are PrimeVue-class-agnostic (semantic `thead/tbody/tr/td`) and verified against PrimeVue 4.4 source. Applied to all 24 `PDataTable`.
+- **Per-view:** `tasks-layout`/`assistant-layout` collapse to one column ≤768px; `.tabs-bar`/`.tab-bar` (Contracts/Team/Pipelines) wrap.
+
+Validation: `manage.py check` 0 issues; `npm run typecheck` EXIT=0; `npm run build` EXIT=0; **5/5** vitest; bundle contains `rt-cards`/`min-width:992px`/`max-width:991px`/`data-label`; dev SPA `/app` → 200. Browser QA on a real device not run in this environment (no browser) — KNOWN_ISSUES #17.
 
 ### Refactor (P0–P2, DEC-036) — behaviour-preserving, no user-visible change
 

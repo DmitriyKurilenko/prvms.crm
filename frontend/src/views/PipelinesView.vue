@@ -57,7 +57,7 @@
           <div class="toolbar">
             <PButton label="Новый триггер" icon="pi pi-plus" size="small" @click="openNewTrigger" />
           </div>
-          <PDataTable :value="allTriggers" size="small" stripedRows :paginator="allTriggers.length > 20" :rows="20">
+          <PDataTable v-responsive-table :value="allTriggers" size="small" stripedRows :paginator="allTriggers.length > 20" :rows="20">
             <PColumn field="pipeline_name" header="Воронка" />
             <PColumn header="Этап">
               <template #body="{ data }">
@@ -448,7 +448,7 @@ onMounted(async () => {
 <style scoped>
 .pipelines-page { padding: 14px; }
 .section-header { margin-bottom: 12px; }
-.tabs-bar { display: flex; gap: 4px; margin-bottom: 12px; }
+.tabs-bar { display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap; overflow-x: auto; }
 .tab-btn {
   background: transparent; border: 1px solid var(--p-content-border-color);
   padding: 6px 14px; border-radius: 6px; cursor: pointer; color: var(--p-text-color);

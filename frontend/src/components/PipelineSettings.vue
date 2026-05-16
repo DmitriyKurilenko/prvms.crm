@@ -1,7 +1,7 @@
 <template>
   <div class="surface-card block">
     <h4>Настройка воронки</h4>
-    <PDataTable :value="stages" size="small">
+    <PDataTable v-responsive-table :value="stages" size="small">
       <PColumn field="name" header="Стадия" />
       <PColumn field="stage_type" header="Тип" />
       <PColumn field="sort_order" header="Порядок" />

@@ -65,7 +65,7 @@
     </div>
 
     <div class="surface-card" style="padding: 16px">
-      <PDataTable :value="channels" size="small" stripedRows :paginator="true" :rows="20" :rowsPerPageOptions="[10, 20, 50]">
+      <PDataTable v-responsive-table :value="channels" size="small" stripedRows :paginator="true" :rows="20" :rowsPerPageOptions="[10, 20, 50]">
         <PColumn field="name" header="Название" />
         <PColumn header="Тип">
           <template #body="{ data }">{{ typeLabel(data.channel_type) }}</template>

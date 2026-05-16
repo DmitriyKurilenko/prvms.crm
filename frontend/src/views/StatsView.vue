@@ -24,7 +24,7 @@
 
         <div v-if="pipelineStatsData.length" class="stats-section surface-card">
           <h4>Конверсия по воронке</h4>
-          <PDataTable :value="pipelineStatsData" size="small" stripedRows>
+          <PDataTable v-responsive-table :value="pipelineStatsData" size="small" stripedRows>
             <PColumn field="stage_name" header="Этап" />
             <PColumn field="total" header="Сделок" />
             <PColumn field="amount" header="Сумма">
@@ -42,7 +42,7 @@
 
         <div v-if="managerStatsData.length" class="stats-section surface-card">
           <h4>Сделки по менеджерам</h4>
-          <PDataTable :value="managerStatsData" size="small" stripedRows>
+          <PDataTable v-responsive-table :value="managerStatsData" size="small" stripedRows>
             <PColumn header="Менеджер">
               <template #body="{ data }">
                 {{ data.manager_name || 'Не назначен' }}

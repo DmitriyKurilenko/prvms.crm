@@ -87,7 +87,7 @@
     <!-- Payment history -->
     <div class="surface-card payments-card">
       <h3>История платежей</h3>
-      <PDataTable :value="payments" size="small" :paginator="payments.length > 5" :rows="5" emptyMessage="Платежей пока нет">
+      <PDataTable v-responsive-table :value="payments" size="small" :paginator="payments.length > 5" :rows="5" emptyMessage="Платежей пока нет">
         <PColumn field="plan_name" header="Тариф" />
         <PColumn field="amount" header="Сумма">
           <template #body="{ data }">{{ data.amount }} ₽</template>

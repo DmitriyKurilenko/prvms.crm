@@ -1,5 +1,50 @@
 # Dev Log
 
+## 2026-05-16 — Адаптация UI для мобильных: single-source responsive layer + card-таблицы (DEC-037)
+
+### Корневая причина «боковое меню не скрывается на мобильном»:
+**Баг CSS-специфичности, не JS-логики.** `useLayout.toggleMenu/hideMobileMenu` и watcher `route.path` в `AppSidebar` были корректны. В `styles/main.css` десктопное правило `.layout-static .layout-sidebar { transform: translateX(0) }` имело специфичность `(0,2,0)`, а мобильное `@media (max-width:991px) { .layout-sidebar { transform: translateX(-100%) } }` — `(0,1,0)`. Media query специфичности не добавляет, контейнер всегда несёт класс `layout-static` → десктопное правило всегда побеждало. Сайдбар был постоянно виден на телефоне (`translateX(0)`), перекрывал контент; переключение `layout-mobile-active` визуально ничего не делало (оба состояния → `translateX(0)`).
+
+### Изменения:
+
+**`frontend/src/styles/main.css` (структурный фикс + глобальный адаптивный слой):**
+- Layout-режимы разнесены по взаимоисключающим media-диапазонам: desktop static/overlay → `@media (min-width: 992px)`, mobile off-canvas + mask → `@media (max-width: 991px)`, телефонный gutter → `@media (max-width: 640px)`. Коллизия специфичностей устранена структурно (десктопных селекторов ниже 992px больше нет).
+- `.form-grid/.form-row-2/.form-row-3` — глобальные примитивы с responsive-сворачиванием (≤640px → 1 колонка). `.section-header` переносится на ≤640px.
+- `.p-dialog`/`.p-drawer` → `max-width: 95vw` глобально (единая точка вместо 12 per-dialog `maxWidth`); `.p-dialog` → `width:95vw` на ≤640px.
+- Topbar: `padding`, `gap` action-кнопок и `topbar-org-select` сжимаются на ≤991px; wordmark `.layout-topbar-logo span` скрыт на ≤480px.
+- Глобальный CSS карточного режима таблиц под `.rt-cards` на ≤767px (PrimeVue-class-agnostic: `table/thead/tbody/tr/td`).
+
+**`frontend/src/directives/responsiveTable.ts` (новый) + `main.ts`:**
+- Директива `v-responsive-table`: тегирует корень таблицы `.rt-cards`, копирует текст заголовка колонки в `td[data-label]`, помечает пустую строку (`colspan`) `.rt-empty-row`. Ре-синк через Vue `updated` + `MutationObserver` (childList, без петли — директива меняет только атрибуты). Зарегистрирована глобально в `main.ts`.
+- Селекторы сверены с исходниками PrimeVue 4.4 (`node_modules/primevue/datatable`): семантические `<table><thead><tr><th>`/`<tbody><tr><td>` + `colspan` в empty-message — совпадает.
+
+**Per-view:**
+- Удалены дублирующие scoped `.form-row-2`/`.form-grid` из `ContactsView`, `DealsView`, `QuickContactDialog`, `QuickCompanyDialog`, `DealFormDialog`, `DealDetailDialog` (scoped `[data-v-*]` затенял бы глобальный media-override).
+- `v-responsive-table` применена ко всем 24 `PDataTable` (15 файлов).
+- `tasks-layout`/`assistant-layout` → 1 колонка на ≤768px (список диалогов ассистента ограничен `max-height:38vh`).
+- `.tabs-bar`/`.tab-bar` (ContractsView, TeamView, PipelinesView) → `flex-wrap` + `overflow-x:auto`.
+
+### Валидация (Docker):
+- `docker compose down` && `docker compose up -d --build` → все контейнеры Up; `db`/`redis` healthy.
+- `docker compose run --rm web python manage.py check` → **System check identified no issues (0 silenced)**.
+- `docker compose exec frontend npm run typecheck` → **EXIT=0** (vue-tsc, нет ошибок).
+- `docker compose exec frontend npm run build` → **EXIT=0** (сборка успешна; chunk-size warning — преэкзистинг, не ошибка).
+- `docker compose exec frontend npm run test` → **5/5 passed**.
+- Render: dev SPA `/app` → **200**, web root → **302** (redirect, DEC-011). В собранном бандле присутствуют `rt-cards`, `min-width:992px`, `max-width:991px`, `data-label` (CSS прошёл через Vite); `responsive-table`/`rt-empty-row` в JS (директива забандлена).
+
+### Файлы:
+- **Новый:** `frontend/src/directives/responsiveTable.ts`.
+- **Изменены:** `frontend/src/styles/main.css`, `frontend/src/main.ts`; `frontend/src/views/{ContactsView,DealsView,TasksView,AssistantView,ContractsView,TeamView,PipelinesView,AuditView,CompaniesView,DistributionView,NotificationsView,StatsView,SubscriptionView,TelephonyView}.vue`; `frontend/src/components/{QuickContactDialog,QuickCompanyDialog,DealFormDialog,DealDetailDialog,ChannelsTab,ConnectionsTable,PipelineSettings}.vue`; `docs/{DECISIONS,TASK_STATE,DEV_LOG,KNOWN_ISSUES,RELEASE_NOTES}.md`, `CHANGELOG.md`.
+
+### Версия:
+- Релиз `0.2.6` — `## [0.2.6] — 2026-05-16` в CHANGELOG (DEC-036 + DEC-037). PATCH: bugfix (специфичность sidebar) + responsive hardening существующего UI; новой пользовательской функциональности/обратно-несовместимых изменений API нет (по `docs/VERSIONING.md`).
+- `VERSION` → `0.2.7-dev` (следующий рабочий цикл). Соглашение: CHANGELOG ведём только датированными релизными секциями `## [X.Y.Z] — YYYY-MM-DD`, без `unreleased`/`-dev`-плейсхолдеров.
+
+### Риски:
+- Браузер-QA на реальном устройстве в этой среде не выполнялся (нет браузера). Фикс специфичности детерминирован (доказуем по правилам каскада CSS, не эвристика); DOM-предположения директивы сверены с исходниками PrimeVue 4.4. Рекомендуется визуальный прогон на устройстве/эмуляторе (sidebar drawer, card-таблицы, диалоги, kanban swipe) — KNOWN_ISSUES #16.
+- Карточный режим скрывает шапку и показывает `data-label` из текста `<th>`; колонки с пустым `header=""` (action-колонки) корректно остаются без лейбла (CSS `content:none`).
+- Поведение десктопа (≥992px) не изменено: layout-режимы те же правила, лишь обёрнуты в `min-width:992px`.
+
 ## 2026-05-15 — Рефакторинг P0–P2: декомпозиция монолитных api/services + восстановление типобезопасности (DEC-036)
 
 ### Что сделано:
@@ -29,13 +74,13 @@
 - `DealsView` 760→623: `QuickContactDialog`, `QuickCompanyDialog`, `DealFormDialog`, `DealDetailDialog`.
 - `IntegrationsView` 645→415: `IntegrationSetupCard`, `ConnectionsTable`, `IntegrationErrorsDialog`.
 - `ChannelsView` 605→452: `ChannelsTab` + `ChatsTab`. ChatsTab владеет только scroll-DOM-узлом и экспонирует `scrollToBottom()` через `defineExpose`; WS-lifecycle/`sendMessage`/`loadMessages` в родителе вызывают его в тех же 4 точках, где раньше стоял `messagesContainer.scrollTop` — 1:1 перенос потока, проверяемый typecheck+build.
-- **Новые файлы:** `frontend/src/components/{QuickContactDialog,QuickCompanyDialog,DealFormDialog,DealDetailDialog,IntegrationSetupCard,ConnectionsTable,IntegrationErrorsDialog,ChannelsTab,ChatsTab}.vue` (9); изменены `frontend/src/views/{DealsView,IntegrationsView,ChannelsView}.vue`; `CHANGELOG.md` — секция `[0.2.6-dev] — unreleased` (VERSION остаётся `0.2.6-dev`, датируется при релизе).
+- **Новые файлы:** `frontend/src/components/{QuickContactDialog,QuickCompanyDialog,DealFormDialog,DealDetailDialog,IntegrationSetupCard,ConnectionsTable,IntegrationErrorsDialog,ChannelsTab,ChatsTab}.vue` (9); изменены `frontend/src/views/{DealsView,IntegrationsView,ChannelsView}.vue`. Вошло в релиз `0.2.6` (2026-05-16) вместе с DEC-037.
 - **Валидация P2-1:** `npm run typecheck` EXIT=0; `npm run build` EXIT=0 (706 модулей, поэтапно после каждого view); `npm run test` 5/5. Backend не затронут.
 
 ### Риски:
 - Поведение API и signing/ПЭП не изменено (чистое перемещение + shim re-export); shim сохраняет все внешние импорты.
 - P2-1 поведение-эквивалентен и проверен `typecheck`+`vite build`; реактивные form-объекты передаются по ссылке (тот же proxy), вся логика — в родителях. Полноценный browser-QA (Kanban DnD, детали сделки, диалоги интеграций/каналов) рекомендуется при следующем визуальном прогоне.
-- P2-1 выполнен полностью, включая ChatsTab (паттерн `defineExpose({scrollToBottom})`). Версия не бампалась — цикл `0.2.6-dev` уже шёл; CHANGELOG-секция помечена `unreleased`, дата проставляется при релизе (PATCH: рефакторинг без видимых пользователю изменений). Будущие кандидаты на тот же паттерн: `TelephonyView`/`ContractsView` (KNOWN_ISSUES #15).
+- P2-1 выполнен полностью, включая ChatsTab (паттерн `defineExpose({scrollToBottom})`). Релиз `0.2.6` (2026-05-16, PATCH: рефакторинг без видимых пользователю изменений + DEC-037). Будущие кандидаты на тот же паттерн: `TelephonyView`/`ContractsView` (KNOWN_ISSUES #15).
 
 ## 2026-05-13 — Исправление создания сделок из Telegram/MAX + рефакторинг мессенджер-каналов (DEC-035)
 
