@@ -330,12 +330,13 @@ def switch_tenant(request, payload: SwitchTenantIn):
 
 def _set_refresh_cookie(response, refresh_token: str):
     secure = not settings.DEBUG
+    samesite = 'Lax' if settings.DEBUG else 'None'
     response.set_cookie(
         key='refresh_token',
         value=refresh_token,
         httponly=True,
         secure=secure,
-        samesite='None',
+        samesite=samesite,
         max_age=7 * 24 * 60 * 60,
         path='/api/auth/',
     )

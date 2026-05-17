@@ -8,19 +8,19 @@ import DashboardView from '@/views/DashboardView.vue'
 import TeamView from '@/views/TeamView.vue'
 import SettingsView from '@/views/SettingsView.vue'
 import SubscriptionView from '@/views/SubscriptionView.vue'
-import NotificationsView from '@/views/NotificationsView.vue'
 import AuditView from '@/views/AuditView.vue'
 import IntegrationsView from '@/views/IntegrationsView.vue'
 import ContactsView from '@/views/ContactsView.vue'
 import CompaniesView from '@/views/CompaniesView.vue'
 import DealsView from '@/views/DealsView.vue'
+import DealDetailView from '@/views/DealDetailView.vue'
 import PipelinesView from '@/views/PipelinesView.vue'
 import StatsView from '@/views/StatsView.vue'
 import TasksView from '@/views/TasksView.vue'
-import DistributionView from '@/views/DistributionView.vue'
 import ContractsView from '@/views/ContractsView.vue'
 import TelephonyView from '@/views/TelephonyView.vue'
 import ChannelsView from '@/views/ChannelsView.vue'
+import ChatsView from '@/views/ChatsView.vue'
 import OnboardingView from '@/views/OnboardingView.vue'
 import UpgradeView from '@/views/UpgradeView.vue'
 import AcceptInviteView from '@/views/AcceptInviteView.vue'
@@ -87,6 +87,12 @@ const routes: RouteRecordRaw[] = [
         meta: { roles: ['owner', 'admin', 'manager', 'viewer'], feature: 'crm_builtin', title: 'Сделки' }
       },
       {
+        path: 'deals/:id',
+        name: 'deal-detail',
+        component: DealDetailView,
+        meta: { roles: ['owner', 'admin', 'manager', 'viewer'], feature: 'crm_builtin', title: 'Сделка' }
+      },
+      {
         path: 'tasks',
         name: 'tasks',
         component: TasksView,
@@ -127,6 +133,12 @@ const routes: RouteRecordRaw[] = [
         meta: { roles: ['owner', 'admin', 'manager'], feature: 'messenger_channels', title: 'Мессенджеры' }
       },
       {
+        path: 'chats',
+        name: 'chats',
+        component: ChatsView,
+        meta: { roles: ['owner', 'admin', 'manager'], feature: 'messenger_channels', title: 'Чаты' }
+      },
+      {
         path: 'telephony',
         name: 'telephony',
         component: TelephonyView,
@@ -138,24 +150,14 @@ const routes: RouteRecordRaw[] = [
         component: TeamView,
         meta: { roles: ['owner', 'admin'], title: 'Команда' }
       },
-      {
-        path: 'distribution',
-        name: 'distribution',
-        component: DistributionView,
-        meta: { roles: ['owner', 'admin'], feature: 'distribution', title: 'Распределение' }
-      },
+
       {
         path: 'contracts',
         name: 'contracts',
         component: ContractsView,
         meta: { roles: ['owner', 'admin', 'manager'], feature: 'contracts', title: 'Договоры' }
       },
-      {
-        path: 'notifications',
-        name: 'notifications',
-        component: NotificationsView,
-        meta: { roles: ['owner', 'admin'], title: 'Уведомления' }
-      },
+
       {
         path: 'audit',
         name: 'audit',
@@ -166,7 +168,7 @@ const routes: RouteRecordRaw[] = [
         path: 'settings',
         name: 'settings',
         component: SettingsView,
-        meta: { roles: ['owner'], title: 'Настройки' }
+        meta: { roles: ['owner', 'admin'], title: 'Настройки' }
       },
       {
         path: 'subscription',
@@ -222,7 +224,7 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/distribution',
-    redirect: '/app/distribution'
+    redirect: { path: '/app/team', query: { tab: 'distribution' } }
   },
   {
     path: '/contracts',
@@ -230,7 +232,7 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/notifications',
-    redirect: '/app/notifications'
+    redirect: { path: '/app/settings', query: { tab: 'notifications' } }
   },
   {
     path: '/audit',

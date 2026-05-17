@@ -1,5 +1,12 @@
 # Известные проблемы
 
+## Закрытые (2026-05-17)
+
+18. ~~Авторизация в dev-режиме не работает: `SameSite='None'` + `Secure=False` отклоняется браузерами.~~
+    - **Истинная причина:** `_set_refresh_cookie` в `apps/users/auth_api.py` использовал `samesite='None'` безусловно. В dev (`DEBUG=True`) `secure=False`, что делает комбинацию `SameSite=None; Secure=False` невалидной по спецификации RFC — браузеры отбрасывают refresh_token cookie. Пользователь логинится, получает access_token, но refresh_token не сохраняется. При следующем запросе, требующем refresh, frontend получает 400 «Missing refresh token» и разлогинивает пользователя.
+    - **Исправление:** `samesite = 'Lax' if settings.DEBUG else 'None'`. Для localhost cross-port (`:15173` → `:18100`) `Lax` корректно отправляет cookie, потому что `localhost` с любым портом считается same-site. В prod `SameSite=None` + `Secure=True` сохраняется.
+    - **Файлы:** `apps/users/auth_api.py`
+
 ## Закрытые (2026-05-16)
 
 16. ~~В мобильной версии не скрывается боковое меню; UI не адаптирован под мобильные.~~
@@ -53,6 +60,21 @@
     - **Файлы:** `apps/core/middleware.py`, `config/settings.py`, `vps-deployment/crm_prvms/docker-compose.yml`, `vps-deployment/crm_prvms/deploy.sh`, `vps-deployment/scripts/start-all.sh`, `.gitignore`
 
 ## Открытые
+
+19. **SettingsView доступен admin — организационные настройки не защищены от редактирования.**
+    - **Контекст:** После переноса Notifications и Channels внутрь SettingsView доступ к `/app/settings` расширен с `owner` на `owner` + `admin` (router meta). Однако организационные поля (название, brand_color, timezone, language, логотип) пока не имеют UI-guard'а, ограничивающего редактирование только owner.
+    - **Файлы:** `frontend/src/views/SettingsView.vue`, `frontend/src/router/index.ts`
+    - **План закрытия:** добавить `canManageOrg` guard (computed от auth.role === 'owner') и блокировать/скрывать org-поля для admin; либо вынести notifications/channels в отдельные роуты с собственным access-control.
+
+20. **Вложенные `FeatureGate` в `SettingsView` дают визуальное дублирование padding/section.**
+    - **Контекст:** `NotificationsView` и `ChannelsView` встроены как вкладки в `SettingsView`. Каждый из них обёрнут в `<section class="...">` с собственными отступами, что при переключении вкладок даёт небольшое несоответствие вертикальных отступов.
+    - **Файлы:** `frontend/src/views/SettingsView.vue`, `frontend/src/views/NotificationsView.vue`, `frontend/src/views/ChannelsView.vue`
+    - **План закрытия:** создать презентационные "settings-panel" компоненты без `<section>`-обёртки, или вынести вкладки в отдельные роуты (`/app/settings/notifications`, `/app/settings/channels`).
+
+21. **`ChannelsView` всё ещё содержит таб «Чаты», дублирующий `ChatsView`.**
+    - **Контекст:** `ChannelsView` (теперь вкладка «Мессенджеры» в Настройках) имеет два таба: «Каналы» и «Чаты». Таб «Чаты» функционально идентичен `ChatsView.vue` (`/app/chats`). Прямой доступ к `/app/channels` из меню отсутствует (locked), но deep-link или старые закладки могут привести к путанице.
+    - **Файлы:** `frontend/src/views/ChannelsView.vue`
+    - **План закрытия:** удалить таб «Чаты» из `ChannelsView`; оставить только «Каналы». Deep-link compatibility можно сохранить редиректом `?tab=chats` → `/app/chats`.
 
 1. Для внешних CRM в production всё ещё требуется финальная валидация на реальных аккаунтах маркетплейсов amoCRM/Битрикс24 (боевые app credentials + реальный callback домен).
    - Файлы: `apps/integrations/oauth_api.py` (OAuth start/callback, после DEC-036), `apps/integrations/connections_api.py`, `apps/integrations/services.py`, `apps/integrations/adapters_amocrm.py`, `apps/integrations/adapters_bitrix24.py`

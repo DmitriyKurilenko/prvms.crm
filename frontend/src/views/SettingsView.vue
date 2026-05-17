@@ -1,100 +1,125 @@
 <template>
   <section class="settings-page animate-fade">
     <div class="section-header">
-      <h1 class="page-title">Настройки организации</h1>
+      <h1 class="page-title">Настройки</h1>
     </div>
 
-    <div class="surface-card" style="padding: 16px; max-width: 720px">
-      <form @submit.prevent="save" class="settings-form">
-        <label class="field">
-          <span class="label-text">Название</span>
-          <PInputText v-model="form.name" placeholder="Название организации" />
-        </label>
-
-        <label class="field">
-          <span class="label-text">Цвет бренда</span>
-          <div class="color-row">
-            <input type="color" v-model="form.brand_color" class="color-picker" />
-            <PInputText v-model="form.brand_color" placeholder="#10b981" />
-          </div>
-        </label>
-
-        <label class="field">
-          <span class="label-text">Таймзона</span>
-          <PSelect
-            v-model="form.timezone"
-            :options="timezoneOptions"
-            filter
-            :loading="!timezoneOptions.length"
-            placeholder="Europe/Moscow"
-            style="width: 100%"
-          />
-        </label>
-
-        <label class="field">
-          <span class="label-text">Язык</span>
-          <PSelect
-            v-model="form.language"
-            :options="languageOptions"
-            option-value="code"
-            option-label="label"
-            style="width: 100%"
-          />
-        </label>
-
-        <div class="field">
-          <span class="label-text">Логотип</span>
-          <div class="logo-row">
-            <div class="logo-preview">
-              <img v-if="logoUrl" :src="logoUrl" alt="Логотип организации" />
-              <div v-else class="logo-placeholder">Нет логотипа</div>
-            </div>
-            <div class="logo-actions">
-              <input
-                ref="fileInputRef"
-                type="file"
-                accept="image/png,image/jpeg,image/svg+xml,image/webp"
-                class="hidden-file-input"
-                @change="onFilePicked"
-              />
-              <PButton
-                type="button"
-                label="Загрузить"
-                icon="pi pi-upload"
-                :loading="uploading"
-                @click="fileInputRef?.click()"
-              />
-              <PButton
-                v-if="logoUrl"
-                type="button"
-                label="Удалить"
-                icon="pi pi-trash"
-                severity="secondary"
-                outlined
-                :loading="deleting"
-                @click="removeLogo"
-              />
-            </div>
-          </div>
-          <small class="hint">PNG, JPEG, SVG или WEBP, до 2 МБ.</small>
-        </div>
-
-        <div v-if="errorMessage" class="error">{{ errorMessage }}</div>
-
-        <div class="actions">
-          <PButton type="submit" label="Сохранить" icon="pi pi-save" :loading="saving" />
-          <span v-if="savedFlash" class="saved-flash">Настройки сохранены</span>
-        </div>
-      </form>
+    <div class="tab-bar">
+      <PButton label="Организация" :outlined="activeTab !== 'org'" @click="activeTab = 'org'" size="small" />
+      <PButton label="Уведомления" :outlined="activeTab !== 'notifications'" @click="activeTab = 'notifications'" size="small" />
+      <PButton label="Мессенджеры" :outlined="activeTab !== 'channels'" @click="activeTab = 'channels'" size="small" />
     </div>
+
+    <!-- Организация -->
+    <template v-if="activeTab === 'org'">
+      <div class="surface-card" style="padding: 16px; max-width: 720px">
+        <form @submit.prevent="save" class="settings-form">
+          <label class="field">
+            <span class="label-text">Название</span>
+            <PInputText v-model="form.name" placeholder="Название организации" />
+          </label>
+
+          <label class="field">
+            <span class="label-text">Цвет бренда</span>
+            <div class="color-row">
+              <input type="color" v-model="form.brand_color" class="color-picker" />
+              <PInputText v-model="form.brand_color" placeholder="#10b981" />
+            </div>
+          </label>
+
+          <label class="field">
+            <span class="label-text">Таймзона</span>
+            <PSelect
+              v-model="form.timezone"
+              :options="timezoneOptions"
+              filter
+              :loading="!timezoneOptions.length"
+              placeholder="Europe/Moscow"
+              style="width: 100%"
+            />
+          </label>
+
+          <label class="field">
+            <span class="label-text">Язык</span>
+            <PSelect
+              v-model="form.language"
+              :options="languageOptions"
+              option-value="code"
+              option-label="label"
+              style="width: 100%"
+            />
+          </label>
+
+          <div class="field">
+            <span class="label-text">Логотип</span>
+            <div class="logo-row">
+              <div class="logo-preview">
+                <img v-if="logoUrl" :src="logoUrl" alt="Логотип организации" />
+                <div v-else class="logo-placeholder">Нет логотипа</div>
+              </div>
+              <div class="logo-actions">
+                <input
+                  ref="fileInputRef"
+                  type="file"
+                  accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                  class="hidden-file-input"
+                  @change="onFilePicked"
+                />
+                <PButton
+                  type="button"
+                  label="Загрузить"
+                  icon="pi pi-upload"
+                  :loading="uploading"
+                  @click="fileInputRef?.click()"
+                />
+                <PButton
+                  v-if="logoUrl"
+                  type="button"
+                  label="Удалить"
+                  icon="pi pi-trash"
+                  severity="secondary"
+                  outlined
+                  :loading="deleting"
+                  @click="removeLogo"
+                />
+              </div>
+            </div>
+            <small class="hint">PNG, JPEG, SVG или WEBP, до 2 МБ.</small>
+          </div>
+
+          <div v-if="errorMessage" class="error">{{ errorMessage }}</div>
+
+          <div class="actions">
+            <PButton type="submit" label="Сохранить" icon="pi pi-save" :loading="saving" />
+            <span v-if="savedFlash" class="saved-flash">Настройки сохранены</span>
+          </div>
+        </form>
+      </div>
+    </template>
+
+    <!-- Уведомления -->
+    <template v-if="activeTab === 'notifications'">
+      <NotificationsView />
+    </template>
+
+    <!-- Мессенджеры -->
+    <template v-if="activeTab === 'channels'">
+      <ChannelsView />
+    </template>
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { useTenantStore } from '@/stores/tenant'
+import NotificationsView from '@/views/NotificationsView.vue'
+import ChannelsView from '@/views/ChannelsView.vue'
 
 const tenantStore = useTenantStore()
+const route = useRoute()
+
+const activeTab = ref<'org' | 'notifications' | 'channels'>('org')
 
 const form = reactive({
   name: '',
@@ -151,6 +176,9 @@ function loadTimezoneOptions() {
 }
 
 onMounted(async () => {
+  const tab = route.query.tab
+  if (tab === 'notifications') activeTab.value = 'notifications'
+  if (tab === 'channels') activeTab.value = 'channels'
   loadTimezoneOptions()
   await tenantStore.ensureLoaded()
   const current = tenantStore.current

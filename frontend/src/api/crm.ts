@@ -164,10 +164,12 @@ export const reorderStages = (pipelineId: number, stageIds: number[]) =>
 /* ---------- Deals ---------- */
 export const listDeals = (params?: Record<string, string | number>) => {
   const qs = params
-    ? '?' + Object.entries(params).filter(([, v]) => v).map(([k, v]) => `${k}=${v}`).join('&')
+    ? '?' + Object.entries(params).filter(([, v]) => v).map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`).join('&')
     : ''
   return api<CrmDeal[]>(`/crm/deals/${qs}`)
 }
+
+export const contactDeals = (contactId: number) => listDeals({ contact_id: contactId })
 
 export const kanbanDeals = (pipelineId: number) =>
   api<KanbanColumn[]>(`/crm/deals/kanban/${pipelineId}/`)
