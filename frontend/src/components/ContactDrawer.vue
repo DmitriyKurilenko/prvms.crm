@@ -108,6 +108,21 @@
         <div v-else class="empty-state">Нет активностей</div>
       </div>
 
+      <!-- Deals tab -->
+      <div v-if="activeTab === 'deals'" class="tab-pane animate-fade">
+        <div v-if="dealsLoading" class="empty-state">Загрузка...</div>
+        <div v-else-if="!deals.length" class="empty-state">Нет связанных сделок</div>
+        <div v-else class="deals-list">
+          <div v-for="d in deals" :key="d.id" class="deal-row" @click="openDeal(d.id)">
+            <div class="deal-row-name">{{ d.name }}</div>
+            <div class="deal-row-meta">
+              <span v-if="d.amount" class="deal-row-amount">{{ d.amount.toLocaleString('ru') }} {{ d.currency }}</span>
+              <PTag :value="d.stage_name || '—'" size="small" />
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Notes tab -->
       <div v-if="activeTab === 'notes'" class="tab-pane animate-fade">
         <div class="notes-area">
@@ -121,9 +136,12 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import type { CrmContact, CrmActivity } from '@/api/crm'
+import { useRouter } from 'vue-router'
+import type { CrmContact, CrmActivity, CrmDeal } from '@/api/crm'
 import * as crmApi from '@/api/crm'
 import { formatDate, formatDateTime } from '@/utils/datetime'
+
+const router = useRouter()
 
 const props = defineProps<{
   modelValue: boolean
@@ -144,9 +162,12 @@ const visible = computed({
 const contact = ref<(CrmContact & { activities: CrmActivity[] }) | null>(null)
 const activeTab = ref('info')
 const noteText = ref('')
+const deals = ref<CrmDeal[]>([])
+const dealsLoading = ref(false)
 
 const tabs = [
   { id: 'info', label: 'Инфо' },
+  { id: 'deals', label: 'Сделки' },
   { id: 'activity', label: 'Активность' },
   { id: 'notes', label: 'Заметки' },
 ]
@@ -154,10 +175,23 @@ const tabs = [
 watch(() => props.contactId, async (id) => {
   if (id) {
     contact.value = await crmApi.getContact(id)
+    dealsLoading.value = true
+    try {
+      deals.value = await crmApi.contactDeals(id)
+    } catch {
+      deals.value = []
+    } finally {
+      dealsLoading.value = false
+    }
   } else {
     contact.value = null
+    deals.value = []
   }
 }, { immediate: true })
+
+const openDeal = (dealId: number) => {
+  router.push(`/app/deals/${dealId}`)
+}
 
 const initials = computed(() => {
   if (!contact.value) return '?'
@@ -380,6 +414,43 @@ const saveNote = async () => {
 }
 
 .w-full { width: 100%; }
+
+.deals-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.deal-row {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.deal-row:hover {
+  background: var(--surface-alt);
+  border-color: var(--brand);
+}
+
+.deal-row-name {
+  font-weight: 700;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.deal-row-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.deal-row-amount {
+  color: var(--brand);
+  font-weight: 700;
+}
 
 .empty-state {
   color: var(--text-muted);

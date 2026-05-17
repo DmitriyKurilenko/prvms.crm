@@ -1,5 +1,102 @@
 # Dev Log
 
+## 2026-05-17 (3) — Реструктуризация меню и навигации CRM
+
+### Что сделано:
+- **Окно сделки — полноценный роут `/app/deals/:id`**: создан `DealDetailView.vue` с табами «Инфо / Активность / Чат». При клике на сделку в Kanban/списке — переход на страницу с URL, содержащим id сделки (можно дать ссылку). Удалён `DealDetailDialog` из `DealsView`.
+- **Чат внутри сделки**: вкладка «Чат» показывает привязанные `chat_sessions` с возможностью переключения канала. Загрузка сообщений, отправка ответа, real-time WS (тот же `connectChatWs` паттерн, что и в `ChannelsView`).
+- **В Контакте — связанные сделки**: в `ContactDrawer` добавлен таб «Сделки» с загрузкой через `contactDeals(id)` (`listDeals({ contact_id })`). Переход на `/app/deals/:id` при клике.
+- **Компании в боковом меню**: добавлен пункт «Компании» (`/app/companies`) в первую группу меню.
+- **Мессенджеры → настройки, в меню — Чаты**: создан `ChatsView.vue` (только чаты, без настроек каналов). Роут `/app/chats` ведёт на `ChatsView`. `ChannelsView` (настройки каналов) встроен как вкладка «Мессенджеры» в `SettingsView`.
+- **Интеграции — неактивный пункт**: в `AppMenu` для «Интеграций» установлен `locked: true`; `withLock` сохраняет явный флаг.
+- **Распределение → Команда**: `DistributionView` встроен как вкладка в `TeamView`. Убран отдельный пункт меню. Старый путь `/distribution` редиректит на `/app/team?tab=distribution`.
+- **Уведомления → Настройки**: `NotificationsView` встроен как вкладка «Уведомления» в `SettingsView`. Убран отдельный пункт меню. Старый путь `/notifications` редиректит на `/app/settings?tab=notifications`. Доступ к `SettingsView` расширен до `owner` + `admin` (router meta).
+- **Помощь**: в `Dockerfile.frontend` добавлен `COPY docs/user-guide ./src/docs/user-guide` — в production build md-файлы бандлятся. В dev volume mount уже был настроен в `docker-compose.yml`.
+
+### Изменённые файлы:
+- **Новые:** `frontend/src/views/DealDetailView.vue`, `frontend/src/views/ChatsView.vue`
+- **Изменены:** `frontend/src/router/index.ts`, `frontend/src/layout/AppMenu.vue`, `frontend/src/views/DealsView.vue`, `frontend/src/views/ContactsView.vue`, `frontend/src/components/ContactDrawer.vue`, `frontend/src/views/TeamView.vue`, `frontend/src/views/SettingsView.vue`, `frontend/src/api/crm.ts`, `Dockerfile.frontend`
+
+### Валидация (Docker):
+- `docker compose down && docker compose up -d --build` → стабильный старт.
+- `docker compose run --rm web python manage.py check` → **0 issues**.
+- `docker compose run --rm web python manage.py test` → **129/129 OK**.
+- `docker compose exec frontend npm run typecheck` → **EXIT=0**.
+- `docker compose exec frontend npm run build` → **EXIT=0**.
+- `docker compose exec frontend npm run test` → **5/5 vitest OK**.
+- SPA routes (`/app/deals/1`, `/app/chats`, `/app/settings`, `/app/help`) → **200**.
+
+### Риски:
+- `frontend/src/docs/user-guide` на хосте остаётся пустой директорией (placeholder). `vite build` на хосте без Docker не найдёт md-файлы. Для локальной сборки вне Docker нужен symlink, но это не критично для production.
+- Вложенные `FeatureGate` в `SettingsView` (NotificationsView/ChannelsView внутри) могут дублировать padding/section, но визуально приемлемо.
+- SettingsView доступен admin — организационные настройки (name, brand_color и т.д.) пока не защищены от редактирования admin. Нужен guard в UI, если требуется owner-only.
+
+---
+
+## 2026-05-17 (2) — Hotfix: `SameSite=None` без `Secure` блокировал авторизацию в dev
+
+### Корневая причина:
+`_set_refresh_cookie` в `apps/users/auth_api.py` ставил `samesite='None'` безусловно. В dev (`DEBUG=True`) `secure=False`. Браузеры отклоняют cookie с `SameSite=None` без флага `Secure` (RFC 6265bis). Результат: пользователь успешно логинился через `/auth/login` (получал `access_token` в JSON), но `refresh_token` в httpOnly cookie отбрасывался браузером. При истечении access token или reload страницы frontend делал `POST /auth/refresh` без cookie → 400 «Missing refresh token» → catch обнулял access token → пользователь разлогинивался.
+
+### Изменения:
+`apps/users/auth_api.py`:
+- `samesite='None'` → `samesite = 'Lax' if settings.DEBUG else 'None'`
+- `secure=not settings.DEBUG` сохранён
+- Для localhost cross-port (`frontend :15173` → `backend :18100`) `Lax` работает, потому что `localhost` с любым портом считается same-site. В prod `SameSite=None` + `Secure=True` остаётся.
+
+### Валидация (Docker):
+- `docker compose run --rm web python manage.py check` → **0 issues**.
+- `docker compose run --rm web python manage.py test apps` → **129/129 OK**.
+- Cookie header проверен: `Set-Cookie: refresh_token=...; SameSite=Lax` (dev).
+- `curl` login + refresh с cookie jar → **200** на оба этапа.
+- `docker compose exec frontend npm run typecheck` → **EXIT=0**.
+- `docker compose exec frontend npm run build` → **EXIT=0**.
+
+### Файлы:
+- **Изменён:** `apps/users/auth_api.py`
+- **Изменены:** `docs/KNOWN_ISSUES.md`, `docs/DEV_LOG.md`
+
+### Риски:
+- Регрессия cross-origin refresh в production маловероятна: prod использует `Secure=True` + `SameSite=None`, комбинация валидна.
+- Если dev-окружение использует не `localhost`, а IP-адрес или другой домен, `Lax` может не отправлять cookie cross-origin. В таком случае рекомендуется добавить Vite proxy (`/api` → backend) или временно включить `Secure=True` с self-signed cert.
+
+---
+
+## 2026-05-17 — Сид-скрипт демо-пользователей (10 компаний × 3 пользователя + админ)
+
+### Что сделано:
+Добавлена отдельная management-команда `seed_demo_users` для массового создания тестовых аккаунтов в формате `email\password`.
+
+**`apps/users/management/commands/seed_demo_users.py`:**
+- Параметризуемое количество tenant-ов (`--count`, default=10).
+- Каждый tenant получает 3 пользователя с ролями `owner`, `admin`, `manager`.
+- Email-ы генерируются как `test1@<domain>` .. `test<N*3>@<domain>`; платформенный admin — `admin@<domain>`.
+- Пароль единый для всех (`--password`, default=`Asdf2121`).
+- Идемпотентность через `get_or_create` для `Tenant`, `User`, `Membership`, `Domain`.
+- Автоматический провижионинг tenant-а через `apps.tenants.services.provision_tenant()` — создаётся дефолтная воронка «Продажи» + preferences.
+- Guard на `DEBUG=False` без `--force` (как в `create_test_users`).
+
+**`apps/users/tests/test_seed_demo_users_command.py`:**
+- Тест с `--count 2` проверяет: tenant-ы, пользователей, membership-ы, пароли, роли, provision pipeline.
+- `tearDown` вручную дропает созданные schema и удаляет shared-записи через raw SQL, чтобы избежать каскадного обращения к tenant-scoped таблицам (`integrations_managerprofile`) из public schema.
+
+### Валидация (Docker):
+- `docker compose run --rm web python manage.py check` → **0 issues**.
+- `docker compose run --rm web python manage.py test apps.users.tests.test_seed_demo_users_command` → **1/1 OK**.
+- `docker compose run --rm web python manage.py test apps` → **129/129 OK** (полный набор).
+- `docker compose run --rm web python manage.py seed_demo_users --force` → отрабатывает, выводит 31 строку `email\password`.
+
+### Файлы:
+- **Новый:** `apps/users/management/commands/seed_demo_users.py`
+- **Новый:** `apps/users/tests/test_seed_demo_users_command.py`
+- **Изменены:** `docs/TASK_STATE.md`, `docs/DEV_LOG.md`
+
+### Риски:
+- Команда создаёт много tenant schema (10 по умолчанию). В dev-среде это допустимо; в production требует `--force`.
+- Вывод паролей в stdout — допустимо для dev seed, но не для production secrets management.
+
+---
+
 ## 2026-05-16 — Адаптация UI для мобильных: single-source responsive layer + card-таблицы (DEC-037)
 
 ### Корневая причина «боковое меню не скрывается на мобильном»:

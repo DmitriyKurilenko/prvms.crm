@@ -55,28 +55,30 @@ function withLock(items: NavItem[]) {
   if (!planReady.value) {
     return items.map(i => ({ ...i, locked: false }))
   }
-  return items.map(i => ({ ...i, locked: i.feature ? !tenantStore.hasFeature(i.feature as never) : false }))
+  return items.map(i => {
+    if (i.locked) return i
+    return { ...i, locked: i.feature ? !tenantStore.hasFeature(i.feature as never) : false }
+  })
 }
 
 const groups = computed(() => [
   withLock([
     { to: '/app',          label: 'Дашборд',       icon: 'pi pi-home',          feature: null },
-    { to: '/app/contacts', label: 'Контакты',       icon: 'pi pi-users',         feature: 'crm_builtin' },
-    { to: '/app/deals',    label: 'Сделки',         icon: 'pi pi-chart-bar',     feature: 'crm_builtin' },
-    { to: '/app/tasks',    label: 'Задачи',         icon: 'pi pi-check-square',  feature: 'crm_builtin' },
+    { to: '/app/contacts', label: 'Контакты',      icon: 'pi pi-users',         feature: 'crm_builtin' },
+    { to: '/app/companies',label: 'Компании',      icon: 'pi pi-building',      feature: 'crm_builtin' },
+    { to: '/app/deals',    label: 'Сделки',        icon: 'pi pi-chart-bar',     feature: 'crm_builtin' },
+    { to: '/app/tasks',    label: 'Задачи',        icon: 'pi pi-check-square',  feature: 'crm_builtin' },
   ]),
   withLock([
-    { to: '/app/channels',     label: 'Мессенджеры',   icon: 'pi pi-send',     feature: 'messenger_channels' },
-    { to: '/app/contracts',    label: 'Договоры',       icon: 'pi pi-file',     feature: 'contracts' },
-    { to: '/app/telephony',    label: 'Телефония',      icon: 'pi pi-phone',    feature: 'telephony' },
-    { to: '/app/distribution', label: 'Распределение',  icon: 'pi pi-sitemap',  feature: 'distribution' },
+    { to: '/app/chats',       label: 'Чаты',         icon: 'pi pi-send',     feature: 'messenger_channels' },
+    { to: '/app/contracts',   label: 'Договоры',     icon: 'pi pi-file',     feature: 'contracts' },
+    { to: '/app/telephony',   label: 'Телефония',    icon: 'pi pi-phone',    feature: 'telephony' },
   ]),
   withLock([
-    { to: '/app/integrations',  label: 'Интеграции',  icon: 'pi pi-plug',            feature: null },
+    { to: '/app/integrations',  label: 'Интеграции',  icon: 'pi pi-plug',            feature: null, locked: true },
     { to: '/app/team',          label: 'Команда',     icon: 'pi pi-users',           feature: null },
     { to: '/app/assistant',     label: 'AI Ассистент', icon: 'pi pi-comment',         feature: null },
     { to: '/app/audit',         label: 'Аудит',       icon: 'pi pi-list-check',      feature: null },
-    { to: '/app/notifications', label: 'Уведомления', icon: 'pi pi-bell',            feature: null },
     { to: '/app/settings',      label: 'Настройки',   icon: 'pi pi-cog',             feature: null },
     { to: '/app/subscription',  label: 'Подписка',    icon: 'pi pi-wallet',          feature: null },
     { to: '/app/help',          label: 'Помощь',      icon: 'pi pi-question-circle', feature: null },

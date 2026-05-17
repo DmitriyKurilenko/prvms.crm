@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.3.0] — 2026-05-17
+
+### Navigation & Deal UX Restructure (DEC-038) — user-visible
+
+**Deal Detail as a standalone page with chat inside.**
+- New `DealDetailView.vue` at `/app/deals/:id`. Replaces the modal dialog in `DealsView`.
+- Three tabs: **Info** (editable fields, contracts list), **Activity** (timeline + add note), **Chat** (channel selector, message history, real-time WS, reply input).
+- Clicking a deal in Kanban or list navigates to the detail page; the URL contains the deal id (shareable link).
+- Chat tab shows `chat_sessions` linked to the deal via `CrmDealChatSessionRef`; channel switcher loads messages per session; optimistic outgoing messages; WS deduplication via temp-id replacement; auto-scroll.
+
+**Contact Drawer — linked deals tab.**
+- New "Deals" tab in `ContactDrawer` lists all deals linked to the contact via `contactDeals(id)` (`listDeals({ contact_id })`).
+- Clicking a deal navigates to `/app/deals/:id`.
+
+**Menu restructure.**
+- **Companies** added as a top-level sidebar item (`/app/companies`).
+- **Chats** (`/app/chats`) replaces "Messengers" in the sidebar; `ChatsView.vue` shows only chat sessions (no channel settings).
+- **Messengers** (channel CRUD) moved into **Settings** as the "Messengers" tab (`ChannelsView` embedded in `SettingsView`).
+- **Distribution** moved into **Team** as the "Distribution" tab (`DistributionView` embedded in `TeamView`). Old `/app/distribution` redirects to `/app/team?tab=distribution`.
+- **Notifications** moved into **Settings** as the "Notifications" tab (`NotificationsView` embedded in `SettingsView`). Old `/app/notifications` redirects to `/app/settings?tab=notifications`.
+- **Integrations** sidebar item marked `locked: true` (inactive until feature launch).
+- `SettingsView` access expanded from `owner` only to `owner` + `admin` (router meta).
+
+**Help documentation — production build fix.**
+- `Dockerfile.frontend` now copies `docs/user-guide` into the build context so bundled markdown articles are available in the production image. Dev environment already worked via volume mount.
+
+**Files:**
+- **New:** `frontend/src/views/DealDetailView.vue`, `frontend/src/views/ChatsView.vue`
+- **Changed:** `frontend/src/router/index.ts`, `frontend/src/layout/AppMenu.vue`, `frontend/src/views/DealsView.vue`, `frontend/src/components/ContactDrawer.vue`, `frontend/src/views/TeamView.vue`, `frontend/src/views/SettingsView.vue`, `frontend/src/api/crm.ts`, `Dockerfile.frontend`
+
+**Validation:** `manage.py check` 0 issues; **129/129** backend tests; `npm run typecheck` EXIT=0; `npm run build` EXIT=0; **5/5** vitest; SPA routes (`/app/deals/1`, `/app/chats`, `/app/settings`, `/app/help`) → 200.
+
+### Fixed
+- `apps/users/auth_api.py`: `SameSite='None'` without `Secure` blocked auth in dev. Fixed: `samesite='Lax' if DEBUG else 'None'`. (Hotfix from previous session, included in this release.)
+
+---
+
 ## [0.2.6] — 2026-05-16
 
 ### Mobile UI adaptation (DEC-037) — user-visible

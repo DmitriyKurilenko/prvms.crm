@@ -5,6 +5,7 @@ WORKDIR /app
 COPY frontend/package.json ./package.json
 RUN npm install
 COPY frontend/ .
+COPY docs/user-guide ./src/docs/user-guide
 ARG VITE_API_URL
 RUN VITE_API_URL=$VITE_API_URL npm run build
 

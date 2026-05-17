@@ -108,31 +108,6 @@
       </div>
     </section>
 
-    <DealDetailDialog
-      :visible="showDealDetail"
-      :deal="dealDetail"
-      :edit="dealEdit"
-      :contact-options="contactOptions"
-      :company-options="companyOptions"
-      :manager-options="managerOptions"
-      :source-options="sourceOptions"
-      :currencies="currencies"
-      :activity-type-options="activityTypeOptions"
-      :can-update="canUpdateDeal"
-      :can-delete="canDeleteDeal"
-      :can-create-contact="canCreateContact"
-      :can-create-company="canCreateCompany"
-      v-model:note-text="newNote"
-      v-model:note-type="newActivityType"
-      @update:visible="showDealDetail = $event"
-      @save="saveDealEdit"
-      @remove="removeDeal"
-      @add-note="addNote"
-      @quick-contact="quickCreateTarget = 'deal-contact'; showQuickContact = true"
-      @quick-company="quickCreateTarget = 'deal-company'; showQuickCompany = true"
-      @download-pdf="downloadPdf"
-    />
-
     <DealFormDialog
       :visible="showDealForm"
       :form="dealForm"
@@ -174,20 +149,20 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useApiCall } from '@/composables/useApiCall'
 import FeatureGate from '@/components/FeatureGate.vue'
 import QuickContactDialog from '@/components/QuickContactDialog.vue'
 import QuickCompanyDialog from '@/components/QuickCompanyDialog.vue'
 import DealFormDialog from '@/components/DealFormDialog.vue'
-import DealDetailDialog from '@/components/DealDetailDialog.vue'
 import * as crmApi from '@/api/crm'
-import type { CrmDeal, CrmActivity, KanbanColumn } from '@/api/crm'
-import { api, getAccessToken, getTenantSlug } from '@/api/http'
+import type { CrmDeal, KanbanColumn } from '@/api/crm'
 import { useAuthStore } from '@/stores/auth'
 import { normalizeCrmPermissions } from '@/utils/crmPermissions'
 import { formatDate } from '@/utils/datetime'
 
 const auth = useAuthStore()
+const router = useRouter()
 const { call } = useApiCall()
 const perms = computed(() => normalizeCrmPermissions(auth.user?.crm_permissions))
 const canCreateDeal = computed(() => perms.value.deals.can_create)
@@ -303,57 +278,8 @@ onMounted(async () => {
   ])
 })
 
-/* --- Deal detail --- */
-const showDealDetail = ref(false)
-const dealDetail = ref<(CrmDeal & { activities: CrmActivity[] }) | null>(null)
-const dealEdit = reactive({ name: '', amount: null as number | null, currency: 'RUB', contact_id: null as number | null, company_id: null as number | null, responsible_id: null as number | null, expected_close_date: '', source: '', loss_reason: '' })
-const newNote = ref('')
-const newActivityType = ref('note')
-
-const openDeal = async (id: number) => {
-  const d = await call(() => crmApi.getDeal(id), 'Не удалось открыть сделку.')
-  if (d === undefined) return
-  dealDetail.value = d
-  Object.assign(dealEdit, { name: d.name, amount: d.amount, currency: d.currency, contact_id: d.contact_id, company_id: d.company_id ?? null, responsible_id: d.responsible_id, expected_close_date: d.expected_close_date || '', source: d.source || '', loss_reason: d.loss_reason || '' })
-  showDealDetail.value = true
-}
-
-const saveDealEdit = async () => {
-  if (!canUpdateDeal.value || !dealDetail.value || !dealEdit.name) return
-  const res = await call(
-    () => crmApi.patchDeal(dealDetail.value!.id, { ...dealEdit, expected_close_date: dealEdit.expected_close_date || null }),
-    'Не удалось сохранить сделку.',
-  )
-  if (res === undefined) return
-  showDealDetail.value = false
-  await loadBoard()
-}
-
-const removeDeal = async () => {
-  if (!canDeleteDeal.value || !dealDetail.value) return
-  const res = await call(() => crmApi.deleteDeal(dealDetail.value!.id), 'Не удалось удалить сделку.')
-  if (res === undefined) return
-  showDealDetail.value = false
-  await loadBoard()
-}
-
-const addNote = async () => {
-  if (!canUpdateDeal.value || !dealDetail.value || !newNote.value.trim()) return
-  const dealId = dealDetail.value.id
-  const res = await call(
-    () => crmApi.createActivity({ activity_type: newActivityType.value, deal_id: dealId, title: newNote.value }),
-    'Не удалось добавить заметку.',
-  )
-  if (res === undefined) return
-  newNote.value = ''
-  newActivityType.value = 'note'
-  const refreshed = await call(() => crmApi.getDeal(dealId), 'Не удалось добавить заметку.')
-  if (refreshed !== undefined) dealDetail.value = refreshed
-}
-
-const downloadPdf = (contractId: number) => {
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:18100/api'
-  window.open(`${apiUrl}/contracts/${contractId}/pdf/?token=${getAccessToken()}&tenant_slug=${getTenantSlug()}`, '_blank')
+const openDeal = (id: number) => {
+  router.push(`/app/deals/${id}`)
 }
 
 /* --- New deal form --- */
@@ -407,8 +333,7 @@ const onQuickContactCreated = async (res: { id: number }) => {
   const list = await call(() => crmApi.listContacts(), 'Не удалось создать контакт.')
   if (list !== undefined) contacts.value = list
   if (quickCreateTarget.value === 'deal-contact') {
-    if (showDealForm.value) dealForm.contact_id = res.id
-    else dealEdit.contact_id = res.id
+    dealForm.contact_id = res.id
   }
 }
 
@@ -416,8 +341,7 @@ const onQuickCompanyCreated = async (res: { id: number }) => {
   const list = await call(() => crmApi.listCompanies(), 'Не удалось создать компанию.')
   if (list !== undefined) companies.value = list
   if (quickCreateTarget.value === 'deal-company') {
-    if (showDealForm.value) dealForm.company_id = res.id
-    else dealEdit.company_id = res.id
+    dealForm.company_id = res.id
   }
 }
 

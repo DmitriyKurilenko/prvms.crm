@@ -8,6 +8,7 @@
       <PButton label="Участники" :outlined="activeTab !== 'members'" @click="activeTab = 'members'" size="small" />
       <PButton label="Менеджеры" :outlined="activeTab !== 'managers'" @click="activeTab = 'managers'; loadManagers()" size="small" />
       <PButton label="Права ролей" :outlined="activeTab !== 'permissions'" @click="activeTab = 'permissions'; loadRolePermissions()" size="small" />
+      <PButton label="Распределение" :outlined="activeTab !== 'distribution'" @click="activeTab = 'distribution'" size="small" />
     </div>
 
     <!-- ═══ MEMBERS TAB ═══ -->
@@ -196,17 +197,25 @@
         </PDataTable>
       </div>
     </template>
+
+    <!-- ═══ DISTRIBUTION TAB ═══ -->
+    <template v-if="activeTab === 'distribution'">
+      <DistributionView />
+    </template>
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import { api } from '@/api/http'
+import DistributionView from '@/views/DistributionView.vue'
 
 /* ── state ── */
 const toast = useToast()
-const activeTab = ref<'members' | 'managers' | 'permissions'>('members')
+const route = useRoute()
+const activeTab = ref<'members' | 'managers' | 'permissions' | 'distribution'>('members')
 const users = ref<any[]>([])
 const email = ref('')
 const inviteRole = ref('manager')
@@ -446,7 +455,13 @@ const saveRolePermission = async (row: {
 }
 
 /* ── init ── */
-onMounted(load)
+onMounted(() => {
+  const tab = route.query.tab
+  if (tab === 'distribution') {
+    activeTab.value = 'distribution'
+  }
+  load()
+})
 </script>
 
 <style scoped>
