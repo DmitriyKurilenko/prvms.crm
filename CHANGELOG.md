@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.4.0] — 2026-05-18
+
+### SEO Landing Page (DEC-038) — user-visible
+
+**Django-rendered landing page at root `/` replaces SPA redirect.**
+- New `templates/landing.html` — fully self-contained HTML with inline CSS (~6 KB), system fonts, inline SVG icons, zero external image/font requests.
+- SEO: `<title>`, `<meta name="description">`, `canonical`, `robots index,follow`, Open Graph (title/description/type/url/locale `ru_RU`), Twitter Cards (`summary_large_image`).
+- Structured data: JSON-LD `@graph` with 4 entities — `Organization`, `WebSite`, `SoftwareApplication` (with `AggregateRating` and `Offer`), `FAQPage` (3 Q/A pairs).
+- Accessibility: `lang="ru"`, skip-link, semantic roles (`banner`/`main`/`contentinfo`), `aria-label` for nav, `focus-visible` outlines, touch targets ≥44 px, `prefers-reduced-motion` guard.
+- Responsive: CSS Grid `auto-fit`/`minmax`, `@media (max-width: 480px)` for padding/hero, flex-wrap in header/actions.
+- Sections: Hero (gradient + dual CTA), Features (6 cards: CRM, Contracts, Telephony, Messengers, Analytics, AI Assistant), How it works (3 steps), Pricing (Simple/Basic/CRM), CTA banner, Footer.
+
+**Backend & routing.**
+- `config/views.py`: new `landing_page()` renders `landing.html` with `canonical_url` built from `PLATFORM_PROTOCOL` + `PLATFORM_DOMAIN`.
+- `config/urls.py`: `path('', landing_page)` — root now serves HTML instead of redirecting to SPA.
+- `vps-deployment/crm_prvms/docker-compose.yml`: Traefik `crm-api` router extended with `Path(\`/\`)` (priority 100) so production routes root to backend, not frontend-app.
+- Backward compatibility: `/login`, `/register`, `/app/*` still redirect to SPA (dev) or route through `crm-spa` (production). `LandingView.vue` remains as dev Vite fallback.
+
+**Tests.**
+- `apps/tenants/tests/test_tenant_resolver.py`: `test_root_endpoint_renders_landing_page` verifies 200 + `text/html` + H1 + `lang="ru"`. Replaces old redirect test.
+
+**Files:**
+- **New:** `templates/landing.html`
+- **Changed:** `config/views.py`, `config/urls.py`, `apps/tenants/tests/test_tenant_resolver.py`, `vps-deployment/crm_prvms/docker-compose.yml`
+
+**Validation:** `manage.py check` 0 issues; **129/129** backend tests; `npm run typecheck` EXIT=0; `npm run build` EXIT=0; **5/5** vitest; `curl /` → 200 text/html with JSON-LD; `curl /login` → 302 to SPA.
+
+---
+
 ## [0.3.0] — 2026-05-17
 
 ### Navigation & Deal UX Restructure (DEC-038) — user-visible

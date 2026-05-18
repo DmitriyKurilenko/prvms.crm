@@ -140,7 +140,7 @@ services:
       - "traefik.enable=true"
       - "traefik.docker.network=proxy"
       # API + admin + signing + webhooks + WebSockets — all served by Django.
-      - "traefik.http.routers.crm-api.rule=Host(`${PUBLIC_HOSTNAME}`) && (PathPrefix(`/api`) || PathPrefix(`/ws`) || PathPrefix(`/admin`) || PathPrefix(`/sign`) || PathPrefix(`/channels/webhook`) || PathPrefix(`/telephony`) || PathPrefix(`/billing/yookassa/webhook`) || PathPrefix(`/notifications/telegram`) || PathPrefix(`/media`) || Path(`/healthz`))"
+      - "traefik.http.routers.crm-api.rule=Host(`${PUBLIC_HOSTNAME}`) && (Path(`/`) || PathPrefix(`/api`) || PathPrefix(`/ws`) || PathPrefix(`/admin`) || PathPrefix(`/sign`) || PathPrefix(`/channels/webhook`) || PathPrefix(`/telephony`) || PathPrefix(`/billing/yookassa/webhook`) || PathPrefix(`/notifications/telegram`) || PathPrefix(`/media`) || Path(`/healthz`))"
       - "traefik.http.routers.crm-api.entrypoints=websecure"
       - "traefik.http.routers.crm-api.tls=true"
       - "traefik.http.routers.crm-api.tls.certresolver=le"

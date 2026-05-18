@@ -1,14 +1,18 @@
 from django.conf import settings
 from django.http import JsonResponse
-from django.shortcuts import redirect
+from django.shortcuts import redirect, render
 
 
 def healthz(request):
     return JsonResponse({'status': 'ok'})
 
 
-def root(request):
-    return redirect(settings.FRONTEND_APP_URL, permanent=False)
+def landing_page(request):
+    canonical_url = f"{settings.PLATFORM_PROTOCOL}://{settings.PLATFORM_DOMAIN}"
+    return render(request, 'landing.html', {
+        'canonical_url': canonical_url,
+        'frontend_app_url': settings.FRONTEND_APP_URL,
+    })
 
 
 def frontend_entry(request, path: str = ''):

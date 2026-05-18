@@ -11,10 +11,13 @@ from apps.users.tests.base import TenantAPITestCase
 
 
 class TenantResolverTest(TenantAPITestCase):
-    def test_root_endpoint_redirects_to_frontend_app(self):
+    def test_root_endpoint_renders_landing_page(self):
         response = self.client.get('/', HTTP_HOST='localhost')
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(response['Location'], settings.FRONTEND_APP_URL)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('text/html', response['Content-Type'])
+        content = response.content.decode()
+        self.assertIn('CRM-платформа для продаж', content)
+        self.assertIn('<html lang="ru">', content)
 
     def test_login_and_register_shortcuts_redirect_to_frontend(self):
         login_response = self.client.get('/login', HTTP_HOST='localhost')

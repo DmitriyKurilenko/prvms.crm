@@ -3,7 +3,7 @@ from django.urls import path
 from django.conf import settings
 from django.conf.urls.static import static
 from .api import api
-from .views import healthz, root, frontend_entry
+from .views import healthz, landing_page, frontend_entry
 from apps.contracts.public_views import sign_page, sign_request_otp, sign_verify, sign_download_pdf, sign_send_email, sign_esign_agreement
 from apps.integrations.webhook_views import incoming_crm_webhook
 from apps.channels.public_views import channel_webhook
@@ -13,7 +13,7 @@ from apps.notifications.views import TelegramBotWebhookView
 from apps.ai_assistant.public_views import hermes_webhook
 
 urlpatterns = [
-    path('', root),
+    path('', landing_page),
     path('login', frontend_entry, {'path': 'login'}),
     path('login/', frontend_entry, {'path': 'login'}),
     path('register', frontend_entry, {'path': 'register'}),

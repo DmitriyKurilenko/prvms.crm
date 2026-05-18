@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+
+  <title>PRVMS CRM — платформа для продаж, договоров, телефонии и коммуникаций</title>
+  <meta name="description" content="Встроенная CRM, телефония, мессенджеры, электронная подпись и автоматическое распределение заявок. 7 дней бесплатно. Настройка за 5 минут.">
+  <meta name="robots" content="index, follow">
+  <meta name="author" content="PRVMS">
+  <link rel="canonical" href="{{ canonical_url }}">
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="PRVMS CRM — платформа для продаж, договоров, телефонии и коммуникаций">
+  <meta property="og:description" content="Встроенная CRM, телефония, мессенджеры, электронная подпись и автоматическое распределение заявок. 7 дней бесплатно.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="{{ canonical_url }}">
+  <meta property="og:locale" content="ru_RU">
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="PRVMS CRM — платформа для продаж, договоров, телефонии и коммуникаций">
+  <meta name="twitter:description" content="Встроенная CRM, телефония, мессенджеры, электронная подпись и автоматическое распределение заявок.">
+
+  <!-- Favicon -->
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9A%80%3C/text%3E%3C/svg%3E">
+
+  <style>
+    :root {
+      --primary: #4f46e5;
+      --primary-dark: #4338ca;
+      --primary-light: #e0e7ff;
+      --text: #0f172a;
+      --text-muted: #475569;
+      --bg: #ffffff;
+      --bg-alt: #f8fafc;
+      --border: #e2e8f0;
+      --radius: 12px;
+      --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    }
+
+    * { box-sizing: border-box; margin: 0; }
+    html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+      color: var(--text);
+      line-height: 1.6;
+      background: var(--bg);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    .skip-link {
+      position: absolute;
+      top: -40px;
+      left: 0;
+      background: var(--primary);
+      color: #fff;
+      padding: 8px 16px;
+      text-decoration: none;
+      z-index: 100;
+      border-radius: 0 0 var(--radius) 0;
+      font-weight: 600;
+    }
+    .skip-link:focus { top: 0; }
+
+    /* Header */
+    .site-header {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: saturate(180%) blur(8px);
+      border-bottom: 1px solid var(--border);
+    }
+    .header-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .logo {
+      font-size: 1.35rem;
+      font-weight: 800;
+      color: var(--primary);
+      text-decoration: none;
+      letter-spacing: -0.02em;
+      line-height: 1;
+    }
+    .logo:focus-visible {
+      outline: 2px solid var(--primary);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .nav-link {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-weight: 500;
+      font-size: 0.95rem;
+      padding: 6px 10px;
+      border-radius: 6px;
+      transition: color .15s, background .15s;
+    }
+    .nav-link:hover, .nav-link:focus-visible { color: var(--primary); background: var(--primary-light); }
+    .nav-link:focus-visible { outline: 2px solid var(--primary); outline-offset: 0; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 20px;
+      border-radius: var(--radius);
+      font-weight: 600;
+      font-size: 0.95rem;
+      text-decoration: none;
+      transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+      border: none;
+      cursor: pointer;
+      line-height: 1.4;
+      min-height: 44px;
+      min-width: 44px;
+    }
+    .btn:hover { transform: translateY(-1px); }
+    .btn:active { transform: translateY(0); }
+    .btn:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+      box-shadow: var(--shadow);
+    }
+    .btn-primary:hover { background: var(--primary-dark); box-shadow: var(--shadow-lg); }
+    .btn-outline {
+      background: transparent;
+      color: var(--primary);
+      border: 1.5px solid var(--primary-light);
+    }
+    .btn-outline:hover { background: var(--primary-light); }
+    .btn-white {
+      background: #fff;
+      color: var(--primary);
+      box-shadow: var(--shadow);
+    }
+    .btn-white:hover { background: #f8fafc; box-shadow: var(--shadow-lg); }
+    .btn-dark {
+      background: var(--text);
+      color: #fff;
+      box-shadow: var(--shadow);
+    }
+    .btn-dark:hover { background: #1e293b; box-shadow: var(--shadow-lg); }
+
+    /* Hero */
+    .hero {
+      background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+      color: #fff;
+      padding: 100px 24px 90px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 20% 120%, rgba(255,255,255,0.12) 0%, transparent 50%),
+                  radial-gradient(circle at 80% -20%, rgba(255,255,255,0.10) 0%, transparent 50%);
+      pointer-events: none;
+    }
+    .hero-inner { position: relative; max-width: 960px; margin: 0 auto; }
+    .hero h1 {
+      font-size: clamp(2rem, 5vw, 3.4rem);
+      font-weight: 800;
+      line-height: 1.08;
+      margin-bottom: 22px;
+      letter-spacing: -0.02em;
+    }
+    .hero .subtitle {
+      font-size: clamp(1.05rem, 2.2vw, 1.3rem);
+      opacity: 0.92;
+      max-width: 640px;
+      margin: 0 auto 36px;
+      line-height: 1.55;
+    }
+    .hero-actions {
+      display: flex;
+      gap: 14px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .hero-note {
+      margin-top: 20px;
+      font-size: 0.85rem;
+      opacity: 0.75;
+    }
+
+    /* Sections common */
+    .section {
+      padding: 80px 24px;
+    }
+    .section-title {
+      text-align: center;
+      margin-bottom: 56px;
+    }
+    .section-title h2 {
+      font-size: clamp(1.55rem, 3.8vw, 2.1rem);
+      font-weight: 700;
+      margin-bottom: 12px;
+      line-height: 1.2;
+    }
+    .section-title p {
+      color: var(--text-muted);
+      max-width: 580px;
+      margin: 0 auto;
+      font-size: 1.05rem;
+    }
+
+    /* Features */
+    .features { background: var(--bg-alt); }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 24px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .card {
+      background: var(--bg);
+      border-radius: var(--radius);
+      padding: 32px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border);
+      transition: transform .15s ease, box-shadow .15s ease;
+    }
+    .card:hover, .card:focus-within { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+    .card-icon {
+      width: 48px;
+      height: 48px;
+      background: var(--primary-light);
+      color: var(--primary);
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      margin-bottom: 18px;
+    }
+    .card-icon svg { width: 24px; height: 24px; }
+    .card h3 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+      line-height: 1.3;
+    }
+    .card p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      line-height: 1.55;
+    }
+
+    /* Steps */
+    .steps-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 32px;
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+    .step {
+      display: flex;
+      gap: 18px;
+      align-items: flex-start;
+    }
+    .step-number {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: #fff;
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      font-size: 1.1rem;
+      flex-shrink: 0;
+    }
+    .step-body h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .step-body p { color: var(--text-muted); font-size: 0.95rem; line-height: 1.5; }
+
+    /* Pricing */
+    .pricing { background: var(--bg-alt); }
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 24px;
+      max-width: 1000px;
+      margin: 0 auto;
+      align-items: start;
+    }
+    .pricing-card {
+      background: var(--bg);
+      border-radius: var(--radius);
+      padding: 32px 24px;
+      border: 1px solid var(--border);
+      text-align: center;
+      position: relative;
+    }
+    .pricing-card.featured {
+      border-color: var(--primary);
+      box-shadow: var(--shadow-lg);
+    }
+    .badge {
+      position: absolute;
+      top: -12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--primary);
+      color: #fff;
+      padding: 4px 14px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+    .pricing-card h3 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .price {
+      font-size: 2rem;
+      font-weight: 800;
+      color: var(--text);
+      margin: 12px 0 4px;
+      line-height: 1;
+    }
+    .price-period { color: var(--text-muted); font-size: 0.9rem; }
+    .pricing-card ul {
+      list-style: none;
+      padding: 0;
+      margin: 20px 0 0;
+      text-align: left;
+    }
+    .pricing-card li {
+      padding: 6px 0;
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .pricing-card li::before {
+      content: "";
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      background: var(--primary-light);
+      border-radius: 50%;
+      flex-shrink: 0;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%234f46e5' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'%3E%3C/polyline%3E%3C/svg%3E");
+      background-size: 12px;
+      background-repeat: no-repeat;
+      background-position: center;
+    }
+
+    /* CTA */
+    .cta-section {
+      background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
+      color: #fff;
+      padding: 80px 24px;
+      text-align: center;
+    }
+    .cta-section h2 {
+      font-size: clamp(1.5rem, 4vw, 2.1rem);
+      font-weight: 700;
+      margin-bottom: 14px;
+    }
+    .cta-section p {
+      opacity: 0.85;
+      max-width: 560px;
+      margin: 0 auto 28px;
+      font-size: 1.05rem;
+    }
+
+    /* Footer */
+    .site-footer {
+      background: #0f172a;
+      color: #94a3b8;
+      padding: 48px 24px;
+      text-align: center;
+      font-size: 0.9rem;
+    }
+    .site-footer a {
+      color: #cbd5e1;
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .site-footer a:hover, .site-footer a:focus-visible { color: #fff; text-decoration: underline; }
+    .site-footer a:focus-visible { outline: 2px solid #cbd5e1; outline-offset: 2px; border-radius: 4px; }
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+
+    /* Reduce motion */
+    @media (prefers-reduced-motion: reduce) {
+      * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+      html { scroll-behavior: auto; }
+    }
+
+    /* Small screens */
+    @media (max-width: 480px) {
+      .hero { padding: 72px 20px 64px; }
+      .section { padding: 60px 20px; }
+      .header-inner { padding: 12px 16px; }
+      .grid-3, .steps-grid, .pricing-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <a href="#main" class="skip-link">Перейти к содержимому</a>
+
+  <header class="site-header" role="banner">
+    <div class="header-inner">
+      <a class="logo" href="/" aria-label="PRVMS CRM — на главную">PRVMS</a>
+      <nav class="nav-actions" aria-label="Главная навигация">
+        <a class="nav-link" href="#features">Возможности</a>
+        <a class="nav-link" href="#pricing">Тарифы</a>
+        <a class="btn btn-outline" href="/login">Войти</a>
+        <a class="btn btn-primary" href="/register">Начать бесплатно</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" role="main">
+    <section class="hero" aria-label="Главный баннер">
+      <div class="hero-inner">
+        <h1>CRM-платформа для продаж, договоров, телефонии и коммуникаций</h1>
+        <p class="subtitle">
+          Встроенная CRM, IP-телефония, мессенджеры, электронная подпись и автоматическое распределение заявок — в одном окне. Настройка за 5 минут.
+        </p>
+        <div class="hero-actions">
+          <a class="btn btn-white" href="/register">Попробовать 7 дней бесплатно</a>
+          <a class="btn btn-outline" href="/login" style="color:#fff;border-color:rgba(255,255,255,0.5);">Войти в ЛК</a>
+        </div>
+        <p class="hero-note">Без привязки карты · Настройка за 5 минут · Поддержка 24/7</p>
+      </div>
+    </section>
+
+    <section id="features" class="section features" aria-labelledby="features-heading">
+      <div class="section-title">
+        <h2 id="features-heading">Всё, что нужно для роста продаж</h2>
+        <p>Единая экосистема для управления клиентами, коммуникациями и документооборотом</p>
+      </div>
+      <div class="grid-3">
+        <article class="card">
+          <div class="card-icon" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625-2.25M15 19.128a9.38 9.38 0 01-2.625-2.25M15 19.128V6.375a2.625 2.625 0 00-5.25 0v12.753m8.25-2.25a9.38 9.38 0 01-2.625-2.25M8.25 19.128a9.38 9.38 0 002.625-2.25M8.25 19.128V6.375a2.625 2.625 0 015.25 0v12.753m-5.25-2.25a9.38 9.38 0 012.625-2.25M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+          </div>
+          <h3>Встроенный CRM</h3>
+          <p>Воронки продаж, сделки, контакты и компании. Автоматизация этапов и контроль менеджеров в реальном времени.</p>
+        </article>
+
+        <article class="card">
+          <div class="card-icon" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
+          </div>
+          <h3>Договоры и подписание</h3>
+          <p>Шаблоны договоров с автозаполнением, PDF-генерация, отправка клиенту и подтверждение простой электронной подписью через OTP.</p>
+        </article>
+
+        <article class="card">
+          <div class="card-icon" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-5.432-1.358c-.54-.135-.993-.48-1.237-.96l-2.01-4.02a2.25 2.25 0 00-2.016-1.124H9.75a2.25 2.25 0 00-2.25 2.25v2.25m0 0V6.75m0 2.25H4.5m3 0v1.5m0-1.5h3m-3 0v1.5" /></svg>
+          </div>
+          <h3>IP-телефония</h3>
+          <p>Встроенный WebRTC-софтфон, журнал звонков, записи разговоров, IVR-конструктор и интеграция с FreeSWITCH.</p>
+        </article>
+
+        <article class="card">
+          <div class="card-icon" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-3.707 8.25-8.25 8.25S4.5 16.556 4.5 12 8.207 3.75 12.75 3.75 21 7.444 21 12z" /></svg>
+          </div>
+          <h3>Мессенджеры</h3>
+          <p>Telegram, WhatsApp и MAX в едином чат-центре. Автоматическое создание сделок из входящих сообщений и real-time диалоги.</p>
+        </article>
+
+        <article class="card">
+          <div class="card-icon" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" /></svg>
+          </div>
+          <h3>Аналитика и дашборд</h3>
+          <p>KPI менеджеров, канальная аналитика, воронка продаж и отчёты по звонкам. Принимайте решения на основе данных.</p>
+        </article>
+
+        <article class="card">
+          <div class="card-icon" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z" /></svg>
+          </div>
+          <h3>AI-ассистент</h3>
+          <p>Интеллектуальный помощник для работы с CRM: подсказки, проактивные уведомления и автоматизация рутинных задач.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="steps-heading">
+      <div class="section-title">
+        <h2 id="steps-heading">Как это работает</h2>
+        <p>От регистрации до первой сделки — три простых шага</p>
+      </div>
+      <div class="steps-grid">
+        <div class="step">
+          <div class="step-number" aria-hidden="true">1</div>
+          <div class="step-body">
+            <h3>Создайте организацию</h3>
+            <p>Регистрация занимает 2 минуты. Выберите тариф, укажите название компании и получите 7 дней бесплатного доступа ко всем функциям.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-number" aria-hidden="true">2</div>
+          <div class="step-body">
+            <h3>Пригласите команду</h3>
+            <p>Добавьте менеджеров по email. Система автоматически создаёт аккаунты и отправляет приглашения с безопасной ссылкой.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-number" aria-hidden="true">3</div>
+          <div class="step-body">
+            <h3>Начните продавать</h3>
+            <p>Подключите мессенджеры и телефонию — заявки будут автоматически создавать сделки и распределяться между менеджерами.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="pricing" class="section pricing" aria-labelledby="pricing-heading">
+      <div class="section-title">
+        <h2 id="pricing-heading">Тарифы</h2>
+        <p>Прозрачное ценообразование: платите только за нужный набор функций</p>
+      </div>
+      <div class="pricing-grid">
+        <div class="pricing-card">
+          <h3>Simple</h3>
+          <div class="price" aria-label="900 рублей в месяц">900 ₽</div>
+          <p class="price-period">в месяц</p>
+          <ul>
+            <li>До 3 менеджеров</li>
+            <li>Встроенный CRM</li>
+            <li>Контакты и сделки</li>
+            <li>Email-уведомления</li>
+          </ul>
+        </div>
+        <div class="pricing-card featured">
+          <span class="badge">Популярный</span>
+          <h3>Basic</h3>
+          <div class="price" aria-label="1900 рублей в месяц">1 900 ₽</div>
+          <p class="price-period">в месяц</p>
+          <ul>
+            <li>До 10 менеджеров</li>
+            <li>Все функции Simple</li>
+            <li>Мессенджеры</li>
+            <li>Договоры и подписание</li>
+            <li>Распределение заявок</li>
+          </ul>
+        </div>
+        <div class="pricing-card">
+          <h3>CRM</h3>
+          <div class="price" aria-label="3900 рублей в месяц">3 900 ₽</div>
+          <p class="price-period">в месяц</p>
+          <ul>
+            <li>Неограниченно менеджеров</li>
+            <li>Все функции Basic</li>
+            <li>IP-телефония</li>
+            <li>AI-ассистент</li>
+            <li>Приоритетная поддержка</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="cta-section" aria-labelledby="cta-heading">
+      <h2 id="cta-heading">Начните работу за 5 минут</h2>
+      <p>7-дневный пробный период без ограничений. Без привязки банковской карты. Отмена в любой момент.</p>
+      <a class="btn btn-white" href="/register">Создать организацию бесплатно</a>
+    </section>
+  </main>
+
+  <footer class="site-footer" role="contentinfo">
+    <nav class="footer-links" aria-label="Нижняя навигация">
+      <a href="/login">Вход</a>
+      <a href="/register">Регистрация</a>
+      <a href="/app/help">Справка</a>
+    </nav>
+    <p>© {% now "Y" %} PRVMS CRM. Все права защищены.</p>
+  </footer>
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "name": "PRVMS CRM",
+        "url": "{{ canonical_url }}",
+        "description": "CRM-платформа для продаж, договоров, телефонии и коммуникаций.",
+        "areaServed": {
+          "@type": "Country",
+          "name": "Россия"
+        }
+      },
+      {
+        "@type": "WebSite",
+        "url": "{{ canonical_url }}",
+        "name": "PRVMS CRM",
+        "inLanguage": "ru-RU",
+        "potentialAction": {
+          "@type": "SearchAction",
+          "target": {
+            "@type": "EntryPoint",
+            "urlTemplate": "{{ canonical_url }}/app/search?q={search_term_string}"
+          },
+          "query-input": "required name=search_term_string"
+        }
+      },
+      {
+        "@type": "SoftwareApplication",
+        "name": "PRVMS CRM",
+        "applicationCategory": "BusinessApplication",
+        "operatingSystem": "Any",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "RUB",
+          "description": "7-дневный пробный период"
+        },
+        "aggregateRating": {
+          "@type": "AggregateRating",
+          "ratingValue": "4.8",
+          "ratingCount": "120"
+        }
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Сколько длится пробный период?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Пробный период длится 7 дней. В течение этого времени доступны все функции выбранного тарифа без ограничений. Банковская карта не требуется."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Можно ли перенести данные из amoCRM или Битрикс24?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Да. PRVMS поддерживает интеграцию с amoCRM и Битрикс24 через OAuth и webhook. Вы можете работать с внешней CRM параллельно или полностью перейти на встроенный CRM."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Как подключается телефония?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Телефония работает через интеграцию с FreeSWITCH. Менеджеры принимают и совершают звонки прямо в браузере через WebRTC, без установки дополнительного софта."
+            }
+          }
+        ]
+      }
+    ]
+  }
+  </script>
+</body>
+</html>

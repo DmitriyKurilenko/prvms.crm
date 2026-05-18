@@ -1,5 +1,38 @@
 # Dev Log
 
+## 2026-05-17 (4) — SEO-лэндинг с PageSpeed-оптимизацией
+
+### Что сделано:
+- **Корневой `/` — Django-шаблон вместо редиректа на SPA**: создан `templates/landing.html` с полным SEO-контуром и оптимизациями для 100 баллов PageSpeed.
+- **SEO**: `<title>`, `<meta name="description">`, `canonical`, `robots index,follow`, Open Graph (title/description/type/url/locale), Twitter Cards (summary_large_image).
+- **Структурированные данные**: JSON-LD с `@graph` из 4 сущностей — `Organization`, `WebSite`, `SoftwareApplication`, `FAQPage`.
+- **Performance**: весь CSS инлайн в `<style>` (~6 KB), системные шрифты (без внешних запросов), inline SVG-иконки (0 изображений), `prefers-reduced-motion` guard, sticky header с `backdrop-filter`.
+- **Accessibility**: `lang="ru"`, skip-link, `role="banner/main/contentinfo"`, `aria-label` для навигаций, `focus-visible` outline, контрастные цвета, touch targets ≥44 px.
+- **Адаптивность**: CSS Grid с `auto-fit` + `minmax`, `@media (max-width:480px)` для padding/hero, flex-wrap в header/actions.
+- **Секции**: Hero (gradient + CTA), Features (6 карточек), How it works (3 шага), Pricing (Simple/Basic/CRM), CTA banner, Footer.
+- **Backend**: `config/views.py` — `landing_page()` с `canonical_url` из `PLATFORM_PROTOCOL` + `PLATFORM_DOMAIN`; `config/urls.py` — `path('', landing_page)`.
+- **Production routing**: `vps-deployment/crm_prvms/docker-compose.yml` — `Path(\`/\`)` добавлен в `crm-api` Traefik router (priority 100), чтобы корень шёл на backend, а не на SPA.
+- **Обратная совместимость**: `/login`, `/register`, `/app/*` по-прежнему редиректят на SPA (dev) или попадают в `crm-spa` (production). `LandingView.vue` оставлен как fallback для dev Vite-сервера.
+- **Тесты**: `test_root_endpoint_renders_landing_page` заменил `test_root_endpoint_redirects_to_frontend_app`. 129/129 backend tests OK.
+
+### Изменённые файлы:
+- **Новый:** `templates/landing.html`
+- **Изменены:** `config/views.py`, `config/urls.py`, `apps/tenants/tests/test_tenant_resolver.py`, `vps-deployment/crm_prvms/docker-compose.yml`
+
+### Валидация (Docker):
+- `docker compose down && docker compose up -d --build` → стабильный старт.
+- `docker compose run --rm web python manage.py check` → **0 issues**.
+- `docker compose run --rm web python manage.py test apps` → **129/129 OK**.
+- `curl http://localhost:18100/` → **200 text/html**, содержит `<h1>CRM-платформа для продаж</h1>`, JSON-LD, canonical.
+- `curl http://localhost:18100/login` → **302** на frontend SPA.
+
+### Риски:
+- В production необходимо убедиться, что Traefik Dashboard показывает router `crm-api` с `Path(\`/\`)` — проверить через `/opt/scripts/check-https.sh` или `curl localhost:8080/api/http/routers` после деплоя.
+- PageSpeed 100 теоретически достижим, но фактический score зависит от сетевой задержки до сервера и может немного варьироваться. Рекомендуется проверить через PageSpeed Insights после production-деплоя.
+- Отсутствие `og:image` и `twitter:image` — для полноты SEO нужно добавить изображение для соцсетей (1200×630px, <200KB, WebP).
+
+---
+
 ## 2026-05-17 (3) — Реструктуризация меню и навигации CRM
 
 ### Что сделано:
