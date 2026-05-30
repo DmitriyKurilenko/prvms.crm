@@ -1,5 +1,73 @@
 # Changelog
 
+## [0.5.0] — 2026-05-30
+
+### VKontakte Messenger Channel (DEC-039) — user-visible
+
+**New channel: ВКонтакте community messages.**
+- Users connect VK communities via one-click OAuth (standalone app on vk.com/dev).
+- Only personal messages to the community are processed; comments, likes, lead forms, mentions are ignored.
+- Incoming messages create `ChatSession` + `MessageLog` and trigger `auto_create_lead` (same pipeline as Telegram/MAX).
+- Operator replies from CRM are delivered back to the client in VK via `messages.send`.
+
+**OAuth flow (frontend-driven Implicit Flow).**
+- `POST /api/channels/oauth/vk/start/` — returns `authorize_url` with signed `state` (Django `signing.dumps`, TTL 1h).
+- Browser redirects to `oauth.vk.com/authorize` with `response_type=token`.
+- `GET /oauth/vk/callback` (SPA route, no auth guard) parses `window.location.hash`, extracts `access_token_<group_id>` pairs, POSTs them to backend.
+- `POST /api/channels/oauth/vk/complete/` — verifies state/tenant, fetches group info via `groups.getById`, creates `MessengerChannel`, auto-registers Callback API webhook.
+- Per-group creation: if one group fails, others still proceed; response lists `created` and `failed`.
+
+**Callback API auto-registration.**
+- `groups.getCallbackConfirmationCode` → saved in `credentials.confirmation_code`.
+- Generated `secret_key` (`secrets.token_urlsafe(32)`) saved in credentials.
+- `groups.addCallbackServer` → `server_id` saved.
+- `groups.setCallbackSettings(message_new=1)` — only `message_new` enabled.
+- Rollback on failure: channel deleted, VK token left to expire (no orphan server).
+
+**Webhook handler.**
+- `POST /channels/webhook/<tenant_slug>/vk/<channel_id>/`
+- `type=confirmation` → plain-text response with `confirmation_code`.
+- All other events verify `payload.secret` against `credentials.secret_key`.
+- `type=message_new` is routed to Celery `route_incoming_message`; everything else is ignored.
+
+**Provider functions (`apps/channels/providers.py`).**
+- `get_vk_group_info` — `groups.getById` (name + photo).
+- `register_vk_callback` — 4-step registration (confirmation code → secret → add server → settings).
+- `unregister_vk_callback` — `groups.deleteCallbackServer`.
+- `normalize_incoming_payload` for `vk` — extracts `peer_id`, `text`, `id`, `attachments`; ignores `confirmation`/`wall_reply`/etc.
+- `send_outgoing` for `vk` — `messages.send` with `random_id=secrets.randbits(31)`, `v=5.199`.
+
+**Settings.**
+- `VK_APP_ID` env variable (platform-wide standalone app ID).
+- `VK_API_VERSION = '5.199'` constant.
+- `.env.example` updated with placeholder + comment linking to `docs/user-guide/admin/vk-app-setup.md`.
+
+**Frontend.**
+- `frontend/src/views/oauth/VkCallbackView.vue` — callback page (spinner, error, success with created/failed list, auto-redirect after 2.5s).
+- `frontend/src/api/channels.ts` — `startVkOauth()`, `completeVkOauth()`.
+- `frontend/src/router/index.ts` — public route `/oauth/vk/callback`.
+- `ChannelsView.vue` — «Подключить ВКонтакте» button (icon + handler storing state in `sessionStorage`).
+- `ChannelsTab.vue` — VK icon (`assets/icons/vk.svg`) shown next to channel type label.
+
+**Tests.**
+- `test_vk_provider.py` — 7 tests (normalize message_new, ignore confirmation/wall_reply, attachments, send success/error, register full flow, unregister, get_group_info error).
+- `test_vk_webhook.py` — 4 tests (confirmation returns code, message_new with correct secret, wrong secret → 403, missing channel → 404).
+- `test_vk_oauth_api.py` — 6 tests (start returns URL/state, requires admin, complete creates channels, invalid state → 400, tenant mismatch → 400, partial failure handled).
+- All existing channels tests remain green: **33/33 OK**.
+
+**Documentation.**
+- `docs/DECISIONS.md` — DEC-039 (Standalone OAuth + Callback API, invariants, alternatives).
+- `docs/RELEASE_NOTES.md` — user-facing announcement (russian).
+- `docs/DEV_LOG.md` — full implementation log with file list, validation, risks.
+- `docs/TASK_STATE.md` — task #32 marked done.
+- `docs/KNOWN_ISSUES.md` — VK v1 limitations (no user names, no outgoing attachments, stickers as metadata only).
+- `docs/user-guide/vk-channel.md` — 3-step user guide, FAQ on community access.
+- `docs/user-guide/admin/vk-app-setup.md` — platform admin setup instructions.
+
+**Validation:** `manage.py check` 0 issues; **33/33** backend tests; `npm run typecheck` EXIT=0; `npm run build` EXIT=0; **5/5** vitest.
+
+---
+
 ## [0.4.0] — 2026-05-18
 
 ### SEO Landing Page (DEC-038) — user-visible

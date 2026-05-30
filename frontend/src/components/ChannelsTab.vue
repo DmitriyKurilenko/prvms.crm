@@ -68,7 +68,12 @@
       <PDataTable v-responsive-table :value="channels" size="small" stripedRows :paginator="true" :rows="20" :rowsPerPageOptions="[10, 20, 50]">
         <PColumn field="name" header="Название" />
         <PColumn header="Тип">
-          <template #body="{ data }">{{ typeLabel(data.channel_type) }}</template>
+          <template #body="{ data }">
+            <div style="display: flex; align-items: center; gap: 6px">
+              <img v-if="data.channel_type === 'vk'" src="@/assets/icons/vk.svg" alt="VK" style="width: 16px; height: 16px" />
+              <span>{{ typeLabel(data.channel_type) }}</span>
+            </div>
+          </template>
         </PColumn>
         <PColumn header="Статус">
           <template #body="{ data }">

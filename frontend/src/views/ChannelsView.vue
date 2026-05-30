@@ -5,9 +5,11 @@
         <h1 class="page-title">Мессенджер-каналы</h1>
       </div>
 
-      <div style="display: flex; gap: 8px; margin-bottom: 12px">
+      <div style="display: flex; gap: 8px; margin-bottom: 12px; align-items: center; flex-wrap: wrap">
         <PButton label="Каналы" :outlined="activeTab !== 'channels'" @click="activeTab = 'channels'" size="small" />
         <PButton label="Чаты" :outlined="activeTab !== 'chats'" @click="activeTab = 'chats'; loadChatsTab()" size="small" />
+        <div style="flex: 1"></div>
+        <PButton label="Подключить ВКонтакте" icon="pi pi-external-link" size="small" @click="connectVk" />
       </div>
 
       <!-- ═══ CHANNELS TAB ═══ -->
@@ -56,6 +58,7 @@ import { useRoute } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import { api, getAccessToken, getTenantSlug } from '@/api/http'
 import { refresh as refreshToken } from '@/api/auth'
+import { startVkOauth } from '@/api/channels'
 import FeatureGate from '@/components/FeatureGate.vue'
 import ChannelsTab from '@/components/ChannelsTab.vue'
 import ChatsTab from '@/components/ChatsTab.vue'
@@ -84,6 +87,7 @@ const typeOptions = [
   { value: 'whatsapp', label: 'WhatsApp (провайдер)' },
   { value: 'whatsapp_business', label: 'WhatsApp Business API' },
   { value: 'max', label: 'MAX' },
+  { value: 'vk', label: 'ВКонтакте' },
 ]
 const typeLabel = (v: string) => typeOptions.find(o => o.value === v)?.label ?? v
 
@@ -106,6 +110,16 @@ const loadChannels = async () => {
     channels.value = await api('/channels/')
   } catch {
     toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось загрузить каналы.', life: 5000 })
+  }
+}
+
+const connectVk = async () => {
+  try {
+    const { authorize_url, state } = await startVkOauth()
+    sessionStorage.setItem('vk_oauth_state', state)
+    window.location.href = authorize_url
+  } catch {
+    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось начать подключение ВКонтакте.', life: 5000 })
   }
 }
 

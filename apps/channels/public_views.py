@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django_tenants.utils import schema_context, tenant_context
@@ -40,6 +40,12 @@ def channel_webhook(request, tenant_slug: str, channel_type: str, channel_id: in
         if not channel:
             logger.warning('Webhook for unknown channel: tenant=%s type=%s id=%s', tenant_slug, channel_type, channel_id)
             return JsonResponse({'detail': 'Channel not found'}, status=404)
+
+        # VK confirmation request — special handling before token check
+        if channel_type == 'vk' and payload.get('type') == 'confirmation':
+            confirmation_code = (channel.credentials or {}).get('confirmation_code', '')
+            return HttpResponse(confirmation_code, content_type='text/plain')
+
         if not _validate_webhook_token(request, channel, payload):
             logger.warning('Invalid webhook token for channel %s', channel.id)
             return JsonResponse({'detail': 'Invalid channel token'}, status=403)
@@ -51,6 +57,13 @@ def channel_webhook(request, tenant_slug: str, channel_type: str, channel_id: in
 
 def _validate_webhook_token(request, channel: MessengerChannel, payload: dict) -> bool:
     credentials = channel.credentials or {}
+    # VK uses 'secret' in payload
+    if channel.channel_type == 'vk':
+        expected = credentials.get('secret_key')
+        if not expected:
+            return True
+        return payload.get('secret') == expected
+
     expected = credentials.get('webhook_token')
     if not expected:
         return True

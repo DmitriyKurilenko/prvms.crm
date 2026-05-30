@@ -279,6 +279,10 @@ HERMES_WEBHOOK_SECRET = env('HERMES_WEBHOOK_SECRET', default='')
 # ---------- Webhooks ----------
 WEBHOOK_BASE_URL = env('WEBHOOK_BASE_URL', default='')
 
+# ---------- VK ----------
+VK_APP_ID = env('VK_APP_ID', default='')
+VK_API_VERSION = '5.199'
+
 # ---------- YooKassa ----------
 YOOKASSA_SHOP_ID = env('YOOKASSA_SHOP_ID', default='')
 YOOKASSA_SECRET_KEY = env('YOOKASSA_SECRET_KEY', default='')

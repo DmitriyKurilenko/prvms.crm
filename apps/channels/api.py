@@ -12,6 +12,7 @@ from .models import ChatSession, MessageLog, MessengerChannel
 from .providers import (
     register_telegram_webhook, unregister_telegram_webhook, get_telegram_webhook_info,
     register_max_webhook, unregister_max_webhook, get_max_webhook_info,
+    register_vk_callback, unregister_vk_callback, get_vk_callback_info,
 )
 from .tasks import route_outgoing_message
 
@@ -79,6 +80,9 @@ def create_channel(request, payload: ChannelIn):
     # Auto-register webhook for MAX
     elif c.channel_type == 'max' and c.is_active:
         _try_register_max(c)
+    # Auto-register webhook for VK
+    elif c.channel_type == 'vk' and c.is_active:
+        _try_register_vk(c)
     return {'id': c.id, 'status': c.status, 'status_detail': c.status_detail}
 
 
@@ -108,6 +112,15 @@ def patch_channel(request, channel_id: int, payload: ChannelPatchIn):
             c.status = 'disabled'
             c.status_detail = 'Канал деактивирован'
             c.save(update_fields=['status', 'status_detail'])
+    # Re-register webhook for VK on credential/active changes
+    if c and c.channel_type == 'vk' and ('credentials' in data or 'is_active' in data):
+        if c.is_active:
+            _try_register_vk(c)
+        else:
+            unregister_vk_callback(c)
+            c.status = 'disabled'
+            c.status_detail = 'Канал деактивирован'
+            c.save(update_fields=['status', 'status_detail'])
     return {'detail': 'ok'}
 
 
@@ -121,6 +134,8 @@ def delete_channel(request, channel_id: int):
         unregister_telegram_webhook(bot_token)
     if c and c.channel_type == 'max':
         unregister_max_webhook(c)
+    if c and c.channel_type == 'vk':
+        unregister_vk_callback(c)
     MessengerChannel.objects.filter(id=channel_id).delete()
     return {'detail': 'deleted'}
 
@@ -204,6 +219,8 @@ def register_webhook(request, channel_id: int):
         _try_register_telegram(c)
     elif c.channel_type == 'max':
         _try_register_max(c)
+    elif c.channel_type == 'vk':
+        _try_register_vk(c)
     else:
         return {'detail': 'этот тип канала не поддерживает авто-регистрацию webhook'}
     c.refresh_from_db()
@@ -223,6 +240,9 @@ def webhook_info(request, channel_id: int):
         return get_telegram_webhook_info(bot_token)
     if c.channel_type == 'max':
         return get_max_webhook_info(bot_token)
+    if c.channel_type == 'vk':
+        credentials = c.credentials or {}
+        return get_vk_callback_info(credentials.get('access_token', ''), credentials.get('group_id', ''))
     return {'detail': 'этот тип канала не поддерживает запрос статуса webhook'}
 
 
@@ -275,4 +295,30 @@ def _try_register_max(channel: MessengerChannel) -> None:
     else:
         channel.status = 'error'
         channel.status_detail = f'Ошибка регистрации webhook: {detail}'
+    channel.save(update_fields=['status', 'status_detail'])
+
+
+def _try_register_vk(channel: MessengerChannel) -> None:
+    """Try to register VK callback. Update channel status accordingly."""
+    from django.db import connection
+    base_url = getattr(settings, 'WEBHOOK_BASE_URL', '')
+    if not base_url:
+        channel.status = 'error'
+        channel.status_detail = 'WEBHOOK_BASE_URL не настроен в .env'
+        channel.save(update_fields=['status', 'status_detail'])
+        logger.warning('WEBHOOK_BASE_URL not set, cannot register VK callback for channel %s', channel.id)
+        return
+    tenant_slug = connection.tenant.slug if hasattr(connection, 'tenant') and connection.tenant else ''
+    if not tenant_slug:
+        channel.status = 'error'
+        channel.status_detail = 'Не удалось определить tenant для формирования URL'
+        channel.save(update_fields=['status', 'status_detail'])
+        return
+    ok, detail = register_vk_callback(channel, base_url, tenant_slug)
+    if ok:
+        channel.status = 'active'
+        channel.status_detail = f'Callback зарегистрирован: {detail}'
+    else:
+        channel.status = 'error'
+        channel.status_detail = f'Ошибка регистрации callback: {detail}'
     channel.save(update_fields=['status', 'status_detail'])

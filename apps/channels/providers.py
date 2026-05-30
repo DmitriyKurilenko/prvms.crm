@@ -74,6 +74,129 @@ def get_telegram_webhook_info(bot_token: str) -> dict:
 
 
 MAX_API_BASE = 'https://platform-api.max.ru'
+VK_API_VERSION = '5.199'
+
+
+def get_vk_group_info(access_token: str, group_id: int | str) -> dict:
+    """Get group name and photo from VK API."""
+    try:
+        resp = requests.get(
+            'https://api.vk.com/method/groups.getById',
+            params={'group_id': group_id, 'access_token': access_token, 'v': VK_API_VERSION},
+            timeout=10,
+        )
+        body = resp.json()
+        if body.get('response'):
+            g = body['response'][0]
+            return {'name': g.get('name', ''), 'photo_200': g.get('photo_200', '')}
+        return {'error': body.get('error', {}).get('error_msg', 'unknown')}
+    except requests.RequestException as exc:
+        return {'error': str(exc)[:300]}
+
+
+def register_vk_callback(channel: MessengerChannel, webhook_base_url: str, tenant_slug: str) -> tuple[bool, str]:
+    """Register VK Callback API server. Returns (success, detail)."""
+    credentials = channel.credentials or {}
+    access_token = credentials.get('access_token')
+    group_id = credentials.get('group_id')
+    if not access_token or not group_id:
+        return False, 'access_token или group_id отсутствуют'
+
+    # 1. Get confirmation code
+    try:
+        resp = requests.get(
+            'https://api.vk.com/method/groups.getCallbackConfirmationCode',
+            params={'group_id': group_id, 'access_token': access_token, 'v': VK_API_VERSION},
+            timeout=10,
+        )
+        body = resp.json()
+        if not body.get('response'):
+            return False, body.get('error', {}).get('error_msg', 'failed to get confirmation code')
+        credentials['confirmation_code'] = body['response']['code']
+    except requests.RequestException as exc:
+        return False, str(exc)[:500]
+
+    # 2. Generate secret key
+    secret_key = secrets.token_urlsafe(32)
+    credentials['secret_key'] = secret_key
+
+    # 3. Add callback server
+    url = f'{webhook_base_url.rstrip("/")}/channels/webhook/{tenant_slug}/vk/{channel.id}/'
+    try:
+        resp = requests.get(
+            'https://api.vk.com/method/groups.addCallbackServer',
+            params={
+                'group_id': group_id,
+                'url': url,
+                'title': 'PRVMS CRM',
+                'secret_key': secret_key,
+                'access_token': access_token,
+                'v': VK_API_VERSION,
+            },
+            timeout=10,
+        )
+        body = resp.json()
+        if not body.get('response'):
+            return False, body.get('error', {}).get('error_msg', 'failed to add callback server')
+        credentials['server_id'] = body['response']['server_id']
+    except requests.RequestException as exc:
+        return False, str(exc)[:500]
+
+    # 4. Set callback settings
+    try:
+        resp = requests.get(
+            'https://api.vk.com/method/groups.setCallbackSettings',
+            params={
+                'group_id': group_id,
+                'server_id': credentials['server_id'],
+                'message_new': 1,
+                'access_token': access_token,
+                'v': VK_API_VERSION,
+            },
+            timeout=10,
+        )
+        body = resp.json()
+        if body.get('response') != 1:
+            return False, body.get('error', {}).get('error_msg', 'failed to set callback settings')
+    except requests.RequestException as exc:
+        return False, str(exc)[:500]
+
+    channel.credentials = credentials
+    channel.save(update_fields=['credentials'])
+    return True, 'ok'
+
+
+def unregister_vk_callback(channel: MessengerChannel) -> tuple[bool, str]:
+    """Remove VK Callback API server."""
+    credentials = channel.credentials or {}
+    access_token = credentials.get('access_token')
+    group_id = credentials.get('group_id')
+    server_id = credentials.get('server_id')
+    if not access_token or not group_id or not server_id:
+        return False, 'access_token, group_id или server_id отсутствуют'
+    try:
+        resp = requests.get(
+            'https://api.vk.com/method/groups.deleteCallbackServer',
+            params={'group_id': group_id, 'server_id': server_id, 'access_token': access_token, 'v': VK_API_VERSION},
+            timeout=10,
+        )
+        body = resp.json()
+        return bool(body.get('response') == 1), body.get('error', {}).get('error_msg', '')
+    except requests.RequestException as exc:
+        return False, str(exc)[:300]
+
+
+def get_vk_callback_info(access_token: str, group_id: int | str) -> dict:
+    """Get VK callback servers info."""
+    try:
+        resp = requests.get(
+            'https://api.vk.com/method/groups.getCallbackServers',
+            params={'group_id': group_id, 'access_token': access_token, 'v': VK_API_VERSION},
+            timeout=10,
+        )
+        return resp.json()
+    except requests.RequestException as exc:
+        return {'error': str(exc)[:300]}
 
 
 def register_max_webhook(channel: MessengerChannel, webhook_base_url: str, tenant_slug: str) -> tuple[bool, str]:
@@ -205,6 +328,19 @@ def normalize_incoming_payload(channel_type: str, payload: dict) -> dict | None:
             'attachments': body.get('attachments') or [],
         }
 
+    if channel_type == 'vk':
+        if payload.get('type') != 'message_new':
+            return None
+        message = payload.get('object', {}).get('message') or {}
+        return {
+            'chat_id': str(message.get('peer_id') or message.get('from_id') or 'unknown'),
+            'username': '',
+            'phone': '',
+            'text': message.get('text') or '',
+            'message_id': str(message.get('id') or ''),
+            'attachments': message.get('attachments') or [],
+        }
+
     return {
         'chat_id': str(payload.get('chat_id') or payload.get('from') or 'unknown'),
         'username': payload.get('username') or '',
@@ -262,6 +398,29 @@ def send_outgoing(channel: MessengerChannel, external_chat_id: str, text: str, a
             body = response.json() if response.text else {}
             msg = body.get('message', {})
             return True, str(msg.get('body', {}).get('mid', ''))
+
+        if channel.channel_type == 'vk':
+            access_token = credentials.get('access_token')
+            if not access_token:
+                return False, 'VK access_token is missing'
+            try:
+                response = requests.post(
+                    'https://api.vk.com/method/messages.send',
+                    data={
+                        'peer_id': external_chat_id,
+                        'message': text,
+                        'random_id': secrets.randbits(31),
+                        'access_token': access_token,
+                        'v': VK_API_VERSION,
+                    },
+                    timeout=10,
+                )
+                body = response.json()
+                if body.get('response'):
+                    return True, str(body['response'])
+                return False, body.get('error', {}).get('error_msg', 'unknown')
+            except requests.RequestException as exc:
+                return False, str(exc)[:500]
 
         return False, f'Unsupported channel type: {channel.channel_type}'
     except requests.RequestException as exc:

@@ -9,6 +9,7 @@ class MessengerChannel(models.Model):
         ('whatsapp_business', 'WhatsApp Business API'),
         ('whatsapp', 'WhatsApp (через провайдера)'),
         ('max', 'MAX'),
+        ('vk', 'ВКонтакте'),
     ]
     STATUS_CHOICES = [
         ('active', 'Активен'),

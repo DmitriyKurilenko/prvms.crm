@@ -46,6 +46,9 @@ api.add_router('/dashboard/', dashboard_router)
 from apps.channels.api import messenger_channels_router
 api.add_router('/channels/', messenger_channels_router)
 
+from apps.channels.oauth_api import vk_oauth_router
+api.add_router('/channels/oauth/vk', vk_oauth_router)
+
 from apps.telephony.api import telephony_router
 api.add_router('/telephony/', telephony_router)
 

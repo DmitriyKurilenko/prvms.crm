@@ -65,6 +65,11 @@ const routes: RouteRecordRaw[] = [
     meta: { public: true }
   },
   {
+    path: '/oauth/vk/callback',
+    component: () => import('@/views/oauth/VkCallbackView.vue'),
+    meta: { public: true }
+  },
+  {
     path: '/app',
     component: AppLayout,
     children: [

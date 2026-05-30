@@ -1,5 +1,37 @@
 # Dev Log
 
+## 2026-05-30 — Канал ВКонтакте (DEC-039)
+
+### Что сделано:
+- **Модель + миграция**: добавлен тип `vk` в `MessengerChannel.CHANNEL_TYPE_CHOICES`, миграция `0002_messengerchannel_vk_choice.py`.
+- **Провайдер (`apps/channels/providers.py`)**: добавлены `get_vk_group_info`, `register_vk_callback`, `unregister_vk_callback`, `get_vk_callback_info`, ветка `vk` в `normalize_incoming_payload` (только `message_new`) и `send_outgoing` (`messages.send` с `random_id`).
+- **Webhook (`apps/channels/public_views.py`)**: обработка `type=confirmation` → plain-text `confirmation_code`, проверка `secret` для всех остальных запросов VK.
+- **OAuth API (`apps/channels/oauth_api.py`)**: `POST /start/` формирует authorize URL с подписанным state; `POST /complete/` валидирует state, создаёт `MessengerChannel` для каждого сообщества, регистрирует callback автоматически, возвращает `created`/`failed`.
+- **API (`apps/channels/api.py`)**: поддержка VK в create/patch/delete/register-webhook/webhook-info endpoints.
+- **Settings/env**: `VK_APP_ID`, `VK_API_VERSION` в `config/settings.py`, плейсхолдер в `.env.example`.
+- **Фронтенд**: `VkCallbackView.vue` (парсинг `window.location.hash`, POST `/complete/`), роут `/oauth/vk/callback`, `api/channels.ts` (`startVkOauth`, `completeVkOauth`), кнопка «Подключить ВКонтакте» в `ChannelsView.vue`, иконка VK в `assets/icons/vk.svg`, отображение в таблице каналов.
+- **Тесты**: `test_vk_provider.py` (7 тестов), `test_vk_webhook.py` (4 теста), `test_vk_oauth_api.py` (6 тестов). Все 33 теста channels зелёные.
+- **Документация**: DEC-039 в `DECISIONS.md`, запись в `DEV_LOG.md`, `RELEASE_NOTES.md`, `TASK_STATE.md`, `KNOWN_ISSUES.md`, user-guide (`vk-channel.md`, `admin/vk-app-setup.md`).
+
+### Изменённые файлы:
+- **Новые:** `apps/channels/oauth_api.py`, `apps/channels/migrations/0002_messengerchannel_vk_choice.py`, `apps/channels/tests/test_vk_provider.py`, `apps/channels/tests/test_vk_webhook.py`, `apps/channels/tests/test_vk_oauth_api.py`, `frontend/src/views/oauth/VkCallbackView.vue`, `frontend/src/api/channels.ts`, `frontend/src/assets/icons/vk.svg`, `docs/user-guide/vk-channel.md`, `docs/user-guide/admin/vk-app-setup.md`
+- **Изменены:** `apps/channels/models.py`, `apps/channels/providers.py`, `apps/channels/public_views.py`, `apps/channels/api.py`, `config/api.py`, `config/settings.py`, `.env.example`, `frontend/src/router/index.ts`, `frontend/src/views/ChannelsView.vue`, `frontend/src/components/ChannelsTab.vue`, `docs/DECISIONS.md`, `docs/DEV_LOG.md`, `docs/RELEASE_NOTES.md`, `docs/TASK_STATE.md`, `docs/KNOWN_ISSUES.md`
+
+### Валидация (Docker):
+- `docker compose down && docker compose up -d --build` → стабильный старт.
+- `docker compose run --rm web python manage.py check` → **0 issues**.
+- `docker compose run --rm web python manage.py test apps.channels` → **33/33 OK**.
+- `docker compose exec frontend npm run typecheck` → **EXIT=0**.
+- `docker compose exec frontend npm run build` → **EXIT=0** (729 модулей).
+- `docker compose exec frontend npm run test` → **5/5 vitest OK**.
+
+### Риски:
+- Требуется настройка `VK_APP_ID` в `.env` и standalone-приложение на vk.com/dev для production.
+- Имя контакта при `auto_create_lead` из ВК — «Клиент ВК <id>» (не запрашиваем `users.get` в первой версии).
+- Вложения исходящих сообщений из CRM в ВК не поддерживаются.
+
+---
+
 ## 2026-05-17 (4) — SEO-лэндинг с PageSpeed-оптимизацией
 
 ### Что сделано:
