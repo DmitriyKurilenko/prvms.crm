@@ -1,5 +1,21 @@
 # Архитектурные решения
 
+## DEC-040: Production-стек переведён с nginx на shared Traefik reverse proxy (2026-06-01)
+**Контекст:** Проект `prvms.crm` ранее использовал собственный контейнер `nginx:alpine` для терминации TLS, обслуживания статики и reverse-proxy к `web` / `frontend-app`. Это занимало порты 80/443 на хосте, требовало ручного управления SSL-сертификатами и конфликтовало с другими проектами на том же сервере.
+**Решение:** Внешний трафик теперь принимает единый shared Traefik (запущенный один раз на сервере). Контейнеры проекта объявляют себя через Docker labels (`traefik.http.routers.*`) и подключаются к внешней сети `traefik`. Проект не открывает порты 80/443 и не содержит собственного reverse proxy.
+**Маршрутизация:**
+- `prvms-api` (priority 100) — API, WebSocket, admin, webhooks, media, healthcheck → `web:8000`.
+- `prvms-static` (priority 50) — `/static` (Django collected static) → `frontend-app:80`.
+- `prvms-spa` (priority 1) — catch-all для Vue SPA → `frontend-app:80`.
+**Альтернативы:**
+- Оставить nginx + выделить проекту отдельный IP — отклонено, shared-хостинг без дополнительных IP.
+- Использовать Docker Swarm ingress + overlay — отклонено, стек работает в compose-режиме.
+**Инварианты:**
+- Имена роутеров (`prvms-api`, `prvms-static`, `prvms-spa`) уникальны глобально на сервере (префикс проекта).
+- Все сервисы, reuse образ `web`, имеют explicit `image: prvms-crm-web:latest` — никаких implicit pull с Docker Hub.
+- `deploy.sh` проверяет наличие сети `traefik` и запущенного контейнера `traefik` перед деплоем.
+- Проект запускается только через `./deploy.sh`; прямой `docker compose up -d` неприменим, так как образы требуют предварительного `build`.
+
 ## DEC-039: Канал ВКонтакте через Standalone OAuth + Callback API (2026-05-30)
 **Контекст:** Нужна интеграция с сообществами ВКонтакте для приёма/отправки личных сообщений.
 **Решение:** Канал ВК подключается через одно standalone-приложение PRVMS на vk.com/dev. OAuth использует Implicit Flow (токен во фрагменте URL); доставка токенов с фронтенда на бэкенд через `POST /api/channels/oauth/vk/complete/`. Webhook регистрируется автоматически в момент complete. Принимаются только события `message_new` (личные сообщения сообществу). Лид-формы, комментарии, упоминания — out of scope.

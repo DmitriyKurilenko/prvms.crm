@@ -1,5 +1,46 @@
 # Dev Log
 
+## 2026-06-01 — Переход production-стека с nginx на shared Traefik reverse proxy (DEC-040)
+
+### Что сделано:
+- **`docker-compose.prod.yml`:**
+  - Удалён сервис `nginx` (image, ports 80/443, volumes SSL, nginx.conf, templates, logs).
+  - Добавлены Traefik labels к `web`:
+    - `prvms-api` — `Host(\`${TRAEFIK_HOST}\`) && (PathPrefix(/api) || PathPrefix(/ws) || PathPrefix(/admin) || PathPrefix(/sign) || PathPrefix(/wh) || PathPrefix(/channels/webhook) || PathPrefix(/billing) || PathPrefix(/telephony) || Path(/healthz))`, entrypoints `websecure`, TLS `letsencrypt`, priority 100, сервис `prvms-api` → порт 8000.
+  - Добавлены Traefik labels к `frontend-app`:
+    - `prvms-static` — `Host(\`${TRAEFIK_HOST}\`) && PathPrefix(/static)`, priority 50, сервис `prvms-frontend` → порт 80.
+    - `prvms-spa` — `Host(\`${TRAEFIK_HOST}\`)`, priority 1, сервис `prvms-frontend` → порт 80.
+  - Добавлена сеть `traefik` (`external: true`) к `web` и `frontend-app`; `backend` оставлен `internal: true`.
+  - `web` получил explicit `image: prvms-crm-web:latest` (build сохранён).
+  - `migrate`, `celery`, `celery-beat` — explicit `image: prvms-crm-web:latest` (reuse образа, нет собственного build).
+  - `frontend-app` — explicit `image: prvms-crm-frontend:latest`.
+- **`.env.prod.example`:**
+  - Убраны `NGINX_SERVER_NAME`, `NGINX_SSL_CERT_PATH`, `NGINX_SSL_KEY_PATH` (закомментированы как legacy).
+  - Добавлен `TRAEFIK_HOST=demo.example.com`.
+- **`deploy.sh`:**
+  - Удалён `check_ssl_files()` и все упоминания nginx.
+  - Добавлен `check_traefik()`: проверяет `docker network inspect traefik` и `docker ps --format '{{.Names}}' | grep '^traefik$'`; падает с понятной ошибкой, если shared proxy не готов.
+  - `wait_for_services` ожидает `web` + `frontend-app` (вместо `web` + `nginx`).
+  - При падении выводит логи `web`, `frontend-app`, `db` (без nginx).
+  - `TRAEFIK_HOST` добавлен в `required_keys`.
+- **Cleanup:**
+  - Удалены `for_sample_deploy/` (bootstrap-server.sh, deploy.sh, docker-compose.prod.yml, setup-ssl.sh) — устаревшие bootstrap-шаблоны.
+  - Удалён весь `vps-deployment/` (bookstack, druzhina, kapitan_api, kupi_slona, portainer, rent_django, traefik, vybra, scripts, systemd, docs) — эти конфиги принадлежали другим проектам и не относятся к `prvms.crm`.
+
+### Изменённые файлы:
+- **Изменены:** `docker-compose.prod.yml`, `.env.prod.example`, `deploy.sh`
+- **Удалены:** `for_sample_deploy/bootstrap-server.sh`, `for_sample_deploy/deploy.sh`, `for_sample_deploy/docker-compose.prod.yml`, `for_sample_deploy/setup-ssl.sh`, `vps-deployment/` (всё содержимое)
+
+### Валидация (Docker):
+- `docker compose -f docker-compose.prod.yml --env-file .env.prod config` → рендерится корректно, нет ошибок интерполяции.
+
+### Риски:
+- Имена роутеров (`prvms-api`, `prvms-static`, `prvms-spa`) должны оставаться уникальными на всём сервере. Если другой проект случайно использует тот же префикс — Traefik перезапишет конфигурацию.
+- Прямой запуск `docker compose up -d` без `./deploy.sh` приведёт к `image not found` для `migrate`/`celery`/`celery-beat`, так как они не имеют собственного `build`. Это защитный side-effect, но важно документировать.
+- Если shared Traefik упадёт или сеть `traefik` будет удалена, проект останется без внешнего доступа. `deploy.sh` проверяет это, но не восстанавливает.
+
+---
+
 ## 2026-05-30 — Канал ВКонтакте (DEC-039)
 
 ### Что сделано:

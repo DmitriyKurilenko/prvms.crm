@@ -19,7 +19,8 @@ build/
 celerybeat*
 cookies.txt
 
-./claude
+/.claude
+/backups
 
 # vps-deployment: track scripts/compose/templates, ignore secrets and runtime state.
 vps-deployment/**/.env

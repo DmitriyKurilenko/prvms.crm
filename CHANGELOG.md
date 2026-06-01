@@ -1,5 +1,39 @@
 # Changelog
 
+## [0.5.1] — 2026-06-01
+
+### Infrastructure — production deployment now uses shared Traefik reverse proxy
+
+**Removed nginx from production stack.**
+- `docker-compose.prod.yml`: `nginx` service removed entirely. Ports 80/443 are no longer exposed on the host; all external traffic is routed through the shared Traefik instance.
+- `web` service: added Traefik labels (`traefik.enable=true`, `traefik.docker.network=traefik`, `traefik.http.routers.prvms-api.rule`, entrypoints `websecure`, TLS via `letsencrypt`, priority 100). Reaches port 8000.
+- `frontend-app` service: added Traefik labels for two routers:
+  - `prvms-static` — `PathPrefix(/static)` (priority 50) for Django collected static files.
+  - `prvms-spa` — catch-all `Host` rule (priority 1) for the Vue SPA, reaching port 80.
+- `web` and `frontend-app` joined the external Docker network `traefik` (`external: true`). `backend` network remains `internal: true` for db/redis/workers.
+
+**Explicit image tags to prevent implicit-pull failures.**
+- `web` → `image: prvms-crm-web:latest` (also serves as the build target).
+- `migrate`, `celery`, `celery-beat` → `image: prvms-crm-web:latest` (reuse the same locally-built image; no separate build blocks).
+- `frontend-app` → `image: prvms-crm-frontend:latest`.
+
+**Environment template updated.**
+- `.env.prod.example`: removed `NGINX_SERVER_NAME`, `NGINX_SSL_CERT_PATH`, `NGINX_SSL_KEY_PATH` (legacy nginx variables). Added `TRAEFIK_HOST` (domain routed by Traefik into this project).
+
+**Deploy script updated.**
+- `deploy.sh`: removed `check_ssl_files()` and all nginx references (waiting for nginx, nginx logs, `NGINX_SERVER_NAME` in required keys).
+- Added `check_traefik()`: validates that Docker network `traefik` exists and container `traefik` is running; fails fast with a clear error before any build/migrate steps.
+- `wait_for_services` now waits for `web` + `frontend-app` instead of `web` + `nginx`.
+- Failure diagnostics show logs for `web`, `frontend-app`, `db` — no nginx.
+
+**Cleanup of obsolete deployment artefacts.**
+- Removed `for_sample_deploy/` (bootstrap-server.sh, deploy.sh, docker-compose.prod.yml, setup-ssl.sh) — superseded by the Traefik-based flow.
+- Removed `vps-deployment/` subtree (bookstack, druzhina, kapitan_api, kupi_slona, portainer, rent_django, traefik, vybra, scripts, systemd, docs) — these were separate-project configs that leaked into this repo and are no longer maintained here.
+
+**Validation:** `docker compose -f docker-compose.prod.yml config` renders cleanly with `TRAEFIK_HOST` interpolation.
+
+---
+
 ## [0.5.0] — 2026-05-30
 
 ### VKontakte Messenger Channel (DEC-039) — user-visible

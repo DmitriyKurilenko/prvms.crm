@@ -7,7 +7,7 @@
 
 set -euo pipefail
 
-ENV_FILE=".env.prod"
+ENV_FILE=".env"
 DRY_RUN=false
 COMPOSE_BIN=""
 
@@ -104,7 +104,7 @@ check_required_env() {
         "DB_USER"
         "DB_PASSWORD"
         "REDIS_PASSWORD"
-        "NGINX_SERVER_NAME"
+        "TRAEFIK_HOST"
         "FIELD_ENCRYPTION_KEY"
     )
 
@@ -145,26 +145,20 @@ check_requirements() {
     print_success "Requirements met"
 }
 
-check_ssl_files() {
-    local cert_path key_path cert_host_path key_host_path
+check_traefik() {
+    print_info "Checking shared Traefik proxy..."
 
-    cert_path=$(get_env_value "NGINX_SSL_CERT_PATH" "/etc/nginx/ssl/fullchain.pem")
-    key_path=$(get_env_value "NGINX_SSL_KEY_PATH" "/etc/nginx/ssl/privkey.pem")
-
-    cert_host_path="${cert_path/\/etc\/nginx\/ssl/.\/nginx\/ssl}"
-    key_host_path="${key_path/\/etc\/nginx\/ssl/.\/nginx\/ssl}"
-
-    print_info "Checking SSL certificate files..."
-
-    if [ ! -f "$cert_host_path" ] || [ ! -f "$key_host_path" ]; then
-        print_error "SSL certificate files not found. Expected:"
-        echo "  - $cert_host_path"
-        echo "  - $key_host_path"
-        print_info "Run: sudo ./setup-ssl.sh"
+    if ! docker network inspect traefik >/dev/null 2>&1; then
+        print_error "Docker network 'traefik' does not exist. Create it first: docker network create traefik"
         exit 1
     fi
 
-    print_success "SSL certificate files found"
+    if ! docker ps --format '{{.Names}}' | grep -q '^traefik$'; then
+        print_error "Traefik container is not running. Start the shared Traefik instance first."
+        exit 1
+    fi
+
+    print_success "Traefik proxy is ready"
 }
 
 validate_compose() {
@@ -231,7 +225,7 @@ wait_for_services() {
 
     local max_attempts=30 attempt=0
     while [ $attempt -lt $max_attempts ]; do
-        if service_is_up "web" && service_is_up "nginx"; then
+        if service_is_up "web" && service_is_up "frontend-app"; then
             echo ""
             print_success "Services are up"
             return 0
@@ -244,7 +238,7 @@ wait_for_services() {
     echo ""
     print_error "Services failed to start"
     compose_cmd ps
-    compose_cmd logs --tail=80 web nginx db
+    compose_cmd logs --tail=80 web frontend-app db
     return 1
 }
 
@@ -270,7 +264,7 @@ main() {
         return 0
     fi
 
-    check_ssl_files
+    check_traefik
 
     if [ "${SKIP_BACKUP:-false}" != "true" ]; then
         backup_database
