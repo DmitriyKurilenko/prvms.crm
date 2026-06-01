@@ -52,7 +52,10 @@ services:
     restart: "no"
     command: >
       sh -c "python manage.py migrate_schemas --shared --noinput &&
-             python manage.py migrate_schemas --tenant --noinput"
+             python manage.py migrate_schemas --tenant --noinput &&
+             python manage.py collectstatic --noinput"
+    volumes:
+      - static_volume:/app/staticfiles
     networks:
       - backend
     depends_on:
@@ -103,7 +106,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik"
-      - "traefik.http.routers.prvms-api.rule=Host(`${TRAEFIK_HOST}`) && (PathPrefix(`/api`) || PathPrefix(`/ws`) || PathPrefix(`/admin`) || PathPrefix(`/sign`) || PathPrefix(`/wh`) || PathPrefix(`/channels/webhook`) || PathPrefix(`/billing`) || PathPrefix(`/telephony`) || Path(`/healthz`))"
+      - "traefik.http.routers.prvms-api.rule=Host(`${TRAEFIK_HOST}`) && (Path(`/`) || PathPrefix(`/api`) || PathPrefix(`/ws`) || PathPrefix(`/admin`) || PathPrefix(`/sign`) || PathPrefix(`/wh`) || PathPrefix(`/channels/webhook`) || PathPrefix(`/billing`) || PathPrefix(`/telephony`) || Path(`/healthz`))"
       - "traefik.http.routers.prvms-api.entrypoints=websecure"
       - "traefik.http.routers.prvms-api.tls.certresolver=letsencrypt"
       - "traefik.http.routers.prvms-api.priority=100"
@@ -163,11 +166,12 @@ services:
       - static_volume:/usr/share/nginx/django-static:ro
     networks:
       - traefik
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost/ || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
+    # No healthcheck on purpose: nginx serving static SPA files is reliable
+    # enough that probing it via busybox wget (which is finicky about IPv6,
+    # PATH and 127.0.0.1 vs localhost) creates more outages than it prevents.
+    # Traefik v2 docker provider treats containers without a healthcheck as
+    # healthy and will register their routers immediately. If nginx dies,
+    # Docker's restart policy handles recovery.
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik"

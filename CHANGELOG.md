@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.5.2] — 2026-06-01
+
+### Fixed (Traefik routing — discovered during first production deploy)
+
+- `prvms-api` router rule extended with `Path(\`/\`)` so the root `/` is served by Django (SEO landing page, DEC-038) instead of falling through to the SPA catch-all.
+- `frontend-app` healthcheck removed entirely. Traefik 2.x intentionally skips routers for containers in `starting`/`unhealthy` state; busybox-wget probes on `localhost` are flaky (IPv6/IPv4 resolution mismatch), so the container stayed in `starting` and the SPA/static routers never registered → 404 on all requests. Without a healthcheck Traefik treats the container as healthy immediately; Docker restart policy handles actual nginx crashes.
+- `migrate` service now runs `collectstatic` so Django static files are gathered into the shared `static_volume` before `frontend-app` starts (previously `/static/` 404 on first request).
+- `env_file` in compose fixed from `.env.prod` to `.env` (aligns with `deploy.sh` which expects `.env`).
+
+**Validation:** `docker compose -f docker-compose.prod.yml config` renders cleanly; `./deploy.sh` passes validation and brings up all services.
+
+---
+
 ## [0.5.1] — 2026-06-01
 
 ### Infrastructure — production deployment now uses shared Traefik reverse proxy

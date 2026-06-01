@@ -27,12 +27,19 @@
   - Удалены `for_sample_deploy/` (bootstrap-server.sh, deploy.sh, docker-compose.prod.yml, setup-ssl.sh) — устаревшие bootstrap-шаблоны.
   - Удалён весь `vps-deployment/` (bookstack, druzhina, kapitan_api, kupi_slona, portainer, rent_django, traefik, vybra, scripts, systemd, docs) — эти конфиги принадлежали другим проектам и не относятся к `prvms.crm`.
 
+### Исправления после первого деплоя (runtime validation):
+- **`prvms-api` rule** — добавлен `Path(\`/\`)` (корень `/` → web/Django landing page, DEC-038). Без этого catch-all `prvms-spa` перехватывал корень, а SPA не отдаёт Django landing.
+- **`frontend-app` healthcheck удалён** — Traefik 2.x фильтрует unhealthy/starting контейнеры и не регистрирует их роутеры. Busybox-wget с `localhost` резолвит `::1` без IPv4-fallback → контейнер остаётся в `starting` → роутер `prvms-spa`/`prvms-static` не появляется → 404 на корневые запросы. Без healthcheck Traefik сразу регистрирует роутер; Docker restart policy восстанавливает nginx при падении.
+- **`migrate` теперь включает `collectstatic`** — ранее отсутствовал `python manage.py collectstatic --noinput`, поэтому `/static/` 404. Добавлен volume `static_volume:/app/staticfiles` к `migrate`.
+- **`env_file` в compose** — исправлен с `.env.prod` на `.env` (скрипт `deploy.sh` ожидает `.env`, compose пытался читать `.env.prod`).
+
 ### Изменённые файлы:
 - **Изменены:** `docker-compose.prod.yml`, `.env.prod.example`, `deploy.sh`
 - **Удалены:** `for_sample_deploy/bootstrap-server.sh`, `for_sample_deploy/deploy.sh`, `for_sample_deploy/docker-compose.prod.yml`, `for_sample_deploy/setup-ssl.sh`, `vps-deployment/` (всё содержимое)
 
 ### Валидация (Docker):
-- `docker compose -f docker-compose.prod.yml --env-file .env.prod config` → рендерится корректно, нет ошибок интерполяции.
+- `docker compose -f docker-compose.prod.yml --env-file .env config` → рендерится корректно, нет ошибок интерполяции.
+- `./deploy.sh` → проходит validation, `check_traefik` проходит, `docker compose up -d` стабильный старт.
 
 ### Риски:
 - Имена роутеров (`prvms-api`, `prvms-static`, `prvms-spa`) должны оставаться уникальными на всём сервере. Если другой проект случайно использует тот же префикс — Traefik перезапишет конфигурацию.
