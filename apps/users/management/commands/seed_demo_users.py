@@ -38,7 +38,7 @@ class Command(BaseCommand):
         )
         parser.add_argument(
             '--plan-slug',
-            default='crm',
+            default='komanda',
             help='Plan slug for created tenants.',
         )
         parser.add_argument(

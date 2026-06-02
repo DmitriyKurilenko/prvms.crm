@@ -17,9 +17,9 @@ from apps.users.models import Membership, User
 ROLE_ORDER = ('owner', 'admin', 'manager', 'viewer')
 BOOTSTRAP_ROLE_ORDER = ('owner', 'manager')
 BOOTSTRAP_TENANTS = (
-    ('org-simple', 'Demo Simple Org', 'simple'),
-    ('org-basic', 'Demo Basic Org', 'basic'),
-    ('org-crm', 'Demo CRM Org', 'crm'),
+    ('org-solo', 'Demo Solo Org', 'solo'),
+    ('org-komanda', 'Demo Komanda Org', 'komanda'),
+    ('org-free', 'Demo Free Org', 'free-custom'),
 )
 PLATFORM_ADMIN_EMAIL = 'platform_admin@example.com'
 PLATFORM_ADMIN_USERNAME = 'platform_admin'
@@ -56,7 +56,7 @@ class Command(BaseCommand):
             help='Create tenant automatically when it does not exist.',
         )
         parser.add_argument('--tenant-name', default='', help='Tenant name when --create-tenant is used.')
-        parser.add_argument('--plan-slug', default='crm', help='Plan slug for auto-created tenant.')
+        parser.add_argument('--plan-slug', default='komanda', help='Plan slug for auto-created tenant.')
         parser.add_argument(
             '--skip-manager-profile',
             action='store_true',
@@ -163,7 +163,7 @@ class Command(BaseCommand):
                 )
             tenant_summaries.append((tenant, plan_slug, account_results, manager_profile_status))
 
-        admin_tenant = next((tenant for tenant, plan_slug, _, _ in tenant_summaries if plan_slug == 'crm'), None)
+        admin_tenant = next((tenant for tenant, plan_slug, _, _ in tenant_summaries if plan_slug == 'komanda'), None)
         if admin_tenant is None and tenant_summaries:
             admin_tenant = tenant_summaries[0][0]
 

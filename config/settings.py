@@ -217,6 +217,15 @@ SALT_KEY = env.list('SALT_KEY', default=[FIELD_ENCRYPTION_KEY or SECRET_KEY])
 EMAIL_BACKEND = env('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
 DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='noreply@platform.ru')
 
+# ---------- Pricing Calculator ----------
+PRICING_CUSTOM = {
+    'user': 1000,
+    'messenger': 1000,
+    'inbound_channel': 1000,
+    'documents_per_100': 200,
+    'signatures_per_50': 500,
+}
+
 # ---------- Platform ----------
 PLATFORM_DOMAIN = env('PLATFORM_DOMAIN', default='localhost:8000')
 PLATFORM_PROTOCOL = env('PLATFORM_PROTOCOL', default='http')

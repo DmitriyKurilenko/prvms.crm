@@ -3,7 +3,7 @@ from datetime import timedelta
 from django.contrib import admin
 from django.utils import timezone
 from django_tenants.utils import schema_context
-from .models import Feature, Plan, Payment
+from .models import Feature, Plan, Payment, TelephonyQuoteRequest
 
 
 @admin.register(Feature)
@@ -45,3 +45,11 @@ class PaymentAdmin(admin.ModelAdmin):
                 tenant.save(update_fields=['plan', 'is_paid', 'trial_expires_at'])
 
         self.message_user(request, f'Подтверждено {queryset.count()} платеж(ей).')
+
+
+@admin.register(TelephonyQuoteRequest)
+class TelephonyQuoteRequestAdmin(admin.ModelAdmin):
+    list_display = ('id', 'name', 'email', 'phone', 'status', 'created_at')
+    list_filter = ('status',)
+    search_fields = ('name', 'email', 'phone')
+    readonly_fields = ('created_at',)

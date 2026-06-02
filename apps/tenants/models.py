@@ -42,6 +42,9 @@ class Tenant(TenantMixin):
     trial_expires_at = models.DateTimeField(null=True, blank=True)
     is_paid = models.BooleanField(default=False)
 
+    # Кастомные лимиты для СВОБОДНОГО тарифа (v2 pricing)
+    custom_limits = models.JSONField(default=dict, blank=True)
+
     auto_create_schema = True
 
     @property

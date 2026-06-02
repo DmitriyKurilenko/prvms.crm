@@ -31,6 +31,7 @@ export interface RegisterPayload {
   org_name: string
   org_slug: string
   plan_slug?: string
+  quote_id?: string
 }
 
 export async function register(payload: RegisterPayload): Promise<{ tenant_slug: string }> {

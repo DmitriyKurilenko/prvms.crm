@@ -376,6 +376,121 @@
       background-position: center;
     }
 
+    /* Calculator */
+    .calculator {
+      background: var(--bg);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      padding: 24px;
+      max-width: 640px;
+      margin: 24px auto 0;
+      box-shadow: var(--shadow-lg);
+    }
+    .calculator[hidden] { display: none; }
+    .calc-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 16px;
+      text-align: center;
+    }
+    .calc-group {
+      margin-bottom: 16px;
+    }
+    .calc-group legend {
+      font-weight: 600;
+      font-size: 0.95rem;
+      margin-bottom: 8px;
+    }
+    .calc-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+    .calc-label {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+    }
+    .calc-control {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .calc-control button {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg-alt);
+      font-weight: 700;
+      cursor: pointer;
+      line-height: 1;
+    }
+    .calc-control button:focus-visible { outline: 2px solid var(--primary); }
+    .calc-control input[type="number"] {
+      width: 60px;
+      text-align: center;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px;
+      font-size: 0.95rem;
+    }
+    .calc-checkboxes {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .calc-checkboxes label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.95rem;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg-alt);
+    }
+    .calc-checkboxes input:focus-visible + span { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 4px; }
+    .calc-total {
+      border-top: 1px solid var(--border);
+      padding-top: 14px;
+      margin-top: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 1.1rem;
+      font-weight: 700;
+    }
+    .calc-total span[aria-live] { color: var(--primary); }
+    .calc-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 14px;
+      flex-wrap: wrap;
+    }
+    .calc-actions .btn { flex: 1; min-width: 140px; }
+
+    /* FAQ */
+    .faq { max-width: 800px; margin: 0 auto; }
+    .faq-item {
+      border-bottom: 1px solid var(--border);
+      padding: 18px 0;
+    }
+    .faq-item h3 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin-bottom: 6px;
+      cursor: pointer;
+    }
+    .faq-item p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      line-height: 1.55;
+    }
+
     /* CTA */
     .cta-section {
       background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
@@ -556,40 +671,146 @@
       </div>
       <div class="pricing-grid">
         <div class="pricing-card">
-          <h3>Simple</h3>
-          <div class="price" aria-label="900 рублей в месяц">900 ₽</div>
+          <h3>СОЛО</h3>
+          <div class="price" aria-label="2990 рублей в месяц">2 990 ₽</div>
           <p class="price-period">в месяц</p>
           <ul>
-            <li>До 3 менеджеров</li>
-            <li>Встроенный CRM</li>
-            <li>Контакты и сделки</li>
-            <li>Email-уведомления</li>
+            <li>1 пользователь</li>
+            <li>Telegram, ВК + email</li>
+            <li>Входящий канал ВК</li>
+            <li>100 документов / мес</li>
+            <li>20 подписаний / мес</li>
           </ul>
+          <a class="btn btn-primary" style="margin-top:18px;width:100%;" href="/register?plan=solo">Выбрать СОЛО</a>
         </div>
         <div class="pricing-card featured">
           <span class="badge">Популярный</span>
-          <h3>Basic</h3>
-          <div class="price" aria-label="1900 рублей в месяц">1 900 ₽</div>
+          <h3>КОМАНДА</h3>
+          <div class="price" aria-label="5990 рублей в месяц">5 990 ₽</div>
           <p class="price-period">в месяц</p>
           <ul>
-            <li>До 10 менеджеров</li>
-            <li>Все функции Simple</li>
-            <li>Мессенджеры</li>
-            <li>Договоры и подписание</li>
+            <li>5 пользователей</li>
+            <li>+ MAX мессенджер</li>
+            <li>Сайт, ВК, Авито</li>
+            <li>Телефония: 1 номер, 5 линий, 1000 мин</li>
+            <li>1000 документов / мес</li>
+            <li>100 подписаний / мес</li>
             <li>Распределение заявок</li>
           </ul>
+          <a class="btn btn-primary" style="margin-top:18px;width:100%;" href="/register?plan=komanda">Выбрать КОМАНДА</a>
         </div>
         <div class="pricing-card">
-          <h3>CRM</h3>
-          <div class="price" aria-label="3900 рублей в месяц">3 900 ₽</div>
-          <p class="price-period">в месяц</p>
+          <h3>СВОБОДНЫЙ</h3>
+          <div class="price" aria-label="Конфигуратор">Рассчитать</div>
+          <p class="price-period">оплатите только нужное</p>
           <ul>
-            <li>Неограниченно менеджеров</li>
-            <li>Все функции Basic</li>
-            <li>IP-телефония</li>
-            <li>AI-ассистент</li>
-            <li>Приоритетная поддержка</li>
+            <li>Любое число пользователей</li>
+            <li>Любые мессенджеры</li>
+            <li>Любые входящие каналы</li>
+            <li>Гибкие лимиты документов</li>
+            <li>Телефония по запросу</li>
           </ul>
+          <button class="btn btn-outline" style="margin-top:18px;width:100%;" id="btn-show-calc" type="button">Рассчитать тариф</button>
+        </div>
+      </div>
+
+      <div class="calculator" id="calculator" hidden>
+        <div class="calc-title">Конфигуратор тарифа</div>
+        <form id="calc-form" novalidate>
+          <fieldset class="calc-group">
+            <legend>Пользователи</legend>
+            <div class="calc-row">
+              <span class="calc-label">Количество</span>
+              <div class="calc-control">
+                <button type="button" data-action="dec" data-target="users">−</button>
+                <input type="number" id="calc-users" name="users" value="1" min="1" max="100">
+                <button type="button" data-action="inc" data-target="users">+</button>
+              </div>
+              <span class="calc-label" id="price-users">1000 ₽</span>
+            </div>
+          </fieldset>
+
+          <fieldset class="calc-group">
+            <legend>Мессенджеры (+1000 ₽ за каждый)</legend>
+            <div class="calc-checkboxes">
+              <label><input type="checkbox" name="messengers" value="telegram"> <span>Telegram</span></label>
+              <label><input type="checkbox" name="messengers" value="vk"> <span>ВКонтакте</span></label>
+              <label><input type="checkbox" name="messengers" value="max"> <span>MAX</span></label>
+              <label><input type="checkbox" name="messengers" value="whatsapp"> <span>WhatsApp</span></label>
+            </div>
+          </fieldset>
+
+          <fieldset class="calc-group">
+            <legend>Входящие каналы (+1000 ₽ за каждый)</legend>
+            <div class="calc-checkboxes">
+              <label><input type="checkbox" name="inbound_channels" value="site"> <span>Сайт/виджет</span></label>
+              <label><input type="checkbox" name="inbound_channels" value="vk"> <span>ВКонтакте</span></label>
+              <label><input type="checkbox" name="inbound_channels" value="avito"> <span>Авито</span></label>
+            </div>
+          </fieldset>
+
+          <fieldset class="calc-group">
+            <legend>Телефония</legend>
+            <div class="calc-checkboxes">
+              <label><input type="checkbox" name="telephony" value="1"> <span>Нужна телефония (по запросу)</span></label>
+            </div>
+          </fieldset>
+
+          <fieldset class="calc-group">
+            <legend>Документы (+200 ₽ за каждые 100)</legend>
+            <div class="calc-row">
+              <span class="calc-label">Количество</span>
+              <div class="calc-control">
+                <button type="button" data-action="dec" data-target="documents" data-step="100">−</button>
+                <input type="number" id="calc-documents" name="documents" value="100" min="0" max="10000" step="100">
+                <button type="button" data-action="inc" data-target="documents" data-step="100">+</button>
+              </div>
+              <span class="calc-label" id="price-documents">200 ₽</span>
+            </div>
+          </fieldset>
+
+          <fieldset class="calc-group">
+            <legend>Подписания (+500 ₽ за каждые 50)</legend>
+            <div class="calc-row">
+              <span class="calc-label">Количество</span>
+              <div class="calc-control">
+                <button type="button" data-action="dec" data-target="signatures" data-step="50">−</button>
+                <input type="number" id="calc-signatures" name="signatures" value="50" min="0" max="5000" step="50">
+                <button type="button" data-action="inc" data-target="signatures" data-step="50">+</button>
+              </div>
+              <span class="calc-label" id="price-signatures">500 ₽</span>
+            </div>
+          </fieldset>
+
+          <div class="calc-total">
+            <span>Итого в месяц:</span>
+            <span aria-live="polite" id="calc-total">1 700 ₽</span>
+          </div>
+
+          <div class="calc-actions">
+            <button class="btn btn-primary" type="submit">Зарегистрироваться</button>
+            <button class="btn btn-outline" type="button" id="btn-calc-request">Оставить заявку</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="faq-heading">
+      <div class="section-title">
+        <h2 id="faq-heading">Частые вопросы</h2>
+      </div>
+      <div class="faq">
+        <div class="faq-item">
+          <h3>Чем тарифы СОЛО и КОМАНДА отличаются?</h3>
+          <p>СОЛО рассчитан на одного пользователя с базовыми каналами (Telegram, ВК) и небольшими лимитами документов. КОМАНДА даёт 5 пользователей, больше каналов, телефонию и автоматическое распределение заявок.</p>
+        </div>
+        <div class="faq-item">
+          <h3>Как работает тариф СВОБОДНЫЙ?</h3>
+          <p>Вы самостоятельно выбираете количество пользователей, мессенджеров, каналов и лимитов документов. Система рассчитывает стоимость на лету. Телефония подключается по заявке.</p>
+        </div>
+        <div class="faq-item">
+          <h3>Как подключить телефонию?</h3>
+          <p>На тарифе КОМАНДА телефония включена: 1 номер, 5 линий, 1000 минут. На тарифе СВОБОДНЫЙ оставьте заявку — мы свяжемся с вами и подберём конфигурацию.</p>
         </div>
       </div>
     </section>
@@ -643,12 +864,22 @@
         "name": "PRVMS CRM",
         "applicationCategory": "BusinessApplication",
         "operatingSystem": "Any",
-        "offers": {
-          "@type": "Offer",
-          "price": "0",
-          "priceCurrency": "RUB",
-          "description": "7-дневный пробный период"
-        },
+        "offers": [
+          {
+            "@type": "Offer",
+            "name": "СОЛО",
+            "price": "2990",
+            "priceCurrency": "RUB",
+            "description": "1 пользователь, Telegram/ВК, 100 документов, 20 подписаний"
+          },
+          {
+            "@type": "Offer",
+            "name": "КОМАНДА",
+            "price": "5990",
+            "priceCurrency": "RUB",
+            "description": "5 пользователей, все каналы, телефония, 1000 документов, 100 подписаний"
+          }
+        ],
         "aggregateRating": {
           "@type": "AggregateRating",
           "ratingValue": "4.8",
@@ -686,6 +917,110 @@
       }
     ]
   }
+  </script>
+
+  {{ pricing_config|json_script:"pricing-config" }}
+
+  <script>
+  (function() {
+    const cfg = JSON.parse(document.getElementById('pricing-config').textContent);
+    const rates = cfg.rates;
+    const calc = document.getElementById('calculator');
+    const form = document.getElementById('calc-form');
+    const totalEl = document.getElementById('calc-total');
+
+    function fmt(n) {
+      return n.toLocaleString('ru-RU') + ' ₽';
+    }
+
+    function getVal(name, def) {
+      const el = form.elements[name];
+      if (!el) return def;
+      if (el.type === 'number') return parseInt(el.value, 10) || def;
+      if (el.length) {
+        const vals = [];
+        for (let i = 0; i < el.length; i++) if (el[i].checked) vals.push(el[i].value);
+        return vals;
+      }
+      return el.checked ? [el.value] : [];
+    }
+
+    function recalc() {
+      let total = 0;
+      const users = Math.max(1, parseInt(form.elements.users.value, 10) || 1);
+      total += users * rates.user;
+      document.getElementById('price-users').textContent = fmt(users * rates.user);
+
+      const messengers = getVal('messengers', []);
+      if (messengers.length) total += messengers.length * rates.messenger;
+
+      const channels = getVal('inbound_channels', []);
+      if (channels.length) total += channels.length * rates.inbound_channel;
+
+      const telephony = getVal('telephony', []).length > 0;
+
+      const documents = Math.max(0, parseInt(form.elements.documents.value, 10) || 0);
+      const docBlocks = Math.ceil(documents / 100);
+      total += docBlocks * rates.documents_per_100;
+      document.getElementById('price-documents').textContent = fmt(docBlocks * rates.documents_per_100);
+
+      const signatures = Math.max(0, parseInt(form.elements.signatures.value, 10) || 0);
+      const sigBlocks = Math.ceil(signatures / 50);
+      total += sigBlocks * rates.signatures_per_50;
+      document.getElementById('price-signatures').textContent = fmt(sigBlocks * rates.signatures_per_50);
+
+      totalEl.textContent = fmt(total);
+      return { users, messengers, inbound_channels: channels, telephony: { requested: telephony }, documents, signatures };
+    }
+
+    document.getElementById('btn-show-calc').addEventListener('click', function() {
+      calc.hidden = !calc.hidden;
+      if (!calc.hidden) calc.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+
+    document.getElementById('btn-calc-request').addEventListener('click', function() {
+      alert('Оставьте заявку на телефонию: напишите нам на support@prvms.ru');
+    });
+
+    form.addEventListener('change', recalc);
+    form.addEventListener('input', recalc);
+
+    form.addEventListener('click', function(e) {
+      const btn = e.target.closest('button[data-action]');
+      if (!btn) return;
+      const target = btn.dataset.target;
+      const step = parseInt(btn.dataset.step || '1', 10);
+      const input = document.getElementById('calc-' + target);
+      let val = parseInt(input.value, 10) || 0;
+      if (btn.dataset.action === 'inc') val += step;
+      else val -= step;
+      const min = parseInt(input.min || '0', 10);
+      const max = parseInt(input.max || '99999', 10);
+      if (val < min) val = min;
+      if (val > max) val = max;
+      input.value = val;
+      recalc();
+    });
+
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      const data = recalc();
+      fetch('/api/public/pricing/quote/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      }).then(function(r) {
+        if (!r.ok) throw new Error('Ошибка расчёта');
+        return r.json();
+      }).then(function(res) {
+        window.location.href = '/register?plan=free-custom&quote_id=' + encodeURIComponent(res.quote_id);
+      }).catch(function() {
+        alert('Не удалось получить подтверждение цены. Попробуйте позже.');
+      });
+    });
+
+    recalc();
+  })();
   </script>
 </body>
 </html>

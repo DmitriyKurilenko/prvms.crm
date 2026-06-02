@@ -15,7 +15,7 @@ from ninja_jwt.authentication import JWTAuth
 from ninja_jwt.exceptions import TokenError
 from ninja_jwt.tokens import RefreshToken
 
-from apps.billing.models import Plan
+from apps.billing.models import Plan, PricingQuote
 from apps.core.access import get_crm_permissions, require_membership
 from apps.core.tenant import get_request_tenant
 from apps.tenants.models import Domain, Tenant
@@ -48,7 +48,8 @@ class RegisterIn(Schema):
     username: str
     org_name: str
     org_slug: str
-    plan_slug: str = 'simple'
+    plan_slug: str = 'solo'
+    quote_id: str | None = None
 
 
 class RegisterOut(Schema):
@@ -115,6 +116,26 @@ def register(request, payload: RegisterIn):
         if not plan:
             return 400, {'detail': f'Plan "{payload.plan_slug}" not found'}
 
+        custom_limits = {}
+        if payload.plan_slug == 'free-custom' and payload.quote_id:
+            try:
+                quote = PricingQuote.objects.get(id=payload.quote_id)
+            except PricingQuote.DoesNotExist:
+                return 400, {'detail': 'Invalid quote'}
+            if quote.is_expired:
+                return 400, {'detail': 'Quote expired'}
+            cfg = quote.config
+            custom_limits = {
+                'max_managers': max(1, int(cfg.get('users', 1))),
+                'max_messengers': len(cfg.get('messengers', [])),
+                'max_inbound_channels': len(cfg.get('inbound_channels', [])),
+                'max_signatures_per_month': int(cfg.get('signatures', 0)),
+                'max_contracts_per_month': int(cfg.get('documents', 0)),
+                'telephony_included': bool(cfg.get('telephony', {}).get('requested')),
+                'monthly_total': int(quote.monthly_total),
+                'quote_id': str(quote.id),
+            }
+
         with transaction.atomic():
             user = User.objects.create_user(
                 email=payload.email,
@@ -128,6 +149,7 @@ def register(request, payload: RegisterIn):
                 plan=plan,
                 trial_expires_at=timezone.now() + timedelta(days=7),
                 is_paid=False,
+                custom_limits=custom_limits,
             )
             Domain.objects.create(
                 domain=f'{payload.org_slug}.localhost',

@@ -9,6 +9,7 @@ from apps.integrations.webhook_views import incoming_crm_webhook
 from apps.channels.public_views import channel_webhook
 from apps.telephony.public_views import dialplan, directory, events, configuration
 from apps.billing.webhook_views import yookassa_webhook
+from apps.billing.public_views import pricing_calculator_quote, pricing_telephony_request
 from apps.notifications.views import TelegramBotWebhookView
 from apps.ai_assistant.public_views import hermes_webhook
 
@@ -39,6 +40,8 @@ urlpatterns = [
     path('telephony/events/', events),
     path('telephony/configuration/', configuration),
     path('billing/yookassa/webhook/', yookassa_webhook),
+    path('api/public/pricing/quote/', pricing_calculator_quote),
+    path('api/public/pricing/telephony-request/', pricing_telephony_request),
     path('notifications/telegram/bot-webhook/', TelegramBotWebhookView.as_view()),
     path('ai/hermes-webhook/', hermes_webhook),
 ]

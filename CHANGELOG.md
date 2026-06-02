@@ -1,5 +1,52 @@
 # Changelog
 
+## [0.6.0] — 2026-06-02
+
+### Pricing v2 — Custom Plan Configurator (user-visible)
+
+**New tariff lineup: СОЛО, КОМАНДА, СВОБОДНЫЙ.**
+- Legacy plans (`simple`/`basic`/`crm`) deactivated and replaced with three new plans:
+  - **СОЛО** — 1 user, Telegram + VK + email, 1 inbound channel, 100 documents/month, 20 signatures/month, 2 990 ₽/month.
+  - **КОМАНДА** — 5 users, +MAX messenger, site/VK/Avito inbound, telephony (1 number, 5 lines, 1000 min), 1000 documents/month, 100 signatures/month, distribution, 5 990 ₽/month.
+  - **СВОБОДНЫЙ** — fully configurable tariff: pay only for what you use (users, messengers, inbound channels, documents, signatures). Telephony available on request.
+
+**Interactive pricing calculator on the landing page.**
+- Inline calculator in `templates/landing.html`: adjust number of users, select messengers (Telegram, VK, MAX, WhatsApp), inbound channels (site widget, VK, Avito, email), documents and signatures per month.
+- Real-time total calculation with per-unit breakdown. Configurator prices driven by `settings.PRICING_CUSTOM` (unit prices in RUB).
+- "Calculate tariff" button reveals the calculator; CTA buttons on each pricing card link directly to `/register?plan=<slug>`.
+
+**Public API for quotes and telephony requests.**
+- `POST /api/public/pricing/quote/` — creates a `PricingQuote` (UUID, 24h TTL) from calculator configuration. Returns `monthly_total`, `breakdown`, `telephony_requires_quote`, `quote_id`.
+- `POST /api/public/pricing/telephony-request/` — creates a `TelephonyQuoteRequest`. Honeypot (`website` field) and IP-based rate limiting (1 req/min via Django cache). Sends async email to support via Celery.
+
+**Registration flow supports custom-plan quotes.**
+- `RegisterIn` schema extended with `quote_id` (optional UUID string).
+- When `plan_slug='free-custom'` and `quote_id` is provided, backend validates the quote (exists, not expired) and stores calculated limits in `Tenant.custom_limits` JSONField.
+- `RegisterView.vue` reads `?plan=` and `?quote_id=` query params on mount, pre-selects the plan, and passes `quote_id` in the registration payload.
+
+**Models and migrations.**
+- `Plan` extended with v2 fields: `description`, `max_messengers`, `max_inbound_channels`, `max_signatures_per_month`, `telephony_included`, `max_phone_numbers`, `max_phone_lines`, `included_minutes`, `kind` (`preset`/`custom`).
+- New `PricingQuote` model: UUID PK, `created_at`, `expires_at`, `config` (JSON), `monthly_total`, `telephony_requires_quote`.
+- New `TelephonyQuoteRequest` model: `name`, `email`, `phone`, `config_json`, `status` (`new`/`contacted`/`closed`).
+- New `Tenant.custom_limits` JSONField for storing effective limits of a custom-plan tenant.
+- Migrations: `0005_plan_pricing_v2`, `0006_seed_plans_solo_komanda`, `0007_migrate_tenants_to_v2_plans`.
+- Data migration safely maps old plans to new ones: `simple→solo`, `basic→komanda`, `crm→free-custom`. Preserves legacy pricing info for tenants with active paid subscriptions.
+
+**Usage and limits.**
+- `apps/billing/usage.py`: `LIMIT_KEYS` maps usage keys to plan attributes; `get_effective_limits()` returns `tenant.custom_limits` for custom plans, otherwise plan fields.
+- Usage tracking expanded with `messengers` (active `MessengerChannel` count), `inbound_channels` (placeholder 0), `signatures` (placeholder 0).
+
+**Admin.**
+- `PlanAdmin` updated; `TelephonyQuoteRequestAdmin` registered with list/filter/search.
+
+**Tests.**
+- `apps/billing/tests/test_pricing_calculator.py`: 10 tests covering quote calculation (basic, zero messengers, telephony flag, document boundary blocks), 24h TTL, telephony request success/honeypot/rate-limit/missing-contact, and registration with valid/expired quote.
+- All existing billing/tenant/user tests updated for new plan slugs (`solo`/`komanda`/`free-custom`).
+
+**Validation:** `manage.py check` 0 issues; **49/49** targeted backend tests (billing + tenants + users); `npm run typecheck` EXIT=0; `npm run build` EXIT=0 (730 modules); **5/5** vitest; `curl /api/public/pricing/quote/` → 200; `curl /` → 200 landing page.
+
+---
+
 ## [0.5.2] — 2026-06-01
 
 ### Fixed (Traefik routing — discovered during first production deploy)

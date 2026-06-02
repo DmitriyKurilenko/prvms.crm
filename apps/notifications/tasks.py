@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from celery import shared_task
+from django.core.mail import send_mail
 from django_tenants.utils import schema_context, tenant_context
 
 from apps.tenants.models import Tenant
@@ -24,3 +25,8 @@ def send_telegram_notification_task(tenant_id: int, user_id: int, event: str, co
         user = User.objects.get(id=user_id)
     with tenant_context(tenant):
         send_telegram_notification(tenant, user, event, context)
+
+
+@shared_task
+def send_email_async(subject: str, message: str, from_email: str | None, recipient_list: list[str]):
+    send_mail(subject, message, from_email, recipient_list)

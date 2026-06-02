@@ -9,9 +9,17 @@ def healthz(request):
 
 def landing_page(request):
     canonical_url = f"{settings.PLATFORM_PROTOCOL}://{settings.PLATFORM_DOMAIN}"
+    pricing_config = {
+        'rates': settings.PRICING_CUSTOM,
+        'plans': {
+            'solo': {'name': 'СОЛО', 'price': 2990},
+            'komanda': {'name': 'КОМАНДА', 'price': 5990},
+        },
+    }
     return render(request, 'landing.html', {
         'canonical_url': canonical_url,
         'frontend_app_url': settings.FRONTEND_APP_URL,
+        'pricing_config': pricing_config,
     })
 
 

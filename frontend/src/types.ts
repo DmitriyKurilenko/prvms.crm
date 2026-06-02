@@ -64,11 +64,20 @@ export interface PlanCatalogItem {
   id: number
   name: string
   slug: string
+  description: string
   features: PlanFeature[]
   max_managers: number | null
   max_contracts_per_month: number | null
   max_crm_connections: number | null
   max_pipelines: number | null
+  max_messengers: number | null
+  max_inbound_channels: number | null
+  max_signatures_per_month: number | null
+  telephony_included: boolean
+  max_phone_numbers: number | null
+  max_phone_lines: number | null
+  included_minutes: number | null
+  kind: 'preset' | 'custom'
   price_monthly: number
   is_active: boolean
 }

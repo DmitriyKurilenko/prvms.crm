@@ -56,7 +56,7 @@ class SubscriptionHardeningTest(TenantAPITestCase):
 
         change_plan_response = self.client.post(
             '/api/billing/change-plan/',
-            data=json.dumps({'plan_slug': 'simple'}),
+            data=json.dumps({'plan_slug': 'solo'}),
             content_type='application/json',
             **headers,
         )
@@ -64,7 +64,7 @@ class SubscriptionHardeningTest(TenantAPITestCase):
 
         checkout_response = self.client.post(
             '/api/billing/checkout/',
-            data=json.dumps({'plan_slug': 'simple', 'months': 1}),
+            data=json.dumps({'plan_slug': 'solo', 'months': 1}),
             content_type='application/json',
             **headers,
         )

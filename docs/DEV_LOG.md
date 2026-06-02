@@ -1,5 +1,56 @@
 # Dev Log
 
+## 2026-06-02 — Тарифы v2 — конфигуратор СВОБОДНОГО плана + калькулятор на лендинге (DEC-041)
+
+### Что сделано:
+- **Модели и миграции billing v2:**
+  - `Plan` расширен v2-полями: `description`, `max_messengers`, `max_inbound_channels`, `max_signatures_per_month`, `telephony_included`, `max_phone_numbers`, `max_phone_lines`, `included_minutes`, `kind` (`preset`/`custom`).
+  - Новые модели: `PricingQuote` (UUID PK, TTL 24ч, config JSON, monthly_total, telephony_requires_quote) и `TelephonyQuoteRequest` (name/email/phone/config_json/status).
+  - `Tenant.custom_limits` JSONField для хранения эффективных лимитов custom-плана.
+  - Миграции: `0005_plan_pricing_v2` (schema), `0006_seed_plans_solo_komanda` (seed + деактивация legacy), `0007_migrate_tenants_to_v2_plans` (data migration `simple→solo`, `basic→komanda`, `crm→free-custom` с сохранением legacy pricing для активных подписок).
+- **Публичные endpoint-ы калькулятора:**
+  - `POST /api/public/pricing/quote/` — `_calculate_quote()` по `settings.PRICING_CUSTOM`, создание `PricingQuote`, возврат monthly_total + breakdown + telephony_requires_quote + quote_id.
+  - `POST /api/public/pricing/telephony-request/` — honeypot (`website`), rate-limit по IP через cache (1 req/min), создание `TelephonyQuoteRequest`, async email в support через Celery `send_email_async`.
+- **Регистрация с custom-планом:**
+  - `RegisterIn` получил `quote_id: str | None`.
+  - `register()` валидирует `PricingQuote` (exists + not expired), переносит config в `Tenant.custom_limits` при `plan_slug='free-custom'`.
+  - `RegisterView.vue` читает `?plan=` и `?quote_id=` из query, отображает summary-блок при `free-custom`.
+  - `auth.ts`: `RegisterPayload` получил `quote_id?: string`.
+- **Лендинг с калькулятором:**
+  - `templates/landing.html`: три тарифные карточки СОЛО/КОМАНДА/СВОБОДНЫЙ с кнопками «Выбрать ...» и «Рассчитать тариф».
+  - Интерактивный конфигуратор (fieldset users/messengers/inbound_channels/documents/signatures/telephony) с +/- контролами, чекбоксами, real-time total.
+  - Кнопка регистрации из калькулятора ведёт на `/register?plan=free-custom&quote_id=...`.
+- **Usage и лимиты:**
+  - `apps/billing/usage.py`: `LIMIT_KEYS` + `get_effective_limits()` — единая точка получения лимитов (custom_limits для free-custom, иначе plan fields).
+  - Добавлены `messengers`, `inbound_channels`, `signatures` в usage (messengers — реальный счётчик по `MessengerChannel`, остальные placeholder).
+- **Admin:** `TelephonyQuoteRequestAdmin` зарегистрирован; `PlanAdmin` обновлён.
+- **Seed и management-команды:**
+  - `create_test_users`: bootstrap tenants переименованы (`org-solo`, `org-komanda`, `org-free`), default plan slug `komanda`.
+  - `seed_demo_users`: default plan теперь `solo` (соответствует новой линейке).
+- **Frontend types:** `PlanCatalogItem` расширен v2-полями (`max_messengers`, `max_inbound_channels`, `max_signatures_per_month`, `telephony_included`, `max_phone_numbers`, `max_phone_lines`, `included_minutes`, `kind`, `description`).
+
+### Изменённые файлы:
+- **Новые:** `apps/billing/migrations/0005_plan_pricing_v2.py`, `apps/billing/migrations/0006_seed_plans_solo_komanda.py`, `apps/billing/migrations/0007_migrate_tenants_to_v2_plans.py`, `apps/billing/public_views.py`, `apps/billing/tests/test_pricing_calculator.py`, `apps/tenants/migrations/0005_tenant_custom_limits.py`
+- **Изменены:** `apps/billing/models.py`, `apps/billing/admin.py`, `apps/billing/usage.py`, `apps/tenants/models.py`, `apps/users/auth_api.py`, `apps/users/management/commands/create_test_users.py`, `apps/users/management/commands/seed_demo_users.py`, `apps/users/tests/test_auth_api.py`, `apps/users/tests/test_create_test_users_command.py`, `apps/tenants/tests/test_subscription_hardening.py`, `apps/notifications/tasks.py`, `config/settings.py`, `config/urls.py`, `frontend/src/api/auth.ts`, `frontend/src/types.ts`, `frontend/src/views/RegisterView.vue`, `templates/landing.html`
+
+### Валидация (Docker):
+- `docker compose down && docker compose up -d --build` → стабильный старт.
+- `docker compose run --rm web python manage.py check` → **0 issues**.
+- `docker compose run --rm web python manage.py test apps.billing apps.tenants apps.users` → **49/49 OK**.
+- `docker compose exec frontend npm run typecheck` → **EXIT=0**.
+- `docker compose exec frontend npm run build` → **EXIT=0** (730 модулей).
+- `docker compose exec frontend npm run test` → **5/5 vitest OK**.
+- `curl -X POST /api/public/pricing/quote/` → **200** с корректным breakdown.
+- `curl /` → **200** landing page с калькулятором.
+
+### Риски:
+- `PricingQuote` TTL = 24ч; пользователь, вернувшийся через сутки, получит «Quote expired» при регистрации. В будущем можно добавить email-напоминание или продление quote.
+- `Tenant.custom_limits` — JSONField без схемы валидации на уровне БД; несоответствие ключей (`max_managers` vs `users`) может привести к silent пропуску лимита. Решение: `LIMIT_KEYS` единый маппинг, но валидация write-path отсутствует — рекомендуется добавить Pydantic/Django-форму валидацию при записи custom_limits.
+- Legacy-планы деактивированы, но не удалены; старые `plan_slug` (`simple`/`basic`/`crm`) больше не создаются, но если где-то в коде остался хардкод — упадёт 404/400. Проверено по grep: все тесты и команды мигрированы.
+- Телефония в конфигураторе — «по запросу», не автоматическая покупка. Пользователь может ожидать мгновенной активации номера после регистрации. Нужна явная подсказка в UI.
+
+---
+
 ## 2026-06-01 — Переход production-стека с nginx на shared Traefik reverse proxy (DEC-040)
 
 ### Что сделано:

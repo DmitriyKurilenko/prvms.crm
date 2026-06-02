@@ -34,6 +34,14 @@
           </div>
         </div>
 
+        <div v-if="selectedPlan === 'free-custom' && quoteSummary" class="quote-summary">
+          <label class="text-sm font-semibold">Ваша конфигурация</label>
+          <div class="quote-box">
+            <p>{{ quoteSummary }}</p>
+            <p class="quote-total">{{ quoteTotal }} ₽/мес</p>
+          </div>
+        </div>
+
         <PButton :loading="auth.loading" type="submit" label="Зарегистрировать организацию" />
       </form>
 
@@ -48,12 +56,13 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { api } from '@/api/http'
 import type { PlanCatalogItem } from '@/types'
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
 
 const orgName = ref('')
@@ -64,16 +73,35 @@ const password = ref('')
 const confirmPassword = ref('')
 const error = ref('')
 const plans = ref<PlanCatalogItem[]>([])
-const selectedPlan = ref('simple')
+const selectedPlan = ref('solo')
+const quoteId = ref('')
+const quoteSummary = ref('')
+const quoteTotal = ref(0)
 
 onMounted(async () => {
+  const planParam = (route.query.plan as string) || ''
+  const qid = (route.query.quote_id as string) || ''
+
   try {
     plans.value = await api<PlanCatalogItem[]>('/billing/plans/')
-    if (plans.value.length && !plans.value.find(p => p.slug === selectedPlan.value)) {
-      selectedPlan.value = plans.value[0].slug
+    const available = plans.value.filter(p => p.is_active)
+    if (available.length) {
+      if (planParam && available.find(p => p.slug === planParam)) {
+        selectedPlan.value = planParam
+      } else if (!available.find(p => p.slug === selectedPlan.value)) {
+        selectedPlan.value = available[0].slug
+      }
     }
   } catch {
     // fallback — allow registration even if plans fail to load
+  }
+
+  if (selectedPlan.value === 'free-custom' && qid) {
+    quoteId.value = qid
+    // display pre-confirmed summary from config we have in URL (no extra fetch needed)
+    // backend will validate quote_id on submit
+    quoteSummary.value = 'Конфигурация подтверждена. Сумма будет рассчитана сервером.'
+    quoteTotal.value = 0
   }
 })
 
@@ -110,14 +138,18 @@ const submit = async () => {
   }
 
   try {
-    await auth.register({
+    const payload: any = {
       org_name: orgName.value.trim(),
       org_slug: slugify(orgSlug.value),
       username: username.value.trim(),
       email: email.value.trim().toLowerCase(),
       password: password.value,
       plan_slug: selectedPlan.value
-    })
+    }
+    if (selectedPlan.value === 'free-custom' && quoteId.value) {
+      payload.quote_id = quoteId.value
+    }
+    await auth.register(payload)
     await router.push('/app')
   } catch (e: unknown) {
     const detail = (e as { data?: { detail?: string } })?.data?.detail
@@ -196,6 +228,24 @@ p {
 
 .plan-features li::before {
   content: '✓ ';
+}
+
+.quote-summary {
+  margin-top: 8px;
+}
+
+.quote-box {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--bg-alt);
+  margin-top: 6px;
+}
+
+.quote-total {
+  font-weight: 700;
+  color: var(--brand);
+  margin-top: 4px;
 }
 
 .error {

@@ -93,7 +93,7 @@ class AuthAPITest(TenantAPITestCase):
                     'username': username,
                     'org_name': f'Org {org_slug}',
                     'org_slug': org_slug,
-                    'plan_slug': 'crm',
+                    'plan_slug': 'komanda',
                 }
             ),
             content_type='application/json',

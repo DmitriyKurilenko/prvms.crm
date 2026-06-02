@@ -35,44 +35,44 @@ class CreateTestUsersCommandTest(TenantAPITestCase):
 
     def test_command_without_args_reconciles_existing_bootstrap_tenant(self):
         with schema_context('public'):
-            crm_plan = Plan.objects.get(slug='crm')
+            komanda_plan = Plan.objects.get(slug='komanda')
             broken_tenant = Tenant(
-                name='Broken Basic Org',
-                slug='org-basic',
-                schema_name='org-basic',
-                plan=crm_plan,
+                name='Broken Komanda Org',
+                slug='org-komanda',
+                schema_name='org-komanda',
+                plan=komanda_plan,
                 crm_mode='amocrm',
                 is_active=False,
             )
             broken_tenant.save()
-            Domain.objects.create(tenant=broken_tenant, domain='legacy-basic.localhost', is_primary=True)
+            Domain.objects.create(tenant=broken_tenant, domain='legacy-komanda.localhost', is_primary=True)
 
         call_command('create_test_users')
 
         with schema_context('public'):
-            org_basic = Tenant.objects.get(slug='org-basic')
-            self.assertEqual(org_basic.plan.slug, 'basic')
-            self.assertEqual(org_basic.name, 'Demo Basic Org')
-            self.assertEqual(org_basic.crm_mode, 'builtin')
-            self.assertTrue(org_basic.is_active)
+            org_komanda = Tenant.objects.get(slug='org-komanda')
+            self.assertEqual(org_komanda.plan.slug, 'komanda')
+            self.assertEqual(org_komanda.name, 'Demo Komanda Org')
+            self.assertEqual(org_komanda.crm_mode, 'builtin')
+            self.assertTrue(org_komanda.is_active)
 
-            default_domain = Domain.objects.get(tenant=org_basic, domain='org-basic.localhost')
+            default_domain = Domain.objects.get(tenant=org_komanda, domain='org-komanda.localhost')
             self.assertTrue(default_domain.is_primary)
             self.assertFalse(
-                Domain.objects.get(tenant=org_basic, domain='legacy-basic.localhost').is_primary
+                Domain.objects.get(tenant=org_komanda, domain='legacy-komanda.localhost').is_primary
             )
 
             # Keep fallback behaviour predictable for tests that rely on active tenant count.
-            Tenant.objects.filter(slug__in=('org-simple', 'org-basic', 'org-crm')).update(is_active=False)
+            Tenant.objects.filter(slug__in=('org-solo', 'org-komanda', 'org-free')).update(is_active=False)
 
     def test_command_without_args_creates_bootstrap_seed(self):
         call_command('create_test_users')
 
         with schema_context('public'):
             expected = {
-                'org-simple': 'simple',
-                'org-basic': 'basic',
-                'org-crm': 'crm',
+                'org-solo': 'solo',
+                'org-komanda': 'komanda',
+                'org-free': 'free-custom',
             }
             for slug, plan_slug in expected.items():
                 tenant = Tenant.objects.get(slug=slug)
@@ -101,7 +101,7 @@ class CreateTestUsersCommandTest(TenantAPITestCase):
             admin = User.objects.get(email='platform_admin@example.com')
             self.assertTrue(admin.is_staff)
             self.assertTrue(admin.is_superuser)
-            admin_membership = Membership.objects.get(user=admin, tenant__slug='org-crm', is_active=True)
+            admin_membership = Membership.objects.get(user=admin, tenant__slug='org-komanda', is_active=True)
             self.assertEqual(admin_membership.role, 'admin')
 
             # Keep fallback behaviour predictable for tests that rely on active tenant count.
@@ -146,7 +146,7 @@ class CreateTestUsersCommandTest(TenantAPITestCase):
             '--tenant-name',
             'QA Command Tenant',
             '--plan-slug',
-            'crm',
+            'komanda',
             '--password',
             'AutoCreate123',
         )
