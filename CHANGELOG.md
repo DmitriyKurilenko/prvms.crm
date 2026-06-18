@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.8.0] — 2026-06-18
+
+### Landing page redesigned under «ГусьБерри» brand — user-visible
+
+**Complete rewrite of `templates/landing.html` to match `land_spec`.**
+- Brand switched from «PRVMS CRM» to «ГусьБерри» — inline SVG goose mascot, text logo, neutral green favicon.
+- Light theme: white background, neutral greys, accent `#43a047` only on buttons/links/highlights.
+- Dark theme: `prefers-color-scheme` default + manual toggle with `localStorage['gb.theme']` persistence; anti-FOUC script in `<head>` sets `data-theme` before first paint.
+- Structure follows `land_spec`: hero, target audience, system snapshot (deal card mockup), key differentiator, pricing tiers (Solo/Team/Business), 6-step onboarding flow, contact CTA with promo «до 1 июля».
+- Pricing: values from `pricing_config.plans.*.price` rendered server-side (Solo 2990₽, Team 5990₽); Business — live calculator via `POST /api/public/pricing/quote/`.
+- Contact form: `POST /api/public/pricing/telephony-request/` (name + email/phone + message in `configuration`, honeypot `website`, inline success/error states).
+- SEO/Accessibility: correct title/description/canonical/OG/Twitter under «ГусьБерри», JSON-LD (Organization + WebSite + SoftwareApplication with Offers + FAQPage) without fake `aggregateRating`, semantic HTML5, skip-link, `aria-*`, `focus-visible`, `prefers-reduced-motion`.
+- Zero external resources: all CSS inline, all icons inline SVG, system font, zero image/font requests.
+
+**Validation:** `manage.py check` 0 issues; `GET /` → HTTP 200, 55 KB, one file, zero external resources; `POST /api/public/pricing/quote/` → 200 with correct 7600₽ breakdown; `POST /api/public/pricing/telephony-request/` → 200 `{"status":"ok"}`; honeypot → 400. Visual QA and PageSpeed not performed (no browser in environment).
+
+---
+
 ## [0.7.1] — 2026-06-18
 
 ### Рефакторинг модуля «Договоры» → «Документооборот» (DEC-043) — user-visible
