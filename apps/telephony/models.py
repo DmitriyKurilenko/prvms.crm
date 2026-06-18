@@ -1,108 +1,78 @@
 from django.db import models
-from apps.core.fields import EncryptedJSONField
 from encrypted_fields.fields import EncryptedCharField
 
 
-class SIPTrunk(models.Model):
-    """Подключение SIP-транка к оператору связи."""
-    TRUNK_TYPE_CHOICES = [
-        ('zadarma', 'Zadarma'),
-        ('mcn', 'MCN Telecom'),
-        ('rostelecom', 'Ростелеком'),
-        ('exolve', 'МТС Exolve'),
-        ('custom_sip', 'Произвольный SIP'),
-    ]
+class ExolveChannel(models.Model):
+    """Канал телефонии MTS Exolve тенанта.
+
+    На один тенант — один номер на входящие и исходящие. Номер закупается
+    автоматически через Numbering API (GetFree → Lock → Buy), после чего на
+    него ставится переадресация на наш IPCR-URL (SetCallForwarding type=3).
+    """
+
     STATUS_CHOICES = [
+        ('draft', 'Не подключён'),
+        ('connecting', 'Подключение…'),
         ('active', 'Активен'),
-        ('registering', 'Регистрация...'),
         ('error', 'Ошибка'),
         ('disabled', 'Отключён'),
     ]
 
-    name = models.CharField(max_length=200)
-    trunk_type = models.CharField(max_length=20, choices=TRUNK_TYPE_CHOICES)
-    crm_connection = models.ForeignKey(
-        'integrations.CRMConnection',
-        on_delete=models.SET_NULL,
-        related_name='sip_trunks',
-        null=True,
-        blank=True,
-    )
-    credentials = EncryptedJSONField()
-    inbound_numbers = models.JSONField(default=list)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='registering')
+    exolve_number = models.CharField(max_length=20, blank=True, help_text='Номер в формате E.164, например 79991112233')
+    number_code = models.CharField(max_length=20, blank=True, help_text='number_code номера в Exolve')
+    type_id = models.PositiveIntegerField(null=True, blank=True)
+    region_id = models.PositiveIntegerField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
     status_detail = models.TextField(blank=True)
-    last_registration_at = models.DateTimeField(null=True, blank=True)
+    forwarding_set_at = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f'{self.name} ({self.trunk_type})'
+        return f'Exolve {self.exolve_number or "—"} ({self.status})'
 
 
-class PhoneExtension(models.Model):
-    """Внутренний номер (extension) менеджера в телефонии."""
+class ExolveSIPAccount(models.Model):
+    """SIP-аккаунт менеджера в Exolve.
+
+    Создаётся автоматически через SIP API (Create → GetAttributes →
+    SetDisplayNumber). Браузер менеджера регистрируется этим аккаунтом через
+    Web Voice SDK. CLI (отображаемый номер) = номер тенанта.
+    """
+
+    STATUS_CHOICES = [
+        ('provisioning', 'Создаётся…'),
+        ('active', 'Активен'),
+        ('error', 'Ошибка'),
+        ('disabled', 'Отключён'),
+    ]
+
     manager = models.OneToOneField(
         'integrations.ManagerProfile',
         on_delete=models.CASCADE,
-        related_name='phone_extension',
+        related_name='exolve_sip',
     )
-    extension = models.CharField(max_length=10)
-    sip_password = EncryptedCharField(max_length=100)
-    webrtc_enabled = models.BooleanField(default=True)
-    voicemail_enabled = models.BooleanField(default=False)
+    sip_resource_id = models.CharField(max_length=50, blank=True)
+    username = models.CharField(max_length=50, blank=True)
+    password = EncryptedCharField(max_length=200, blank=True)
+    display_number = models.CharField(max_length=20, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='provisioning')
+    status_detail = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(fields=['extension'], name='unique_extension_per_tenant'),
+            models.UniqueConstraint(fields=['username'], name='unique_exolve_sip_username'),
         ]
 
     def __str__(self):
-        return f'ext:{self.extension} ({self.manager})'
-
-
-class IVRMenu(models.Model):
-    """Голосовое меню (IVR). Многоуровневое."""
-    name = models.CharField(max_length=200)
-    greeting_audio = models.FileField(upload_to='telephony/ivr/', blank=True)
-    greeting_tts = models.TextField(blank=True)
-    options = models.JSONField(default=list)
-    timeout = models.PositiveIntegerField(default=10)
-    is_active = models.BooleanField(default=True)
-
-    def __str__(self):
-        return self.name
-
-
-class CallQueue(models.Model):
-    """Очередь звонков."""
-    STRATEGY_CHOICES = [
-        ('ring_all', 'Звонок всем'),
-        ('round_robin', 'По очереди'),
-        ('least_recent', 'Наименее недавний'),
-        ('random', 'Случайный'),
-    ]
-
-    name = models.CharField(max_length=200)
-    strategy = models.CharField(max_length=20, choices=STRATEGY_CHOICES, default='ring_all')
-    members = models.ManyToManyField(
-        'integrations.ManagerProfile',
-        related_name='call_queues',
-        blank=True,
-    )
-    ring_timeout = models.PositiveIntegerField(default=20)
-    max_wait_time = models.PositiveIntegerField(default=120)
-    hold_music = models.FileField(upload_to='telephony/hold/', blank=True)
-    announce_position = models.BooleanField(default=True)
-    is_active = models.BooleanField(default=True)
-
-    def __str__(self):
-        return self.name
+        return f'SIP {self.username or "—"} ({self.manager})'
 
 
 class CallRecord(models.Model):
-    """Запись о звонке."""
+    """Запись о звонке (журнал телефонии)."""
+
     DIRECTION_CHOICES = [
         ('inbound', 'Входящий'),
         ('outbound', 'Исходящий'),
@@ -112,19 +82,20 @@ class CallRecord(models.Model):
         ('answered', 'Отвечен'),
         ('missed', 'Пропущен'),
         ('busy', 'Занято'),
+        ('failed', 'Ошибка'),
         ('voicemail', 'Голосовая почта'),
-        ('ivr_only', 'Только IVR'),
     ]
 
-    sip_trunk = models.ForeignKey(SIPTrunk, on_delete=models.SET_NULL, null=True, related_name='calls')
-    freeswitch_uuid = models.CharField(max_length=200, unique=True)
+    call_sid = models.CharField(max_length=200, unique=True)
+    exolve_call_id = models.CharField(max_length=64, blank=True)
     direction = models.CharField(max_length=10, choices=DIRECTION_CHOICES)
     caller_number = models.CharField(max_length=50)
     called_number = models.CharField(max_length=50)
-    result = models.CharField(max_length=20, choices=RESULT_CHOICES)
+    result = models.CharField(max_length=20, choices=RESULT_CHOICES, default='missed')
     duration = models.PositiveIntegerField(default=0)
     wait_time = models.PositiveIntegerField(default=0)
-    queue = models.ForeignKey(CallQueue, on_delete=models.SET_NULL, null=True, blank=True)
+    talk_time = models.PositiveIntegerField(default=0)
+    cause_code = models.CharField(max_length=10, blank=True)
     manager = models.ForeignKey(
         'integrations.ManagerProfile',
         on_delete=models.SET_NULL,

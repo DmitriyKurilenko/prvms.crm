@@ -1,28 +1,18 @@
 from django.contrib import admin
-from .models import SIPTrunk, PhoneExtension, IVRMenu, CallQueue, CallRecord
+
+from .models import CallRecord, ExolveChannel, ExolveSIPAccount
 
 
-@admin.register(SIPTrunk)
-class SIPTrunkAdmin(admin.ModelAdmin):
-    list_display = ('name', 'trunk_type', 'status', 'is_active', 'created_at')
-    list_filter = ('trunk_type', 'status', 'is_active')
+@admin.register(ExolveChannel)
+class ExolveChannelAdmin(admin.ModelAdmin):
+    list_display = ('exolve_number', 'number_code', 'status', 'is_active', 'created_at')
+    list_filter = ('status', 'is_active')
 
 
-@admin.register(PhoneExtension)
-class PhoneExtensionAdmin(admin.ModelAdmin):
-    list_display = ('extension', 'manager', 'webrtc_enabled', 'is_active')
-    list_filter = ('is_active', 'webrtc_enabled')
-
-
-@admin.register(IVRMenu)
-class IVRMenuAdmin(admin.ModelAdmin):
-    list_display = ('name', 'timeout', 'is_active')
-
-
-@admin.register(CallQueue)
-class CallQueueAdmin(admin.ModelAdmin):
-    list_display = ('name', 'strategy', 'ring_timeout', 'is_active')
-    list_filter = ('strategy', 'is_active')
+@admin.register(ExolveSIPAccount)
+class ExolveSIPAccountAdmin(admin.ModelAdmin):
+    list_display = ('username', 'manager', 'display_number', 'status', 'is_active')
+    list_filter = ('status', 'is_active')
 
 
 @admin.register(CallRecord)

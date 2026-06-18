@@ -2,7 +2,7 @@
   <main class="landing">
     <section class="hero surface-card fade-in-up">
       <p class="eyebrow">PRVMS CRM</p>
-      <h1 class="brand-heading">CRM-платформа для продаж, договоров и коммуникаций</h1>
+      <h1 class="brand-heading">CRM-платформа для продаж, документов и коммуникаций</h1>
       <p class="lead">
         Запускайте организацию за несколько минут: зарегистрируйте компанию, пригласите команду и переходите в личный кабинет.
       </p>
@@ -23,7 +23,7 @@
         <p>Сделки, этапы, задачи и контроль менеджеров в одном интерфейсе.</p>
       </article>
       <article class="feature surface-card">
-        <h3>Договоры и подписание</h3>
+        <h3>Документы и подписание</h3>
         <p>Генерация PDF, отправка на подпись и подтверждение через OTP.</p>
       </article>
       <article class="feature surface-card">

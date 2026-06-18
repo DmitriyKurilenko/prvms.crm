@@ -8,7 +8,7 @@ class NotificationChannel(models.TextChoices):
 
 
 class NotificationEvent(models.TextChoices):
-    CONTRACT_SIGNED = 'contract_signed', 'Договор подписан'
+    DOCUMENT_SIGNED = 'document_signed', 'Документ подписан'
     LEAD_DISTRIBUTED = 'lead_distributed', 'Заявка распределена'
     CRM_CONNECTION_LOST = 'crm_connection_lost', 'CRM-соединение потеряно'
     CRM_CONNECTION_RESTORED = 'crm_connection_restored', 'CRM-соединение восстановлено'

@@ -140,14 +140,14 @@ def get_deal(request, deal_id: int):
     _ensure_builtin(request)
     d = _scoped_object_or_error(request, Deal, deal_id, entity='deals', action='view')
     activities = Activity.objects.filter(deal_id=deal_id).order_by('-created_at')[:100]
-    from apps.contracts.models import Contract, SigningSession
+    from apps.documents.models import Document, SigningSession
     from apps.channels.models import ChatSession as ChannelChatSession
-    deal_contracts = list(Contract.objects.filter(deal=d).order_by('-created_at'))
+    deal_documents = list(Document.objects.filter(deal=d).order_by('-created_at'))
     session_map = {}
-    if deal_contracts:
-        for s in SigningSession.objects.filter(contract__in=deal_contracts).order_by('contract_id', '-otp_sent_at'):
-            if s.contract_id not in session_map:
-                session_map[s.contract_id] = s.token
+    if deal_documents:
+        for s in SigningSession.objects.filter(document__in=deal_documents).order_by('document_id', '-otp_sent_at'):
+            if s.document_id not in session_map:
+                session_map[s.document_id] = s.token
     # Chat sessions linked to this deal via crm_lead_id
     chat_sessions = ChannelChatSession.objects.filter(
         crm_lead_id=str(d.id),
@@ -170,9 +170,9 @@ def get_deal(request, deal_id: int):
             {'id': a.id, 'type': a.activity_type, 'title': a.title, 'body': a.body, 'status': a.status, 'created_at': a.created_at.isoformat()}
             for a in activities
         ],
-        'contracts': [
-            {'id': c.id, 'template_name': c.template.name if c.template else None, 'status': c.status, 'created_at': c.created_at.isoformat(), 'contact_phone': d.contact.phone if d.contact else '', 'signing_url': f'{base_url}/sign/{session_map[c.id]}/' if c.id in session_map else None}
-            for c in deal_contracts
+        'documents': [
+            {'id': doc.id, 'template_name': doc.template.name if doc.template else None, 'status': doc.status, 'created_at': doc.created_at.isoformat(), 'contact_phone': d.contact.phone if d.contact else '', 'signing_url': f'{base_url}/sign/{session_map[doc.id]}/' if doc.id in session_map else None}
+            for doc in deal_documents
         ],
         'chat_sessions': [
             {

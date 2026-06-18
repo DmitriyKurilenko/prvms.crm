@@ -27,7 +27,7 @@ class Migration(migrations.Migration):
                 ('name', models.CharField(max_length=100)),
                 ('slug', models.SlugField(unique=True)),
                 ('max_managers', models.PositiveIntegerField(blank=True, null=True)),
-                ('max_contracts_per_month', models.PositiveIntegerField(blank=True, null=True)),
+                ('max_documents_per_month', models.PositiveIntegerField(blank=True, null=True)),
                 ('max_crm_connections', models.PositiveIntegerField(blank=True, default=1, null=True)),
                 ('max_pipelines', models.PositiveIntegerField(blank=True, default=1, null=True)),
                 ('price_monthly', models.DecimalField(decimal_places=2, default=0, max_digits=10)),

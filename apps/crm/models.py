@@ -31,7 +31,7 @@ class Contact(models.Model):
     )
     esign_agreement_id = models.PositiveIntegerField(
         null=True, blank=True,
-        help_text='ID подписанного договора-соглашения об ЭП',
+        help_text='ID подписанного документа-соглашения об ЭП',
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -166,7 +166,7 @@ class Activity(models.Model):
         ('task', 'Задача'),
         ('note', 'Заметка'),
         ('email', 'Email'),
-        ('contract', 'Договор'),
+        ('document', 'Документ'),
         ('stage_change', 'Смена стадии'),
         ('system', 'Системное'),
     ]
@@ -210,8 +210,8 @@ class Activity(models.Model):
         blank=True,
         related_name='activities',
     )
-    related_contract = models.ForeignKey(
-        'contracts.Contract',
+    related_document = models.ForeignKey(
+        'documents.Document',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,

@@ -1,5 +1,75 @@
 # Changelog
 
+## [0.7.1] — 2026-06-18
+
+### Рефакторинг модуля «Договоры» → «Документооборот» (DEC-043) — user-visible
+
+**Полный rename `apps/contracts` → `apps/documents` без обратной совместимости.**
+- `Contract` → `Document`, `ContractTemplate` → `DocumentTemplate`.
+- Добавлен `DocumentType` (`contract`/`act`/`invoice`/`offer`/`addendum`/`other`). Тип хранится в `Document.document_type` и отображается в UI.
+- Feature codes: `contracts` → `documents`, `contract_signing` → `document_signing`, `custom_contract_templates` → `custom_document_templates`. Лимит `max_contracts_per_month` → `max_documents_per_month`.
+- Событие уведомлений `contract_signed` → `document_signed`; тип активности CRM `contract` → `document`; pipeline trigger `create_contract` → `create_document`.
+- Backend: `apps/documents/` (models, api, admin, tasks, public views, pdf, signing, otp, esign_agreement, mapping, seed). Миграции пересозданы.
+- Frontend: `/app/contracts` → `/app/documents`, `ContractsView.vue` → `DocumentsView.vue`, menu/router/dashboard/deal detail/subscription/register ссылки и лейблы приведены к «Документы».
+- `docs/user-guide/07-contracts.md` → `07-documents.md`; обновлены `08-signing.md` и `README.md`.
+
+### Billing hardening
+
+- `apps/billing/api.py`, `catalog.py`, `tasks.py` — мелкие улучшения и исправления.
+- `apps/billing/models.py` — дополнены модели и поля.
+- `apps/billing/usage.py` — унифицирован `get_effective_limits()`.
+
+### Cleanup
+
+- Удалён `CLAUDE.md` (устаревшая документация с упоминаниями `apps.contracts`).
+- Удалён `docs/PLAN_PRICING_CALCULATOR.md` (устаревший планировочный документ).
+- Удалена директория `redesign/` (прототипы React/JSX, не используемые в production).
+- Удалены мёртвые CSS-классы `.contract-row` из `DealsView.vue` и `DealDetailView.vue`.
+
+**Validation:** `manage.py check` 0 issues; `makemigrations --check` без дрейфа; **76/76** backend tests; `npm run typecheck` EXIT=0; `npm run build` EXIT=0; **5/5** vitest; HTTP `/`, `/healthz`, `/app/documents` → 200.
+
+---
+
+## [0.7.0] — 2026-06-17
+
+### Телефония MTS Exolve — полная замена FreeSWITCH (DEC-042) — user-visible
+
+**FreeSWITCH удалён полностью.**
+- Удалены сервис `freeswitch` из `docker-compose.yml`, файл `docker-compose.telephony.yml`, каталог `freeswitch/`, env-блок `FREESWITCH_*`/`SIP_BASE_DOMAIN`, ESL-код backend, sip.js и `useSIPPhone.ts`, публичные XML-эндпоинты (`dialplan/directory/events/configuration`). Зависимость `greenswitch` убрана из `requirements.txt`.
+
+**Облако MTS Exolve — новый канал телефонии.**
+- `apps/telephony/models.py` переписан: `ExolveChannel` (номер тенанта), `ExolveSIPAccount` (SIP-аккаунт менеджера, пароль в `EncryptedCharField`), `CallRecord` (провайдер-агностичный, ключ `call_sid`). Миграция `0003_exolve` удаляет legacy-модели (`SIPTrunk`, `PhoneExtension`, `IVRMenu`, `CallQueue`) и создаёт новые.
+- `apps/telephony/exolve_client.py` — HTTP-клиент Numbering API (`GetFree`, `Lock`, `Buy`) и SIP API (`Create`, `GetAttributes`, `SetDisplayNumber`) с полным логированием.
+- `apps/telephony/exolve_service.py` — провижининг номера (Lock → Buy → SetCallForwarding), авто-creation SIP-аккаунтов, резолв тенанта по номеру, контроль дублей сделок (`stage_type='open'`), формирование `followme_struct` для IPCR.
+- `apps/telephony/public_views.py` — `exolve_ipcr` (JSON-RPC `getControlCallFollowMe`) и `exolve_events` (Call Events `b/o/s/h/d/e/crr`) с защитой `EXOLVE_WEBHOOK_SECRET`.
+- `apps/telephony/tasks.py` — `process_exolve_event` (журналирование звонка) + `download_call_record` (фоновое скачивание записи по Bearer).
+- `apps/telephony/api.py` — endpoint-ы: `channel`, `number-reference`, `available-numbers`, `connect-number`, `sip-accounts` (+ provision), `webrtc-credentials`, `click-to-call`, `calls`, `stats`.
+- `apps/tenants/models.py` — shared-модель `ExolveNumberLookup` (резолв тенанта по номеру), миграция `0006_exolve_number_lookup`. Паттерн `SigningTokenLookup`.
+
+**Frontend.**
+- `frontend/src/stores/phone.ts` — Pinia-store для Web Voice SDK (`@mts-exolve/web-voice-sdk`): регистрация, входящий/исходящий, состояние звонка, аудио.
+- `frontend/src/components/SoftPhone.vue` — глобальный софтфон, встроен в `App.vue`; входящий pop-up, кнопки ответа/завершения, статус.
+- `frontend/src/components/ExolveNumberWizard.vue` — мастер подключения номера: выбор из списка доступных, автоматическая бронь/покупка/настройка переадресации.
+- Переписан `frontend/src/views/TelephonyView.vue` — упрощённый UI под Exolve: номер тенанта, SIP-аккаунты, журнал звонков, запись.
+- `frontend/src/api/telephony.ts` — обновлён под новые endpoint-ы Exolve.
+- Кнопки «Позвонить» добавлены в `ContactsView.vue` и `DealDetailView.vue`.
+- `frontend/package.json`: удалён `sip.js`, добавлен `@mts-exolve/web-voice-sdk@^1.1.4`.
+
+**Тесты.**
+- Старые телефонные тесты (`test_api.py`, `test_public_endpoints.py`, `test_services.py`, `test_tasks.py`) удалены.
+- Новый `apps/telephony/tests/test_exolve.py` — 5 тестов: IPCR-дедуп сделки, маршрутизация на ответственного, неизвестный номер (пустой `followme_struct`), обработка Call Events, загрузка записи.
+- `apps/crm/tests/test_dashboard_api.py` — адаптирован под новую `CallRecord` (поле `call_sid` вместо `freeswitch_uuid`).
+
+**Прочее.**
+- `config/settings.py` — блок `EXOLVE_*` (`EXOLVE_API_KEY`, `EXOLVE_WEBHOOK_SECRET`, `EXOLVE_PUBLIC_BASE_URL`).
+- `.env.example` и `.env.prod.example` — обновлены под новые переменные.
+- `apps/telephony/admin.py` — зарегистрированы `ExolveChannel`, `ExolveSIPAccount`, `CallRecord`.
+- `apps/billing/migrations/0008_align_plan_features.py` — синхронизация полей `Plan` с v2-тарифами (telephony-флаги).
+
+**Validation:** `manage.py check` 0 issues; `makemigrations --check` без дрейфа; **131/131** backend tests; `npm run typecheck` EXIT=0; `npm run build` EXIT=0; **5/5** vitest; рендер `/healthz`, `/`, `/app` → 200; публичные webhook-и отвечают корректно. Реальный голосовой звонок требует боевого ключа Exolve и прода — см. KNOWN_ISSUES #23–25.
+
+---
+
 ## [0.6.0] — 2026-06-02
 
 ### Pricing v2 — Custom Plan Configurator (user-visible)

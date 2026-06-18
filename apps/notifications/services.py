@@ -69,7 +69,7 @@ def get_users_by_roles(tenant, roles: list[str]):
 
 def render_title(event: str, context: dict) -> str:
     titles = {
-        'contract_signed': 'Договор подписан',
+        'document_signed': 'Документ подписан',
         'lead_distributed': 'Заявка распределена',
         'crm_connection_lost': 'Потеряно соединение с CRM',
         'crm_connection_restored': 'Соединение с CRM восстановлено',
@@ -90,8 +90,8 @@ def render_body(event: str, context: dict) -> str:
         return str(context['message'])
     if event == 'lead_distributed':
         return f"Сущность {context.get('entity_type', 'lead')} #{context.get('entity_id', '')} назначена."
-    if event == 'contract_signed':
-        return f"Договор #{context.get('contract_id', '')} подписан."
+    if event == 'document_signed':
+        return f"Документ #{context.get('document_id', '')} подписан."
     return 'Событие в CRM Platform'
 
 

@@ -120,7 +120,7 @@ const sendTest = async () => notifications.sendTest()
 
 // --- Preferences matrix ---
 const EVENTS: { event: string; label: string }[] = [
-  { event: 'contract_signed', label: 'Договор подписан' },
+  { event: 'document_signed', label: 'Документ подписан' },
   { event: 'lead_distributed', label: 'Заявка распределена' },
   { event: 'task_overdue', label: 'Просроченная задача' },
   { event: 'new_deal_created', label: 'Создана новая сделка' },

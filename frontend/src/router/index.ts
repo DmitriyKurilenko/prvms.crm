@@ -17,7 +17,7 @@ import DealDetailView from '@/views/DealDetailView.vue'
 import PipelinesView from '@/views/PipelinesView.vue'
 import StatsView from '@/views/StatsView.vue'
 import TasksView from '@/views/TasksView.vue'
-import ContractsView from '@/views/ContractsView.vue'
+import DocumentsView from '@/views/DocumentsView.vue'
 import TelephonyView from '@/views/TelephonyView.vue'
 import ChannelsView from '@/views/ChannelsView.vue'
 import ChatsView from '@/views/ChatsView.vue'
@@ -157,10 +157,10 @@ const routes: RouteRecordRaw[] = [
       },
 
       {
-        path: 'contracts',
-        name: 'contracts',
-        component: ContractsView,
-        meta: { roles: ['owner', 'admin', 'manager'], feature: 'contracts', title: 'Договоры' }
+        path: 'documents',
+        name: 'documents',
+        component: DocumentsView,
+        meta: { roles: ['owner', 'admin', 'manager'], feature: 'documents', title: 'Документы' }
       },
 
       {
@@ -232,8 +232,8 @@ const routes: RouteRecordRaw[] = [
     redirect: { path: '/app/team', query: { tab: 'distribution' } }
   },
   {
-    path: '/contracts',
-    redirect: '/app/contracts'
+    path: '/documents',
+    redirect: '/app/documents'
   },
   {
     path: '/notifications',

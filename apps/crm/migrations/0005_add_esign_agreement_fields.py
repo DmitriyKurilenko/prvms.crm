@@ -13,7 +13,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='contact',
             name='esign_agreement_id',
-            field=models.PositiveIntegerField(blank=True, help_text='ID подписанного договора-соглашения об ЭП', null=True),
+            field=models.PositiveIntegerField(blank=True, help_text='ID подписанного документа-соглашения об ЭП', null=True),
         ),
         migrations.AddField(
             model_name='contact',

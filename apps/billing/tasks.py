@@ -28,7 +28,7 @@ def check_plan_limits():
             normalized_usage = get_plan_usage_for_tenant(tenant)
             usage = {
                 'max_managers': normalized_usage['managers'],
-                'max_contracts_per_month': normalized_usage['contracts'],
+                'max_documents_per_month': normalized_usage['documents'],
                 'max_crm_connections': normalized_usage['crm_connections'],
                 'max_pipelines': normalized_usage['pipelines'],
             }

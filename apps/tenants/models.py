@@ -80,6 +80,22 @@ class Domain(DomainMixin):
     pass
 
 
+class ExolveNumberLookup(models.Model):
+    """Shared lookup: Exolve phone number -> tenant schema resolution.
+
+    Populated when a tenant buys a number. Lets public IPCR/Call-Events
+    webhooks resolve the correct tenant in O(1) without scanning schemas.
+    """
+
+    number = models.CharField(max_length=20, unique=True, db_index=True)
+    number_code = models.CharField(max_length=20, blank=True)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='exolve_numbers')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f'{self.number} -> {self.tenant_id}'
+
+
 class SigningTokenLookup(models.Model):
     """Shared lookup for public signing URL -> tenant schema resolution."""
 

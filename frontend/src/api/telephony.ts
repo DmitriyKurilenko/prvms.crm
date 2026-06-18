@@ -1,58 +1,48 @@
 import { api } from './http'
 
 /* ---------- Types ---------- */
-export interface Trunk {
-  id: number
-  name: string
-  trunk_type: string
+export interface ExolveChannelInfo {
+  exolve_number: string
+  number_code: string
   status: string
   status_detail: string
   is_active: boolean
 }
 
-export interface Extension {
+export interface SipAccount {
   id: number
   manager_id: number
-  extension: string
-  webrtc_enabled: boolean
-  voicemail_enabled: boolean
+  manager_name: string
+  username: string
+  display_number: string
+  status: string
+  status_detail: string
   is_active: boolean
 }
 
-export interface IvrMenuOption {
-  digit: string
-  action: string
-}
-
-export interface IvrMenu {
-  id: number
-  name: string
-  options: IvrMenuOption[]
-  timeout: number
-  is_active: boolean
-}
-
-export interface CallQueue {
-  id: number
-  name: string
-  strategy: string
-  members: number[]
-  ring_timeout: number
-  max_wait_time: number
-  announce_position: boolean
-  is_active: boolean
+export interface WebRTCCredentials {
+  sip_domain: string
+  wss_url: string | null
+  username: string | null
+  password: string | null
+  display_number: string | null
+  manager_id: number | null
+  ready: boolean
 }
 
 export interface CallRecord {
   id: number
-  uuid: string
+  call_sid: string
   direction: string
   caller_number: string
   called_number: string
   result: string
   duration: number
+  talk_time: number
   manager_id: number | null
   manager_name: string | null
+  crm_contact_id: string
+  crm_lead_id: string
   started_at: string
   record_file: string | null
 }
@@ -64,56 +54,44 @@ export interface CallFilters {
   date_to?: string
 }
 
-export interface WebRTCCredentials {
-  wss_url: string
-  esl_host: string
-  extension: string | null
-  sip_password: string | null
-  manager_id: number | null
-  sip_domain?: string | null
+/* ---------- Channel & number provisioning ---------- */
+export const getChannel = () => api<ExolveChannelInfo>('/telephony/channel/')
+export const getNumberReference = () => api<Record<string, unknown>>('/telephony/number-reference/')
+export const getAvailableNumbers = (params: { type_id?: number; region_id?: number; mask?: string; limit?: number } = {}) => {
+  const qs = new URLSearchParams()
+  if (params.type_id) qs.set('type_id', String(params.type_id))
+  if (params.region_id) qs.set('region_id', String(params.region_id))
+  if (params.mask) qs.set('mask', params.mask)
+  if (params.limit) qs.set('limit', String(params.limit))
+  const s = qs.toString()
+  return api<Record<string, unknown>>(`/telephony/available-numbers/${s ? '?' + s : ''}`)
 }
+export const connectNumber = (data: { number_code: string; number: string; type_id?: number; region_id?: number }) =>
+  api<{ status: string; exolve_number: string; detail: string }>('/telephony/connect-number/', { method: 'POST', body: data })
 
-/* ---------- Trunks ---------- */
-export const listTrunks = () => api<Trunk[]>('/telephony/trunks/')
-export const createTrunk = (data: Record<string, unknown>) => api<{ id: number }>('/telephony/trunks/', { method: 'POST', body: data })
-export const patchTrunk = (id: number, data: Record<string, unknown>) => api(`/telephony/trunks/${id}/`, { method: 'PATCH', body: data })
-export const deleteTrunk = (id: number) => api(`/telephony/trunks/${id}/`, { method: 'DELETE' })
-export const testTrunk = (id: number) => api(`/telephony/trunks/${id}/test/`, { method: 'POST' })
+/* ---------- SIP accounts ---------- */
+export const listSipAccounts = () => api<SipAccount[]>('/telephony/sip-accounts/')
+export const provisionSipAccounts = () => api<{ provisioned: number }>('/telephony/sip-accounts/provision/', { method: 'POST' })
 
-/* ---------- Extensions ---------- */
-export const listExtensions = () => api<Extension[]>('/telephony/extensions/')
-export const createExtension = (data: Record<string, unknown>) => api<{ id: number }>('/telephony/extensions/', { method: 'POST', body: data })
-export const patchExtension = (id: number, data: Record<string, unknown>) => api(`/telephony/extensions/${id}/`, { method: 'PATCH', body: data })
-export const deleteExtension = (id: number) => api(`/telephony/extensions/${id}/`, { method: 'DELETE' })
+/* ---------- WebRTC (Web Voice SDK) ---------- */
+export const getWebRTCCredentials = () => api<WebRTCCredentials>('/telephony/webrtc-credentials/')
 
-/* ---------- IVR ---------- */
-export const listIvr = () => api<IvrMenu[]>('/telephony/ivr/')
-export const createIvr = (data: Record<string, unknown>) => api<{ id: number }>('/telephony/ivr/', { method: 'POST', body: data })
-export const patchIvr = (id: number, data: Record<string, unknown>) => api(`/telephony/ivr/${id}/`, { method: 'PATCH', body: data })
-export const deleteIvr = (id: number) => api(`/telephony/ivr/${id}/`, { method: 'DELETE' })
+/* ---------- Click-to-call (журналирование исходящего) ---------- */
+export const clickToCall = (data: { to_number: string; deal_id?: number; contact_id?: number }) =>
+  api<{ call_id: number; to_number: string }>('/telephony/click-to-call/', { method: 'POST', body: data })
 
-/* ---------- Queues ---------- */
-export const listQueues = () => api<CallQueue[]>('/telephony/queues/')
-export const createQueue = (data: Record<string, unknown>) => api<{ id: number }>('/telephony/queues/', { method: 'POST', body: data })
-export const patchQueue = (id: number, data: Record<string, unknown>) => api(`/telephony/queues/${id}/`, { method: 'PATCH', body: data })
-export const deleteQueue = (id: number) => api(`/telephony/queues/${id}/`, { method: 'DELETE' })
+/* ---------- Client diagnostics (softphone → server logs) ---------- */
+export const clientLog = (event: string, detail = '') =>
+  api('/telephony/client-log/', { method: 'POST', body: { event, detail } }).catch(() => {})
 
-/* ---------- Calls ---------- */
+/* ---------- Call journal ---------- */
 export const listCalls = (filters: CallFilters = {}) => {
-  const params = new URLSearchParams()
-  if (filters.result) params.set('result', filters.result)
-  if (filters.direction) params.set('direction', filters.direction)
-  if (filters.date_from) params.set('date_from', filters.date_from)
-  if (filters.date_to) params.set('date_to', filters.date_to)
-  const qs = params.toString()
-  return api<CallRecord[]>(`/telephony/calls/${qs ? '?' + qs : ''}`)
+  const qs = new URLSearchParams()
+  if (filters.result) qs.set('result', filters.result)
+  if (filters.direction) qs.set('direction', filters.direction)
+  if (filters.date_from) qs.set('date_from', filters.date_from)
+  if (filters.date_to) qs.set('date_to', filters.date_to)
+  const s = qs.toString()
+  return api<CallRecord[]>(`/telephony/calls/${s ? '?' + s : ''}`)
 }
-export const getCall = (id: number) => api<CallRecord>(`/telephony/calls/${id}/`)
-export const callStats = () => api<{ total: number; missed: number; avg_duration: number }>('/telephony/stats/')
-
-/* ---------- Originate ---------- */
-export const originate = (data: { from_number: string; to_number: string; trunk_id?: number }) =>
-  api<{ detail: string; call_id: number; uuid: string }>('/telephony/call/originate', { method: 'POST', body: data })
-
-/* ---------- WebRTC ---------- */
-export const getWebRTCCredentials = () => api<WebRTCCredentials>('/telephony/webrtc/credentials')
+export const callStats = () => api<{ total: number; missed: number; answered: number }>('/telephony/stats/')

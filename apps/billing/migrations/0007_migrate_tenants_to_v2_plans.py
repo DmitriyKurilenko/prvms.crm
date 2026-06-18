@@ -39,7 +39,7 @@ def migrate_forward(apps, schema_editor):
             if old_slug == 'crm':
                 custom = tenant.custom_limits or {}
                 custom['max_managers'] = old_plan.max_managers
-                custom['max_contracts_per_month'] = old_plan.max_contracts_per_month
+                custom['max_documents_per_month'] = old_plan.max_documents_per_month
                 custom['max_crm_connections'] = old_plan.max_crm_connections
                 custom['max_pipelines'] = old_plan.max_pipelines
                 tenant.custom_limits = custom
@@ -78,7 +78,7 @@ def migrate_backward(apps, schema_editor):
                 del custom['legacy_pricing']
             # Remove crm-specific custom limits if they match old plan fields
             if old_slug == 'crm':
-                for key in ['max_managers', 'max_contracts_per_month', 'max_crm_connections', 'max_pipelines']:
+                for key in ['max_managers', 'max_documents_per_month', 'max_crm_connections', 'max_pipelines']:
                     custom.pop(key, None)
             tenant.custom_limits = custom
             tenant.save(update_fields=['plan', 'custom_limits'])

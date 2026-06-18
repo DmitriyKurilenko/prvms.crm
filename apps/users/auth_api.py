@@ -130,7 +130,7 @@ def register(request, payload: RegisterIn):
                 'max_messengers': len(cfg.get('messengers', [])),
                 'max_inbound_channels': len(cfg.get('inbound_channels', [])),
                 'max_signatures_per_month': int(cfg.get('signatures', 0)),
-                'max_contracts_per_month': int(cfg.get('documents', 0)),
+                'max_documents_per_month': int(cfg.get('documents', 0)),
                 'telephony_included': bool(cfg.get('telephony', {}).get('requested')),
                 'monthly_total': int(quote.monthly_total),
                 'quote_id': str(quote.id),

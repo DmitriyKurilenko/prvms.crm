@@ -16,12 +16,13 @@ class OnboardingInviteTest(TenantAPITestCase):
         self.owner.set_password('ownerpass123')
         self.owner.save(update_fields=['password'])
 
-    def test_step_3_creates_pending_invite_membership_for_manager_email(self):
+    def test_managers_step_creates_pending_invite_membership_for_manager_email(self):
+        # Шаг менеджеров после удаления выбора CRM-режима — теперь шаг 2.
         headers = self.auth_headers(self.owner, host='localhost')
         email = 'manager_from_onboarding@example.com'
 
         response = self.client.post(
-            '/api/onboarding/step/3/',
+            '/api/onboarding/step/2/',
             data=json.dumps({'managers': [{'name': 'Manager One', 'email': email}]}),
             content_type='application/json',
             **headers,

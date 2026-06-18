@@ -31,8 +31,8 @@ api.add_router('/notifications/', notifications_router)
 from apps.integrations.api import integrations_router
 api.add_router('/integrations/', integrations_router)
 
-from apps.contracts.api import contracts_router
-api.add_router('/contracts/', contracts_router)
+from apps.documents.api import documents_router
+api.add_router('/documents/', documents_router)
 
 from apps.distribution.api import distribution_router
 api.add_router('/distribution/', distribution_router)

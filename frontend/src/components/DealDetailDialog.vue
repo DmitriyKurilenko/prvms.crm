@@ -62,13 +62,13 @@
         <PButton v-if="canDelete" label="Удалить" icon="pi pi-trash" size="small" severity="danger" outlined @click="$emit('remove')" />
       </div>
 
-      <!-- Contracts -->
-      <div v-if="deal.contracts?.length" style="margin-top: 8px">
+      <!-- Documents -->
+      <div v-if="deal.documents?.length" style="margin-top: 8px">
         <PDivider />
-        <h4>Договоры</h4>
-        <div v-for="c in deal.contracts" :key="c.id" class="contract-row">
-          <span>📄 {{ c.template_name || 'Договор' }} #{{ c.id }}</span>
-          <span :class="'status-badge status-' + c.status">{{ contractStatusLabel(c.status) }}</span>
+        <h4>Документы</h4>
+        <div v-for="c in deal.documents" :key="c.id" class="document-row">
+          <span>📄 {{ c.template_name || 'Документ' }} #{{ c.id }}</span>
+          <span :class="'status-badge status-' + c.status">{{ documentStatusLabel(c.status) }}</span>
           <span class="tl-date">{{ formatDate(c.created_at) }}</span>
           <PButton icon="pi pi-download" text size="small" @click="$emit('downloadPdf', c.id)" />
         </div>
@@ -170,9 +170,9 @@ defineEmits<{
   downloadPdf: [number]
 }>()
 
-const activityIcon = (type: string) => ({ call: '📞', message: '💬', task: '✅', note: '📝', email: '📧', contract: '📄', stage_change: '🔄', system: '⚙️' }[type] || '📌')
-const activityTypeLabel = (type: string) => ({ call: 'Звонок', message: 'Сообщение', task: 'Задача', note: 'Заметка', email: 'Email', contract: 'Договор', stage_change: 'Смена стадии', system: 'Система' }[type] || type)
-const contractStatusLabel = (s: string) => ({ draft: 'Черновик', sent: 'Отправлен', viewed: 'Просмотрен', signed: 'Подписан', expired: 'Истёк' }[s] || s)
+const activityIcon = (type: string) => ({ call: '📞', message: '💬', task: '✅', note: '📝', email: '📧', document: '📄', stage_change: '🔄', system: '⚙️' }[type] || '📌')
+const activityTypeLabel = (type: string) => ({ call: 'Звонок', message: 'Сообщение', task: 'Задача', note: 'Заметка', email: 'Email', document: 'Документ', stage_change: 'Смена стадии', system: 'Система' }[type] || type)
+const documentStatusLabel = (s: string) => ({ draft: 'Черновик', sent: 'Отправлен', viewed: 'Просмотрен', signed: 'Подписан', expired: 'Истёк' }[s] || s)
 </script>
 
 <style scoped>
@@ -181,7 +181,7 @@ const contractStatusLabel = (s: string) => ({ draft: 'Черновик', sent: '
 .w-full { width: 100%; }
 .select-with-add { display: flex; gap: 6px; align-items: flex-end; }
 .flex-1 { flex: 1; }
-.contract-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.document-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
 .status-badge { padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
 .status-draft { background: var(--surface-alt); }
 .status-sent { background: #dbeafe; color: #1d4ed8; }

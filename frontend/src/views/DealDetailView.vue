@@ -8,6 +8,7 @@
           <PTag :value="stageLabel" severity="info" />
         </div>
         <div style="display: flex; gap: 8px; align-items: center">
+          <PButton v-if="canCall && dealContactPhone" label="Позвонить" icon="pi pi-phone" size="small" severity="success" outlined @click="callContact" />
           <PButton v-if="canUpdateDeal" label="Сохранить" icon="pi pi-check" size="small" @click="saveDealEdit" />
           <PButton v-if="canDeleteDeal" label="Удалить" icon="pi pi-trash" size="small" severity="danger" outlined @click="removeDeal" />
         </div>
@@ -76,13 +77,13 @@
                 </div>
               </div>
 
-              <!-- Contracts -->
-              <div v-if="deal.contracts?.length" style="margin-top: 8px">
+              <!-- Documents -->
+              <div v-if="deal.documents?.length" style="margin-top: 8px">
                 <PDivider />
-                <h4>Договоры</h4>
-                <div v-for="c in deal.contracts" :key="c.id" class="contract-row">
-                  <span>📄 {{ c.template_name || 'Договор' }} #{{ c.id }}</span>
-                  <span :class="'status-badge status-' + c.status">{{ contractStatusLabel(c.status) }}</span>
+                <h4>Документы</h4>
+                <div v-for="c in deal.documents" :key="c.id" class="document-row">
+                  <span>📄 {{ c.template_name || 'Документ' }} #{{ c.id }}</span>
+                  <span :class="'status-badge status-' + c.status">{{ documentStatusLabel(c.status) }}</span>
                   <span class="tl-date">{{ formatDate(c.created_at) }}</span>
                   <PButton icon="pi pi-download" text size="small" @click="downloadPdf(c.id)" />
                 </div>
@@ -169,13 +170,18 @@ import type { CrmActivity, CrmDeal } from '@/api/crm'
 import { api, getAccessToken, getTenantSlug } from '@/api/http'
 import { refresh as refreshToken } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
+import { useTenantStore } from '@/stores/tenant'
+import { usePhoneStore } from '@/stores/phone'
 import { normalizeCrmPermissions } from '@/utils/crmPermissions'
 import { formatDate, formatDateTime, formatTime } from '@/utils/datetime'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+const tenantStore = useTenantStore()
+const phone = usePhoneStore()
 const { call } = useApiCall()
+const canCall = computed(() => tenantStore.hasFeature('telephony'))
 
 const perms = computed(() => normalizeCrmPermissions(auth.user?.crm_permissions))
 const canCreateDeal = computed(() => perms.value.deals.can_create)
@@ -206,6 +212,10 @@ const contacts = ref<crmApi.CrmContact[]>([])
 const companies = ref<crmApi.CrmCompany[]>([])
 const managers = ref<{ id: number; name: string }[]>([])
 
+const dealContactPhone = computed(() => contacts.value.find(c => c.id === deal.value?.contact_id)?.phone || '')
+const callContact = () => {
+  if (dealContactPhone.value) phone.call(dealContactPhone.value, { dealId: deal.value?.id, contactId: deal.value?.contact_id ?? undefined })
+}
 const contactOptions = computed(() => contacts.value.map(c => ({ label: `${c.first_name} ${c.last_name}`.trim(), value: c.id })))
 const companyOptions = computed(() => companies.value.map(c => ({ label: c.name, value: c.id })))
 const managerOptions = computed(() => managers.value.map(m => ({ label: m.name, value: m.id })))
@@ -292,9 +302,9 @@ const addNote = async () => {
   await loadDeal()
 }
 
-const downloadPdf = (contractId: number) => {
+const downloadPdf = (documentId: number) => {
   const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:18100/api'
-  window.open(`${apiUrl}/contracts/${contractId}/pdf/?token=${getAccessToken()}&tenant_slug=${getTenantSlug()}`, '_blank')
+  window.open(`${apiUrl}/documents/${documentId}/pdf/?token=${getAccessToken()}&tenant_slug=${getTenantSlug()}`, '_blank')
 }
 
 const goBack = () => router.push('/app/deals')
@@ -466,9 +476,9 @@ watch(activeChatSession, (session) => {
 })
 
 /* --- Helpers --- */
-const activityIcon = (type: string) => ({ call: '📞', message: '💬', task: '✅', note: '📝', email: '📧', contract: '📄', stage_change: '🔄', system: '⚙️' }[type] || '📌')
-const activityTypeLabel = (type: string) => ({ call: 'Звонок', message: 'Сообщение', task: 'Задача', note: 'Заметка', email: 'Email', contract: 'Договор', stage_change: 'Смена стадии', system: 'Система' }[type] || type)
-const contractStatusLabel = (s: string) => ({ draft: 'Черновик', sent: 'Отправлен', viewed: 'Просмотрен', signed: 'Подписан', expired: 'Истёк' }[s] || s)
+const activityIcon = (type: string) => ({ call: '📞', message: '💬', task: '✅', note: '📝', email: '📧', document: '📄', stage_change: '🔄', system: '⚙️' }[type] || '📌')
+const activityTypeLabel = (type: string) => ({ call: 'Звонок', message: 'Сообщение', task: 'Задача', note: 'Заметка', email: 'Email', document: 'Документ', stage_change: 'Смена стадии', system: 'Система' }[type] || type)
+const documentStatusLabel = (s: string) => ({ draft: 'Черновик', sent: 'Отправлен', viewed: 'Просмотрен', signed: 'Подписан', expired: 'Истёк' }[s] || s)
 </script>
 
 <style scoped>
@@ -545,15 +555,6 @@ const contractStatusLabel = (s: string) => ({ draft: 'Черновик', sent: '
 .w-full { width: 100%; }
 .select-with-add { display: flex; gap: 6px; align-items: flex-end; }
 .flex-1 { flex: 1; }
-
-.contract-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 0;
-  border-bottom: 1px solid var(--line);
-  font-size: 13px;
-}
 
 .status-badge { padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
 .status-draft { background: var(--surface-alt); }

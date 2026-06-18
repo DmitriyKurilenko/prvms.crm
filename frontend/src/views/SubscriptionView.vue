@@ -42,7 +42,7 @@
           <div class="plan-price">{{ p.price_monthly > 0 ? `${p.price_monthly} ₽/мес` : 'Бесплатно' }}</div>
           <ul class="plan-limits">
             <li>Менеджеров: {{ p.max_managers ?? '∞' }}</li>
-            <li>Договоров/мес: {{ p.max_contracts_per_month ?? '∞' }}</li>
+            <li>Документов/мес: {{ p.max_documents_per_month ?? '∞' }}</li>
             <li>CRM-подключений: {{ p.max_crm_connections ?? '∞' }}</li>
             <li>Воронок: {{ p.max_pipelines ?? '∞' }}</li>
           </ul>
@@ -179,9 +179,9 @@ const usageRows = computed(() => {
       percent: pct(plan.value.usage.managers, plan.value.max_managers)
     },
     {
-      label: 'Договоры в месяц',
-      value: `${plan.value.usage.contracts}/${plan.value.max_contracts_per_month ?? '∞'}`,
-      percent: pct(plan.value.usage.contracts, plan.value.max_contracts_per_month)
+      label: 'Документы в месяц',
+      value: `${plan.value.usage.documents}/${plan.value.max_documents_per_month ?? '∞'}`,
+      percent: pct(plan.value.usage.documents, plan.value.max_documents_per_month)
     },
     {
       label: 'CRM-подключения',

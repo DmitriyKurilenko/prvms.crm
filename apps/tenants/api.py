@@ -52,7 +52,7 @@ class PlanUsageOut(Schema):
     plan_slug: str
     features: list[str]
     max_managers: int | None
-    max_contracts_per_month: int | None
+    max_documents_per_month: int | None
     max_crm_connections: int | None
     max_pipelines: int | None
     usage: dict
@@ -188,7 +188,7 @@ def get_plan(request):
         plan_slug=plan.slug,
         features=features,
         max_managers=plan.max_managers,
-        max_contracts_per_month=plan.max_contracts_per_month,
+        max_documents_per_month=plan.max_documents_per_month,
         max_crm_connections=plan.max_crm_connections,
         max_pipelines=plan.max_pipelines,
         usage=usage,

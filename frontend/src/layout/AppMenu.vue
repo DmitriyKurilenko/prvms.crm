@@ -71,7 +71,7 @@ const groups = computed(() => [
   ]),
   withLock([
     { to: '/app/chats',       label: 'Чаты',         icon: 'pi pi-send',     feature: 'messenger_channels' },
-    { to: '/app/contracts',   label: 'Договоры',     icon: 'pi pi-file',     feature: 'contracts' },
+    { to: '/app/documents',   label: 'Документы',    icon: 'pi pi-file',     feature: 'documents' },
     { to: '/app/telephony',   label: 'Телефония',    icon: 'pi pi-phone',    feature: 'telephony' },
   ]),
   withLock([

@@ -120,13 +120,13 @@
             <label class="field-label">Событие</label>
             <PInputText v-model="triggerForm.event" placeholder="deal_stage_changed" class="w-full" />
           </div>
-          <div v-if="triggerForm.type === 'create_contract'">
-            <label class="field-label">Шаблон договора *</label>
+          <div v-if="triggerForm.type === 'create_document'">
+            <label class="field-label">Шаблон документа *</label>
             <PSelect v-model="triggerForm.template_id" :options="triggerTemplateOptions" optionLabel="label" optionValue="value" placeholder="Выберите шаблон" class="w-full" />
           </div>
           <PButton
             label="Сохранить"
-            :disabled="!triggerForm.type || (!triggerStage && !triggerStageId) || (triggerForm.type === 'create_contract' && !triggerForm.template_id)"
+            :disabled="!triggerForm.type || (!triggerStage && !triggerStageId) || (triggerForm.type === 'create_document' && !triggerForm.template_id)"
             @click="saveTrigger"
           />
         </div>
@@ -180,17 +180,17 @@ const triggerForm = reactive({
 const triggerTypeOptions = [
   { label: 'Создать задачу', value: 'create_task' },
   { label: 'Отправить уведомление', value: 'send_notification' },
-  { label: 'Создать договор', value: 'create_contract' },
+  { label: 'Создать документ', value: 'create_document' },
 ]
-const contractTemplates = ref<Array<{ id: number; name: string }>>([])
-const triggerTemplateOptions = computed(() => contractTemplates.value.map(t => ({ label: t.name, value: t.id })))
+const documentTemplates = ref<Array<{ id: number; name: string }>>([])
+const triggerTemplateOptions = computed(() => documentTemplates.value.map(t => ({ label: t.name, value: t.id })))
 const triggerStageOptions = computed(() => triggerStagesList.value.map(s => ({ label: s.name, value: s.id })))
 const allPipelineStages = ref<Map<number, CrmStage[]>>(new Map())
 
-async function loadContractTemplates() {
-  if (contractTemplates.value.length) return
+async function loadDocumentTemplates() {
+  if (documentTemplates.value.length) return
   try {
-    contractTemplates.value = await api<Array<{ id: number; name: string }>>('/contracts/templates/')
+    documentTemplates.value = await api<Array<{ id: number; name: string }>>('/documents/templates/')
   } catch {
     // Templates are optional — silent failure preserves UI.
   }
@@ -214,7 +214,7 @@ async function loadAllTriggers() {
     allPipelineStages.value = new Map()
     return
   }
-  await loadContractTemplates()
+  await loadDocumentTemplates()
   const map = new Map<number, CrmStage[]>()
   for (const p of pipelines.value) {
     try {
@@ -241,8 +241,8 @@ const allTriggers = computed(() => {
         const opt = triggerTypeOptions.find(o => o.value === a.type)
         let label = opt?.label || String(a.type)
         const templateId = (a.template_id as number) || null
-        if (a.type === 'create_contract' && templateId) {
-          const tpl = contractTemplates.value.find(t => t.id === templateId)
+        if (a.type === 'create_document' && templateId) {
+          const tpl = documentTemplates.value.find(t => t.id === templateId)
           if (tpl) label += ` (${tpl.name})`
         }
         result.push({
@@ -272,7 +272,7 @@ function triggerLabel(s: CrmStage): string {
   const action = s.auto_action || {}
   const t = (action as Record<string, unknown>).type as string | undefined
   if (!t) return ''
-  const map: Record<string, string> = { create_task: '📋 Задача', send_notification: '🔔 Уведомление', create_contract: '📄 Договор' }
+  const map: Record<string, string> = { create_task: '📋 Задача', send_notification: '🔔 Уведомление', create_document: '📄 Документ' }
   return map[t] || t
 }
 
@@ -384,7 +384,7 @@ function openNewTrigger() {
   triggerStageId.value = null
   triggerStagesList.value = []
   Object.assign(triggerForm, { type: '', title: 'Новая задача', days_offset: 1, event: 'deal_stage_changed', template_id: null })
-  loadContractTemplates()
+  loadDocumentTemplates()
   showTriggerConfig.value = true
 }
 
@@ -399,7 +399,7 @@ function editTrigger(row: { stage: CrmStage }) {
   triggerForm.days_offset = (action.days_offset as number) ?? 1
   triggerForm.event = (action.event as string) || 'deal_stage_changed'
   triggerForm.template_id = (action.template_id as number) ?? null
-  loadContractTemplates()
+  loadDocumentTemplates()
   showTriggerConfig.value = true
 }
 
@@ -422,7 +422,7 @@ async function saveTrigger() {
     auto_action.days_offset = triggerForm.days_offset
   } else if (triggerForm.type === 'send_notification') {
     auto_action.event = triggerForm.event
-  } else if (triggerForm.type === 'create_contract') {
+  } else if (triggerForm.type === 'create_document') {
     if (!triggerForm.template_id) return
     auto_action.template_id = triggerForm.template_id
   }

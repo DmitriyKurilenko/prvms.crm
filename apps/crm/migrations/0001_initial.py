@@ -15,7 +15,7 @@ class Migration(migrations.Migration):
             name='Activity',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('activity_type', models.CharField(choices=[('call', 'Звонок'), ('message', 'Сообщение'), ('task', 'Задача'), ('note', 'Заметка'), ('email', 'Email'), ('contract', 'Договор'), ('stage_change', 'Смена стадии'), ('system', 'Системное')], max_length=20)),
+                ('activity_type', models.CharField(choices=[('call', 'Звонок'), ('message', 'Сообщение'), ('task', 'Задача'), ('note', 'Заметка'), ('email', 'Email'),                 ('document', 'Документ'), ('stage_change', 'Смена стадии'), ('system', 'Системное')], max_length=20)),
                 ('title', models.CharField(max_length=300)),
                 ('body', models.TextField(blank=True)),
                 ('status', models.CharField(choices=[('planned', 'Запланировано'), ('done', 'Выполнено'), ('overdue', 'Просрочено')], default='done', max_length=10)),

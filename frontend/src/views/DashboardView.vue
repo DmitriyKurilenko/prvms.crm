@@ -6,8 +6,8 @@
         <RouterLink v-if="hasCrmBuiltin" to="/app/deals">
           <PButton label="Новая сделка" icon="pi pi-plus" size="small" />
         </RouterLink>
-        <RouterLink v-if="hasContracts" to="/app/contracts">
-          <PButton label="Договор" icon="pi pi-file" size="small" outlined />
+        <RouterLink v-if="hasDocuments" to="/app/documents">
+          <PButton label="Документ" icon="pi pi-file" size="small" outlined />
         </RouterLink>
       </div>
     </div>
@@ -53,8 +53,8 @@
         </div>
         <div class="usage-list">
           <div class="usage-row">
-            <span class="usage-label">Договоры в этом месяце</span>
-            <span class="usage-val">{{ tenantStore.plan?.usage?.contracts ?? 0 }}</span>
+            <span class="usage-label">Документы в этом месяце</span>
+            <span class="usage-val">{{ tenantStore.plan?.usage?.documents ?? 0 }}</span>
           </div>
           <div class="usage-row">
             <span class="usage-label">Менеджеры</span>
@@ -89,7 +89,7 @@ const planReady = computed(() => tenantStore.planLoaded)
 const hasAnalytics = computed(() => planReady.value && tenantStore.hasFeature('analytics'))
 const hasCrmBuiltin = computed(() => planReady.value && tenantStore.hasFeature('crm_builtin'))
 const hasDistribution = computed(() => planReady.value && tenantStore.hasFeature('distribution'))
-const hasContracts = computed(() => planReady.value && tenantStore.hasFeature('contracts'))
+const hasDocuments = computed(() => planReady.value && tenantStore.hasFeature('documents'))
 const hasTelephony = computed(() => planReady.value && tenantStore.hasFeature('telephony'))
 const hasChannels = computed(() => planReady.value && tenantStore.hasFeature('messenger_channels'))
 const hasExternalCrm = computed(() => planReady.value && (tenantStore.hasFeature('crm_amocrm') || tenantStore.hasFeature('crm_bitrix24')))
@@ -117,8 +117,8 @@ const kpis = computed(() => [
     lockReason: 'Требуется CRM + analytics'
   },
   {
-    label: 'Договоры (месяц)',
-    value: tenantStore.plan?.usage?.contracts ?? 0,
+    label: 'Документы (месяц)',
+    value: tenantStore.plan?.usage?.documents ?? 0,
     secondary: '',
     icon: 'pi pi-file',
     iconBg: '#fdf4ff',
@@ -142,7 +142,7 @@ const navLinks = computed(() => [
   { to: '/app/contacts', label: 'Контакты', icon: 'pi pi-users', iconBg: '#eff6ff', iconColor: '#3b82f6', allowed: hasCrmBuiltin.value },
   { to: '/app/deals', label: 'Сделки', icon: 'pi pi-chart-bar', iconBg: '#f0fdf4', iconColor: '#22c55e', allowed: hasCrmBuiltin.value },
   { to: '/app/tasks', label: 'Задачи', icon: 'pi pi-check-square', iconBg: '#fdf4ff', iconColor: '#a855f7', allowed: hasCrmBuiltin.value },
-  { to: '/app/contracts', label: 'Договоры', icon: 'pi pi-file', iconBg: '#fff7ed', iconColor: '#f97316', allowed: hasContracts.value },
+  { to: '/app/documents', label: 'Документы', icon: 'pi pi-file', iconBg: '#fff7ed', iconColor: '#f97316', allowed: hasDocuments.value },
   { to: '/app/telephony', label: 'Телефония', icon: 'pi pi-phone', iconBg: '#ecfdf5', iconColor: '#10b981', allowed: hasTelephony.value },
   { to: '/app/channels', label: 'Мессенджеры', icon: 'pi pi-send', iconBg: '#eef2ff', iconColor: '#4f46e5', allowed: hasChannels.value },
   { to: '/app/integrations', label: 'Интеграции', icon: 'pi pi-plug', iconBg: '#fef2f2', iconColor: '#ef4444', allowed: hasExternalCrm.value },

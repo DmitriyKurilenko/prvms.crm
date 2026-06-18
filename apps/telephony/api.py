@@ -11,287 +11,196 @@ from ninja_jwt.authentication import JWTAuth
 
 from apps.core.access import require_feature_access, require_roles
 from apps.core.tenant import get_request_tenant
-from .models import CallQueue, CallRecord, IVRMenu, PhoneExtension, SIPTrunk
-from .tasks import sync_freeswitch_config, esl_originate, _check_gateway_status
+from apps.integrations.models import ManagerProfile
+from .exolve_client import ExolveError
+from .exolve_service import (
+    connect_number,
+    ensure_sip_accounts,
+    get_channel,
+    list_available_numbers,
+    number_reference,
+)
+from .models import CallRecord, ExolveSIPAccount
 
 telephony_router = Router(tags=['telephony'], auth=JWTAuth())
 
 
-class TrunkIn(Schema):
-    name: str
-    trunk_type: str
-    crm_connection_id: int | None = None
-    credentials: dict = {}
-    inbound_numbers: list[str] = []
-    is_active: bool = True
+# ---------------------------------------------------------------------------
+# Schemas
+# ---------------------------------------------------------------------------
+
+class ConnectNumberIn(Schema):
+    number_code: str
+    number: str
+    type_id: int | None = None
+    region_id: int | None = None
 
 
-class TrunkPatchIn(Schema):
-    name: str | None = None
-    trunk_type: str | None = None
-    crm_connection_id: int | None = None
-    credentials: dict | None = None
-    inbound_numbers: list[str] | None = None
-    is_active: bool | None = None
+class ClickToCallIn(Schema):
+    to_number: str
+    deal_id: int | None = None
+    contact_id: int | None = None
 
 
-class ExtensionIn(Schema):
-    manager_id: int
-    extension: str
-    sip_password: str
-    webrtc_enabled: bool = True
-    voicemail_enabled: bool = False
-    is_active: bool = True
+class ClientLogIn(Schema):
+    event: str
+    detail: str = ''
 
 
-class ExtensionPatchIn(Schema):
-    manager_id: int | None = None
-    extension: str | None = None
-    sip_password: str | None = None
-    webrtc_enabled: bool | None = None
-    voicemail_enabled: bool | None = None
-    is_active: bool | None = None
+# ---------------------------------------------------------------------------
+# Канал и номер
+# ---------------------------------------------------------------------------
+
+@telephony_router.get('/channel/')
+def channel_info(request):
+    require_roles(request, ['owner', 'admin', 'manager'])
+    require_feature_access(request, 'telephony')
+    channel = get_channel()
+    return {
+        'exolve_number': channel.exolve_number,
+        'number_code': channel.number_code,
+        'status': channel.status,
+        'status_detail': channel.status_detail,
+        'is_active': channel.is_active,
+    }
 
 
-class IvrIn(Schema):
-    name: str
-    greeting_tts: str = ''
-    options: list[dict] = []
-    timeout: int = 10
-    is_active: bool = True
-
-
-class IvrPatchIn(Schema):
-    name: str | None = None
-    greeting_tts: str | None = None
-    options: list[dict] | None = None
-    timeout: int | None = None
-    is_active: bool | None = None
-
-
-class QueueIn(Schema):
-    name: str
-    strategy: str = 'ring_all'
-    members: list[int] = []
-    ring_timeout: int = 20
-    max_wait_time: int = 120
-    announce_position: bool = True
-    is_active: bool = True
-
-
-class QueuePatchIn(Schema):
-    name: str | None = None
-    strategy: str | None = None
-    members: list[int] | None = None
-    ring_timeout: int | None = None
-    max_wait_time: int | None = None
-    announce_position: bool | None = None
-    is_active: bool | None = None
-
-
-@telephony_router.get('/trunks/')
-def list_trunks(request):
+@telephony_router.get('/number-reference/')
+def number_reference_view(request):
     require_roles(request, ['owner', 'admin'])
     require_feature_access(request, 'telephony')
-    return [
-        {'id': t.id, 'name': t.name, 'trunk_type': t.trunk_type, 'status': t.status, 'status_detail': t.status_detail, 'is_active': t.is_active}
-        for t in SIPTrunk.objects.all().order_by('-id')
-    ]
-
-
-def _normalize_trunk_credentials(trunk_type: str, creds: dict) -> dict:
-    if trunk_type == 'exolve' and not creds.get('proxy'):
-        creds['proxy'] = 'sip.exolve.ru'
-    return creds
-
-
-@telephony_router.post('/trunks/')
-def create_trunk(request, payload: TrunkIn):
-    require_roles(request, ['owner', 'admin'])
-    require_feature_access(request, 'telephony')
-    tenant = get_request_tenant(request)
-    data = payload.dict()
-    data['credentials'] = _normalize_trunk_credentials(data['trunk_type'], data.get('credentials', {}))
-    t = SIPTrunk.objects.create(**data)
-    sync_freeswitch_config.delay(tenant.id, t.id)
-    return {'id': t.id}
-
-
-@telephony_router.patch('/trunks/{trunk_id}/')
-def patch_trunk(request, trunk_id: int, payload: TrunkPatchIn):
-    require_roles(request, ['owner', 'admin'])
-    require_feature_access(request, 'telephony')
-    tenant = get_request_tenant(request)
-    data = payload.dict(exclude_unset=True)
-    if 'credentials' in data or 'trunk_type' in data:
-        trunk = SIPTrunk.objects.filter(id=trunk_id).first()
-        if trunk:
-            trunk_type = data.get('trunk_type', trunk.trunk_type)
-            creds = data.get('credentials', trunk.credentials or {})
-            data['credentials'] = _normalize_trunk_credentials(trunk_type, creds)
-    SIPTrunk.objects.filter(id=trunk_id).update(**data)
-    sync_freeswitch_config.delay(tenant.id, trunk_id)
-    return {'detail': 'ok'}
-
-
-@telephony_router.delete('/trunks/{trunk_id}/')
-def delete_trunk(request, trunk_id: int):
-    require_roles(request, ['owner', 'admin'])
-    require_feature_access(request, 'telephony')
-    SIPTrunk.objects.filter(id=trunk_id).delete()
-    return {'detail': 'deleted'}
-
-
-@telephony_router.post('/trunks/{trunk_id}/test/')
-def test_trunk(request, trunk_id: int):
-    require_roles(request, ['owner', 'admin'])
-    require_feature_access(request, 'telephony')
-    trunk = SIPTrunk.objects.filter(id=trunk_id).first()
-    if not trunk:
-        raise HttpError(404, 'Trunk not found')
     try:
-        is_reg, detail = _check_gateway_status(trunk.name)
-        SIPTrunk.objects.filter(id=trunk_id).update(
-            status='active' if is_reg else 'error',
-            status_detail=detail,
-            last_registration_at=timezone.now() if is_reg else None,
+        return number_reference()
+    except ExolveError as exc:
+        raise HttpError(502, f'Exolve: {exc}')
+
+
+@telephony_router.get('/available-numbers/')
+def available_numbers(request, type_id: int = 1104, region_id: int | None = None, mask: str = '', limit: int = 20):
+    require_roles(request, ['owner', 'admin'])
+    require_feature_access(request, 'telephony')
+    try:
+        return list_available_numbers(type_id=type_id, region_id=region_id, mask=mask, limit=limit)
+    except ExolveError as exc:
+        raise HttpError(502, f'Exolve: {exc}')
+
+
+@telephony_router.post('/connect-number/')
+def connect_number_view(request, payload: ConnectNumberIn):
+    require_roles(request, ['owner', 'admin'])
+    require_feature_access(request, 'telephony')
+    tenant = get_request_tenant(request)
+    try:
+        channel = connect_number(
+            tenant,
+            number_code=payload.number_code,
+            number_e164=payload.number,
+            type_id=payload.type_id,
+            region_id=payload.region_id,
         )
-        return {'detail': detail, 'status': 'active' if is_reg else 'error'}
-    except Exception:
-        SIPTrunk.objects.filter(id=trunk_id).update(status='error', status_detail='ESL недоступен')
-        raise HttpError(502, 'Cannot reach FreeSWITCH ESL')
+    except ExolveError as exc:
+        raise HttpError(502, f'Exolve: {exc}')
+    return {'status': channel.status, 'exolve_number': channel.exolve_number, 'detail': channel.status_detail}
 
 
-@telephony_router.get('/extensions/')
-def list_extensions(request):
+# ---------------------------------------------------------------------------
+# SIP-аккаунты менеджеров
+# ---------------------------------------------------------------------------
+
+@telephony_router.get('/sip-accounts/')
+def sip_accounts(request):
     require_roles(request, ['owner', 'admin'])
     require_feature_access(request, 'telephony')
     return [
         {
-            'id': e.id,
-            'manager_id': e.manager_id,
-            'extension': e.extension,
-            'webrtc_enabled': e.webrtc_enabled,
-            'voicemail_enabled': e.voicemail_enabled,
-            'is_active': e.is_active,
+            'id': a.id,
+            'manager_id': a.manager_id,
+            'manager_name': a.manager.crm_user_name,
+            'username': a.username,
+            'display_number': a.display_number,
+            'status': a.status,
+            'status_detail': a.status_detail,
+            'is_active': a.is_active,
         }
-        for e in PhoneExtension.objects.all().order_by('extension')
+        for a in ExolveSIPAccount.objects.select_related('manager').order_by('manager__crm_user_name')
     ]
 
 
-@telephony_router.post('/extensions/')
-def create_extension(request, payload: ExtensionIn):
+@telephony_router.post('/sip-accounts/provision/')
+def provision_sip(request):
     require_roles(request, ['owner', 'admin'])
     require_feature_access(request, 'telephony')
-    e = PhoneExtension.objects.create(**payload.dict())
-    return {'id': e.id}
+    tenant = get_request_tenant(request)
+    try:
+        count = ensure_sip_accounts(tenant)
+    except ExolveError as exc:
+        raise HttpError(502, f'Exolve: {exc}')
+    return {'provisioned': count}
 
 
-@telephony_router.patch('/extensions/{extension_id}/')
-def patch_extension(request, extension_id: int, payload: ExtensionPatchIn):
-    require_roles(request, ['owner', 'admin'])
+# ---------------------------------------------------------------------------
+# WebRTC-креды текущего менеджера (для Web Voice SDK)
+# ---------------------------------------------------------------------------
+
+@telephony_router.get('/webrtc-credentials/')
+def webrtc_credentials(request):
+    require_roles(request, ['owner', 'admin', 'manager'])
     require_feature_access(request, 'telephony')
-    PhoneExtension.objects.filter(id=extension_id).update(**payload.dict(exclude_unset=True))
-    return {'detail': 'ok'}
-
-
-@telephony_router.delete('/extensions/{extension_id}/')
-def delete_extension(request, extension_id: int):
-    require_roles(request, ['owner', 'admin'])
-    require_feature_access(request, 'telephony')
-    PhoneExtension.objects.filter(id=extension_id).delete()
-    return {'detail': 'deleted'}
-
-
-@telephony_router.get('/ivr/')
-def list_ivr(request):
-    require_roles(request, ['owner', 'admin'])
-    require_feature_access(request, 'telephony')
-    return [{'id': ivr.id, 'name': ivr.name, 'options': ivr.options, 'timeout': ivr.timeout, 'is_active': ivr.is_active} for ivr in IVRMenu.objects.all().order_by('-id')]
-
-
-@telephony_router.post('/ivr/')
-def create_ivr(request, payload: IvrIn):
-    require_roles(request, ['owner', 'admin'])
-    require_feature_access(request, 'telephony')
-    ivr = IVRMenu.objects.create(**payload.dict())
-    return {'id': ivr.id}
-
-
-@telephony_router.patch('/ivr/{ivr_id}/')
-def patch_ivr(request, ivr_id: int, payload: IvrPatchIn):
-    require_roles(request, ['owner', 'admin'])
-    require_feature_access(request, 'telephony')
-    IVRMenu.objects.filter(id=ivr_id).update(**payload.dict(exclude_unset=True))
-    return {'detail': 'ok'}
-
-
-@telephony_router.delete('/ivr/{ivr_id}/')
-def delete_ivr(request, ivr_id: int):
-    require_roles(request, ['owner', 'admin'])
-    require_feature_access(request, 'telephony')
-    IVRMenu.objects.filter(id=ivr_id).delete()
-    return {'detail': 'deleted'}
-
-
-@telephony_router.get('/queues/')
-def list_queues(request):
-    require_roles(request, ['owner', 'admin'])
-    require_feature_access(request, 'telephony')
-    return [
-        {
-            'id': q.id,
-            'name': q.name,
-            'strategy': q.strategy,
-            'members': list(q.members.values_list('id', flat=True)),
-            'ring_timeout': q.ring_timeout,
-            'max_wait_time': q.max_wait_time,
-            'announce_position': q.announce_position,
-            'is_active': q.is_active,
-        }
-        for q in CallQueue.objects.all().order_by('-id')
-    ]
-
-
-@telephony_router.post('/queues/')
-def create_queue(request, payload: QueueIn):
-    require_roles(request, ['owner', 'admin'])
-    require_feature_access(request, 'telephony')
-    q = CallQueue.objects.create(
-        name=payload.name,
-        strategy=payload.strategy,
-        ring_timeout=payload.ring_timeout,
-        max_wait_time=payload.max_wait_time,
-        announce_position=payload.announce_position,
-        is_active=payload.is_active,
+    account = (
+        ExolveSIPAccount.objects
+        .filter(manager__user_id=request.auth.id, is_active=True, status='active')
+        .select_related('manager')
+        .first()
     )
-    if payload.members:
-        q.members.set(payload.members)
-    return {'id': q.id}
+    channel = get_channel()
+    return {
+        'sip_domain': settings.EXOLVE_SIP_DOMAIN,
+        'wss_url': getattr(settings, 'EXOLVE_WSS_URL', '') or None,
+        'username': account.username if account else None,
+        'password': account.password if account else None,
+        'display_number': account.display_number if account else channel.exolve_number,
+        'manager_id': account.manager_id if account else None,
+        'ready': bool(account and account.username and account.password),
+    }
 
 
-@telephony_router.patch('/queues/{queue_id}/')
-def patch_queue(request, queue_id: int, payload: QueuePatchIn):
-    require_roles(request, ['owner', 'admin'])
+# ---------------------------------------------------------------------------
+# Click-to-call (журналирование исходящего, набор идёт в браузере через SDK)
+# ---------------------------------------------------------------------------
+
+@telephony_router.post('/click-to-call/')
+def click_to_call(request, payload: ClickToCallIn):
+    require_roles(request, ['owner', 'admin', 'manager'])
     require_feature_access(request, 'telephony')
-    q = CallQueue.objects.get(id=queue_id)
-    data = payload.dict(exclude_unset=True)
-    members = data.pop('members', None)
-    for key, value in data.items():
-        setattr(q, key, value)
-    q.save()
-    if members is not None:
-        q.members.set(members)
-    return {'detail': 'ok'}
+    manager = ManagerProfile.objects.filter(user_id=request.auth.id, is_active=True).first()
+    channel = get_channel()
+    record = CallRecord.objects.create(
+        call_sid=f'cti-{uuid.uuid4()}',
+        direction='outbound',
+        caller_number=channel.exolve_number,
+        called_number=payload.to_number,
+        result='answered',
+        manager=manager,
+        crm_contact_id=str(payload.contact_id or ''),
+        crm_lead_id=str(payload.deal_id or ''),
+        started_at=timezone.now(),
+    )
+    return {'call_id': record.id, 'to_number': payload.to_number}
 
 
-@telephony_router.delete('/queues/{queue_id}/')
-def delete_queue(request, queue_id: int):
-    require_roles(request, ['owner', 'admin'])
-    require_feature_access(request, 'telephony')
-    CallQueue.objects.filter(id=queue_id).delete()
-    return {'detail': 'deleted'}
+@telephony_router.post('/client-log/')
+def client_log(request, payload: ClientLogIn):
+    require_roles(request, ['owner', 'admin', 'manager'])
+    import logging
+    logging.getLogger('apps.telephony.client').warning(
+        'PHONE-CLIENT user=%s event=%s detail=%s', request.auth.id, payload.event, payload.detail[:600],
+    )
+    return {'ok': True}
 
+
+# ---------------------------------------------------------------------------
+# Журнал звонков
+# ---------------------------------------------------------------------------
 
 @telephony_router.get('/calls/')
 def list_calls(request, result: str = None, direction: str = None, date_from: str = None, date_to: str = None):
@@ -309,40 +218,22 @@ def list_calls(request, result: str = None, direction: str = None, date_from: st
     return [
         {
             'id': c.id,
-            'uuid': c.freeswitch_uuid,
+            'call_sid': c.call_sid,
             'direction': c.direction,
             'caller_number': c.caller_number,
             'called_number': c.called_number,
             'result': c.result,
             'duration': c.duration,
+            'talk_time': c.talk_time,
             'manager_id': c.manager_id,
             'manager_name': c.manager.crm_user_name if c.manager_id else None,
+            'crm_contact_id': c.crm_contact_id,
+            'crm_lead_id': c.crm_lead_id,
             'started_at': c.started_at.isoformat(),
             'record_file': c.record_file.url if c.record_file else None,
         }
         for c in qs[:300]
     ]
-
-
-@telephony_router.get('/calls/{call_id}/')
-def call_detail(request, call_id: int):
-    require_roles(request, ['owner', 'admin', 'manager'])
-    require_feature_access(request, 'telephony')
-    c = CallRecord.objects.get(id=call_id)
-    return {
-        'id': c.id,
-        'uuid': c.freeswitch_uuid,
-        'direction': c.direction,
-        'caller_number': c.caller_number,
-        'called_number': c.called_number,
-        'result': c.result,
-        'duration': c.duration,
-        'wait_time': c.wait_time,
-        'record_file': c.record_file.url if c.record_file else None,
-        'started_at': c.started_at.isoformat(),
-        'answered_at': c.answered_at.isoformat() if c.answered_at else None,
-        'ended_at': c.ended_at.isoformat() if c.ended_at else None,
-    }
 
 
 @telephony_router.get('/calls/{call_id}/record/')
@@ -362,62 +253,5 @@ def call_stats(request):
     calls = CallRecord.objects.all()
     total = calls.count()
     missed = calls.filter(result='missed').count()
-    avg_duration = sum(c.duration for c in calls[:500]) / total if total else 0
-    return {'total': total, 'missed': missed, 'avg_duration': avg_duration}
-
-
-@telephony_router.post('/call/originate')
-def originate(request, payload: dict):
-    require_roles(request, ['owner', 'admin', 'manager'])
-    require_feature_access(request, 'telephony')
-
-    from_number = str(payload.get('from_number', payload.get('caller_number', '')))
-    to_number = str(payload.get('to_number', payload.get('called_number', '')))
-    trunk_id = payload.get('trunk_id')
-
-    trunk = None
-    trunk_name = None
-    if trunk_id:
-        trunk = SIPTrunk.objects.filter(id=trunk_id, is_active=True).first()
-        if trunk:
-            trunk_name = trunk.name
-
-    try:
-        call_uuid = esl_originate(
-            caller=from_number,
-            destination=to_number,
-            trunk_name=trunk_name,
-            variables={'origination_caller_id_number': from_number},
-        )
-    except Exception:
-        raise HttpError(502, 'Failed to connect to telephony server')
-
-    call = CallRecord.objects.create(
-        sip_trunk=trunk,
-        freeswitch_uuid=call_uuid,
-        direction='outbound',
-        caller_number=from_number,
-        called_number=to_number,
-        result='answered',
-        duration=0,
-        wait_time=0,
-        manager_id=payload.get('manager_id'),
-        started_at=timezone.now(),
-    )
-    return {'detail': 'originate sent', 'call_id': call.id, 'uuid': call_uuid}
-
-
-@telephony_router.get('/webrtc/credentials')
-def webrtc_credentials(request):
-    require_roles(request, ['owner', 'admin', 'manager'])
-    require_feature_access(request, 'telephony')
-    tenant = get_request_tenant(request)
-    extension = PhoneExtension.objects.filter(manager__user_id=request.auth.id, is_active=True).select_related('manager').first()
-    return {
-        'wss_url': settings.FREESWITCH_WSS_URL,
-        'esl_host': settings.FREESWITCH_ESL_HOST,
-        'extension': extension.extension if extension else None,
-        'sip_password': extension.sip_password if extension else None,
-        'manager_id': extension.manager_id if extension else None,
-        'sip_domain': getattr(tenant, 'sip_domain', None) or None,
-    }
+    answered = calls.filter(result='answered').count()
+    return {'total': total, 'missed': missed, 'answered': answered}

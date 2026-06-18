@@ -26,7 +26,7 @@
               <span class="plan-price">{{ p.price_monthly > 0 ? `${p.price_monthly} ₽/мес` : 'Бесплатно' }}</span>
               <ul class="plan-features">
                 <li>Менеджеров: {{ p.max_managers ?? '∞' }}</li>
-                <li>Договоров/мес: {{ p.max_contracts_per_month ?? '∞' }}</li>
+                <li>Документов/мес: {{ p.max_documents_per_month ?? '∞' }}</li>
                 <li>CRM-подключений: {{ p.max_crm_connections ?? '∞' }}</li>
                 <li>Воронок: {{ p.max_pipelines ?? '∞' }}</li>
               </ul>

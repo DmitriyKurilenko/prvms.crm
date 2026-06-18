@@ -10,7 +10,7 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('contracts', '0002_initial'),
+        ('documents', '0001_initial'),
         ('crm', '0001_initial'),
         ('integrations', '0001_initial'),
         ('messenger_channels', '0001_initial'),
@@ -31,8 +31,8 @@ class Migration(migrations.Migration):
         ),
         migrations.AddField(
             model_name='activity',
-            name='related_contract',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='activities', to='contracts.contract'),
+            name='related_document',
+            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='activities', to='documents.document'),
         ),
         migrations.AddField(
             model_name='activity',

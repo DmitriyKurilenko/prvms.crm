@@ -90,9 +90,21 @@
    - Файлы: `apps/integrations/oauth_api.py` (OAuth start/callback, после DEC-036), `apps/integrations/connections_api.py`, `apps/integrations/services.py`, `apps/integrations/adapters_amocrm.py`, `apps/integrations/adapters_bitrix24.py`
    - План закрытия: production-hardening этап (staging QA прогон marketplace install + webhook events + auto token refresh на реальных CRM tenant-ах)
 
-2. `freeswitch` в профиле `telephony` остаётся экспериментальным; на ARM-хостах возможна нестабильность образа/медиа-контура.
-   - Файл: `docker-compose.yml` (`freeswitch` service)
-   - План закрытия: выделить и протестировать целевой образ FreeSWITCH под platform matrix (amd64/arm64)
+2. ~~`freeswitch` в профиле `telephony` остаётся экспериментальным.~~ **Закрыто 2026-06-15 (DEC-042):** FreeSWITCH удалён полностью, телефония переведена на облако MTS Exolve.
+
+23. **Телефония Exolve — сквозным результатом не проверена (нет боевого ключа в dev-среде).**
+    - **Контекст:** Backend и frontend реализованы и проверены до уровня кода/сборки/контракта (131/131 backend, typecheck/build/vitest зелёные, публичные webhook-и отвечают корректным JSON-RPC). Реальный голосовой звонок не выполнялся.
+    - **Что нужно для закрытия:** боевой `EXOLVE_API_KEY`, закупленный номер, публичный HTTPS-URL (`EXOLVE_PUBLIC_BASE_URL`), `EXOLVE_WEBHOOK_SECRET`. На проде проверить: автозакупку номера через мастер, авто-провижининг SIP, регистрацию софтфона, входящий (создание сделки + дедуп + дозвон ответственному), исходящий из сделки и контакта, журнал и запись.
+    - **Самодиагностика:** `apps/telephony/exolve_client.py` логирует каждый запрос/ответ; `public_views.py` логирует каждый IPCR/Call-Event. Подтверждается за один прогон по логам web.
+
+24. **Точки внешнего поведения Exolve, требующие подтверждения на первом боевом звонке.**
+    - Форма ответа `GetFree` нормализуется защитно в `ExolveNumberWizard.vue` (`extractNumbers`) — при расхождении ключей поправить маппинг.
+    - Маршрутизация `REDIRECT_NUMBER` именно на SIP-аккаунт по `username` (`exolve_service.build_followme_response`) заложена с резервом; сверить на боевом входящем.
+    - Автопроигрывание входящего аудио в Web Voice SDK не подтверждено: если SDK не воспроизводит поток сам, добавить привязку `<audio>` к сессии в `stores/phone.ts`.
+
+25. **Корреляция исходящих CDR с Call Events — best-effort.**
+    - **Контекст:** Исходящий набирается в браузере через SDK; `click-to-call` создаёт `CallRecord` с локальным `call_sid` (`cti-…`), который не совпадает с `call_sid` Exolve. Поэтому метрики длительности/записи для исходящих из браузера пока не привязываются автоматически к этой записи журнала.
+    - **План закрытия:** получать реальный `call_sid`/идентификатор сессии из SDK и сопоставлять с Call Events, либо журналировать исходящие исключительно по Call Events.
 
 3. Покрытие автотестами пока базовое (smoke/integration): отсутствуют end-to-end UI сценарии и нагрузочные тесты.
    - Файлы: `apps/*/tests/*`, `frontend/src/**/*.test.ts`

@@ -7,7 +7,7 @@ from datetime import timedelta
 from django.utils import timezone
 from django_tenants.utils import schema_context, tenant_context
 
-from apps.contracts.models import Contract, ContractTemplate
+from apps.documents.models import Document, DocumentTemplate
 from apps.crm.models import Pipeline
 from apps.integrations.models import CRMConnection
 from apps.tenants.models import Tenant
@@ -19,7 +19,7 @@ class SubscriptionHardeningTest(TenantAPITestCase):
     def setUp(self):
         super().setUp()
         self.owner = self.create_user(role='owner', email='sub_owner@example.com', username='sub_owner')
-        self.template = ContractTemplate.objects.create(
+        self.template = DocumentTemplate.objects.create(
             name='Subscription template',
             version=1,
             html_body='<p>{{ x }}</p>',
@@ -71,8 +71,8 @@ class SubscriptionHardeningTest(TenantAPITestCase):
         self.assertNotEqual(checkout_response.status_code, 402)
         self.assertIn(checkout_response.status_code, [200, 400, 503])
 
-        contracts_response = self.client.get('/api/contracts/', **headers)
-        self.assertEqual(contracts_response.status_code, 402)
+        documents_response = self.client.get('/api/documents/', **headers)
+        self.assertEqual(documents_response.status_code, 402)
 
     def test_tenant_plan_usage_uses_memberships_and_includes_pipelines(self):
         self.create_user(role='admin', email='usage_admin@example.com', username='usage_admin')
@@ -122,7 +122,7 @@ class SubscriptionHardeningTest(TenantAPITestCase):
                 credentials={'webhook_url': 'https://example.com'},
                 is_active=False,
             )
-            Contract.objects.create(
+            Document.objects.create(
                 template=self.template,
                 template_version=1,
                 crm_entity_type='manual',
@@ -131,7 +131,7 @@ class SubscriptionHardeningTest(TenantAPITestCase):
                 html_snapshot='<p>now</p>',
                 created_by=self.owner,
             )
-            old_contract = Contract.objects.create(
+            old_document = Document.objects.create(
                 template=self.template,
                 template_version=1,
                 crm_entity_type='manual',
@@ -140,12 +140,12 @@ class SubscriptionHardeningTest(TenantAPITestCase):
                 html_snapshot='<p>old</p>',
                 created_by=self.owner,
             )
-            Contract.objects.filter(id=old_contract.id).update(created_at=timezone.now() - timedelta(days=45))
+            Document.objects.filter(id=old_document.id).update(created_at=timezone.now() - timedelta(days=45))
 
         response = self.client.get('/api/tenant/plan/', **self._headers())
         self.assertEqual(response.status_code, 200)
         usage = response.json()['usage']
         self.assertEqual(usage['managers'], 3)
-        self.assertEqual(usage['contracts'], 1)
+        self.assertEqual(usage['documents'], 1)
         self.assertEqual(usage['crm_connections'], 1)
         self.assertEqual(usage['pipelines'], 1)

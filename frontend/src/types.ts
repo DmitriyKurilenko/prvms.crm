@@ -41,14 +41,14 @@ export type CrmPermissionMap = Record<CrmPermissionEntity, CrmEntityPermission>
 
 export type FeatureCode =
   | 'distribution'
-  | 'contracts'
-  | 'contract_signing'
+  | 'documents'
+  | 'document_signing'
   | 'crm_bitrix24'
   | 'crm_amocrm'
   | 'analytics'
   | 'export_pdf'
   | 'export_excel'
-  | 'custom_contract_templates'
+  | 'custom_document_templates'
   | 'api_access'
   | 'messenger_channels'
   | 'telephony'
@@ -67,7 +67,7 @@ export interface PlanCatalogItem {
   description: string
   features: PlanFeature[]
   max_managers: number | null
-  max_contracts_per_month: number | null
+  max_documents_per_month: number | null
   max_crm_connections: number | null
   max_pipelines: number | null
   max_messengers: number | null
@@ -123,12 +123,12 @@ export interface TenantPlan {
   plan_slug: string
   features: FeatureCode[]
   max_managers: number | null
-  max_contracts_per_month: number | null
+  max_documents_per_month: number | null
   max_crm_connections: number | null
   max_pipelines: number | null
   usage: {
     managers: number
-    contracts: number
+    documents: number
     crm_connections: number
     pipelines: number
   }

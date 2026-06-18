@@ -29,15 +29,16 @@ def onboarding_status(request):
 def onboarding_step(request, step: int, payload: dict = Body(...)):
     require_roles(request, ['owner', 'admin'])
     tenant = get_request_tenant(request)
-    step = max(0, min(step, 5))
+    # Онбординг из 4 шагов: 1 — организация, 2 — менеджеры, 3 — распределение, 4 — готово.
+    # Шаг выбора CRM-режима убран: продукт работает только на встроенной CRM.
+    step = max(0, min(step, 4))
 
     if step == 1:
         _apply_org_step(tenant, payload)
+        ensure_default_pipeline()
     elif step == 2:
-        _apply_crm_mode_step(tenant, payload)
-    elif step == 3:
         _apply_managers_step(tenant, payload)
-    elif step == 4:
+    elif step == 3:
         _apply_distribution_step(payload)
 
     if step > tenant.onboarding_step:
@@ -50,10 +51,10 @@ def onboarding_step(request, step: int, payload: dict = Body(...)):
 def onboarding_skip(request):
     require_roles(request, ['owner', 'admin'])
     tenant = get_request_tenant(request)
-    tenant.onboarding_step = 5
+    tenant.onboarding_step = 4
     tenant.save(update_fields=['onboarding_step'])
     ensure_default_pipeline()
-    return {'detail': 'ok', 'onboarding_step': 5}
+    return {'detail': 'ok', 'onboarding_step': 4}
 
 
 def _apply_org_step(tenant, payload: dict):
@@ -65,15 +66,6 @@ def _apply_org_step(tenant, payload: dict):
             changed.append(field)
     if changed:
         tenant.save(update_fields=changed)
-
-
-def _apply_crm_mode_step(tenant, payload: dict):
-    crm_mode = payload.get('crm_mode')
-    if crm_mode in {'builtin', 'amocrm', 'bitrix24'} and crm_mode != tenant.crm_mode:
-        tenant.crm_mode = crm_mode
-        tenant.save(update_fields=['crm_mode'])
-    if crm_mode == 'builtin':
-        ensure_default_pipeline()
 
 
 def _apply_managers_step(tenant, payload: dict):

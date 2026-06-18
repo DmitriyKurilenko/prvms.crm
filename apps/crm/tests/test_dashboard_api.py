@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 from django.utils import timezone
 
-from apps.contracts.models import Contract, ContractTemplate
+from apps.documents.models import Document, DocumentTemplate
 from apps.crm.models import Deal, Pipeline, Stage
 from apps.distribution.models import DistributionLog
 from apps.telephony.models import CallRecord
@@ -49,14 +49,14 @@ class DashboardAPITest(TenantAPITestCase):
             source='manual',
         )
 
-        template = ContractTemplate.objects.create(
-            name='Dashboard Contract',
+        template = DocumentTemplate.objects.create(
+            name='Dashboard Document',
             version=1,
             html_body='<h1>x</h1>',
             variable_schema=[],
             is_active=True,
         )
-        Contract.objects.create(
+        Document.objects.create(
             template=template,
             template_version=1,
             crm_entity_type='manual',
@@ -79,8 +79,7 @@ class DashboardAPITest(TenantAPITestCase):
             reason='test',
         )
         CallRecord.objects.create(
-            sip_trunk=None,
-            freeswitch_uuid='dash-call-1',
+            call_sid='dash-call-1',
             direction='inbound',
             caller_number='+79990000001',
             called_number='101',
@@ -98,8 +97,8 @@ class DashboardAPITest(TenantAPITestCase):
         payload = response.json()
         self.assertEqual(payload['deals_open'], 1)
         self.assertEqual(payload['deals_won'], 1)
-        self.assertEqual(payload['contracts_total'], 1)
-        self.assertEqual(payload['contracts_signed'], 1)
+        self.assertEqual(payload['documents_total'], 1)
+        self.assertEqual(payload['documents_signed'], 1)
         self.assertEqual(payload['distribution_total'], 1)
         self.assertEqual(payload['calls_total'], 1)
         self.assertEqual(payload['calls_missed'], 1)

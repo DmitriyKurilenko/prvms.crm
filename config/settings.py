@@ -55,7 +55,7 @@ SHARED_APPS = [
 ]
 
 TENANT_APPS = [
-    'apps.contracts',
+    'apps.documents',
     'apps.distribution',
     'apps.integrations',
     'apps.channels',
@@ -180,7 +180,7 @@ CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_BEAT_SCHEDULE = {
     'expire-signing-sessions-every-30-min': {
-        'task': 'apps.contracts.tasks.expire_signing_sessions',
+        'task': 'apps.documents.tasks.expire_signing_sessions',
         'schedule': timedelta(minutes=30),
     },
     'check-plan-limits-hourly': {
@@ -190,10 +190,6 @@ CELERY_BEAT_SCHEDULE = {
     'check-crm-health-every-15-min': {
         'task': 'apps.integrations.tasks.check_crm_connections_health',
         'schedule': timedelta(minutes=15),
-    },
-    'check-sip-registrations-every-5-min': {
-        'task': 'apps.telephony.tasks.check_sip_registrations',
-        'schedule': timedelta(minutes=5),
     },
     'check-overdue-tasks-hourly': {
         'task': 'apps.crm.tasks.check_overdue_tasks',
@@ -251,25 +247,22 @@ if env('S3_BUCKET_NAME', default=''):
     AWS_QUERYSTRING_AUTH = False
     MEDIA_URL = f"{env('S3_ENDPOINT_URL', default='')}/{env('S3_BUCKET_NAME', default='')}/"
 
-# ---------- FreeSWITCH ----------
-FREESWITCH_ESL_HOST = env('FREESWITCH_ESL_HOST', default='freeswitch')
-FREESWITCH_ESL_PORT = env.int('FREESWITCH_ESL_PORT', default=8021)
-FREESWITCH_ESL_PASSWORD = env('FREESWITCH_ESL_PASSWORD', default='ClueCon')
-FREESWITCH_WSS_URL = env('FREESWITCH_WSS_URL', default='wss://localhost:7443')
-FREESWITCH_ALLOWED_IPS = env.list(
-    'FREESWITCH_ALLOWED_IPS',
-    default=['127.0.0.1', '::1', '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16'],
-)
-# Maps FreeSWITCH recording path prefix to Django media-relative path prefix.
-# Dev: FS writes to /var/lib/freeswitch/recordings/, Django reads from calls/ (MEDIA_ROOT/calls/).
-# Prod (separate VPS): set to {} and use NFS/rsync to sync recordings separately.
-FREESWITCH_RECORDINGS_PATH_MAP = env.json(
-    'FREESWITCH_RECORDINGS_PATH_MAP',
-    default={'/var/lib/freeswitch/recordings/': 'calls/'},
-)
-
-# SIP domain isolation: each tenant gets sip_domain = {slug}.{SIP_BASE_DOMAIN}
-SIP_BASE_DOMAIN = env('SIP_BASE_DOMAIN', default='sip.localhost')
+# ---------- Telephony: MTS Exolve ----------
+# Облачная телефония MTS Exolve (Numbering API + SIP API + Web Voice SDK).
+# Один API-ключ приложения на всю платформу; номера и SIP-аккаунты заводятся
+# автоматически через API. Подробности — docs/DECISIONS.md (DEC телефония).
+EXOLVE_API_BASE = env('EXOLVE_API_BASE', default='https://api.exolve.ru')
+EXOLVE_API_KEY = env('EXOLVE_API_KEY', default='')
+EXOLVE_SIP_DOMAIN = env('EXOLVE_SIP_DOMAIN', default='sip.exolve.ru')
+# WSS-эндпоинт WebRTC Exolve для Web Voice SDK. Если пусто — SDK использует
+# собственный дефолт. Реальное значение задаётся из ЛК/документации Exolve.
+EXOLVE_WSS_URL = env('EXOLVE_WSS_URL', default='')
+# Секрет, добавляемый в URL IPCR/Call-Events webhook-ов (?key=…).
+EXOLVE_WEBHOOK_SECRET = env('EXOLVE_WEBHOOK_SECRET', default='')
+# Публичный HTTPS-базовый URL для webhook-ов (если отличается от PLATFORM_*).
+EXOLVE_PUBLIC_BASE_URL = env('EXOLVE_PUBLIC_BASE_URL', default='')
+# Резервный номер, на который Exolve уведёт звонок при недоступности IPCR-URL.
+EXOLVE_IPCR_RESERVE = env('EXOLVE_IPCR_RESERVE', default='')
 
 # ---------- SMS ----------
 SMS_PROVIDER = env('SMS_PROVIDER', default='stub')

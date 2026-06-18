@@ -1,104 +1,95 @@
+"""Публичные webhook-эндпоинты телефонии Exolve (без аутентификации JWT).
+
+- ``/telephony/exolve/ipcr/``   — JSON-RPC getControlCallFollowMe: синхронное
+  решение по входящему звонку (резолв тенанта, дедуп сделки, маршрут).
+- ``/telephony/exolve/events/`` — Call Events (b/o/s/h/d/e/crr): журнал и записи.
+
+Доступ ограничивается секретом ``EXOLVE_WEBHOOK_SECRET`` в query (?key=…),
+который зашивается в URL при регистрации переадресации/событий.
+"""
 from __future__ import annotations
 
-import ipaddress
 import json
+import logging
 
 from django.conf import settings
-from django.http import HttpResponse, JsonResponse
+from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
+from django_tenants.utils import tenant_context
 
-from .services import (
-    XML_NOT_FOUND,
-    build_configuration_xml,
-    build_dialplan_decision,
-    build_dialplan_xml,
-    build_directory_xml,
-    resolve_tenant_for_telephony,
-)
-from .tasks import process_freeswitch_cdr
+from .exolve_service import build_followme_response, resolve_tenant_by_number
+from .tasks import process_exolve_event
 
-_XML_CT = 'text/xml; charset=utf-8'
+logger = logging.getLogger(__name__)
 
 
-def _request_payload(request) -> dict:
-    if request.content_type and 'application/json' in request.content_type:
-        try:
-            return json.loads(request.body.decode('utf-8') or '{}')
-        except json.JSONDecodeError:
-            return {}
-    return request.POST.dict() if request.POST else {}
+def _payload(request) -> dict:
+    try:
+        return json.loads(request.body.decode('utf-8') or '{}')
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return {}
 
 
-def _ip_allowed(remote_addr: str, allowed_values: list[str]) -> bool:
-    if not remote_addr:
-        return False
-    for item in allowed_values:
-        item = str(item).strip()
-        if not item:
-            continue
-        if item == remote_addr:
-            return True
-        try:
-            network = ipaddress.ip_network(item, strict=False)
-            if ipaddress.ip_address(remote_addr) in network:
-                return True
-        except ValueError:
-            pass
-    return False
+def _secret_ok(request) -> bool:
+    secret = (getattr(settings, 'EXOLVE_WEBHOOK_SECRET', '') or '').strip()
+    if not secret:
+        return True
+    return request.GET.get('key') == secret
 
 
-def _ip_authorized(request) -> bool:
-    return _ip_allowed(request.META.get('REMOTE_ADDR', ''), settings.FREESWITCH_ALLOWED_IPS)
+def _empty_followme(rpc_id, sip_id: str) -> dict:
+    return {
+        'id': rpc_id,
+        'jsonrpc': '2.0',
+        'sip_id': sip_id,
+        'result': {'redirect_type': 1, 'followme_struct': [1, []]},
+    }
 
 
-def _token_authorized(request) -> bool:
-    return request.headers.get('X-FreeSWITCH-Token') == settings.FREESWITCH_ESL_PASSWORD
-
-
-# mod_xml_curl (dialplan + directory): IP-only — FS does not send a token header
-# events (CDR Lua hook): token + IP — the Lua script includes the token
 @csrf_exempt
 @require_POST
-def dialplan(request):
-    if not _ip_authorized(request):
-        return HttpResponse(XML_NOT_FOUND, content_type=_XML_CT, status=403)
-    payload = _request_payload(request)
-    tenant = resolve_tenant_for_telephony(payload)
+def exolve_ipcr(request):
+    if not _secret_ok(request):
+        return JsonResponse({'error': 'forbidden'}, status=403)
+
+    data = _payload(request)
+    rpc_id = data.get('id', '1')
+    params = data.get('params', {}) or {}
+    sip_id = str(params.get('sip_id', ''))
+    numberA = str(params.get('numberA', ''))
+    call_sid = str(params.get('call_sid', ''))
+    logger.info('Exolve IPCR request sip_id=%s numberA=%s call_sid=%s', sip_id, numberA, call_sid)
+
+    tenant = resolve_tenant_by_number(sip_id)
     if not tenant:
-        return HttpResponse(XML_NOT_FOUND, content_type=_XML_CT, status=404)
-    decision = build_dialplan_decision(tenant, payload)
-    return HttpResponse(build_dialplan_xml(tenant.slug, decision), content_type=_XML_CT)
+        logger.warning('Exolve IPCR: тенант не найден для номера %s', sip_id)
+        return JsonResponse(_empty_followme(rpc_id, sip_id))
+
+    try:
+        with tenant_context(tenant):
+            response = build_followme_response(rpc_id, tenant, sip_id, numberA, call_sid)
+        return JsonResponse(response)
+    except Exception:
+        logger.exception('Exolve IPCR: ошибка решения по звонку call_sid=%s', call_sid)
+        # Звонок не теряем: возвращаем пустой маршрут, Exolve уйдёт на reserve.
+        return JsonResponse(_empty_followme(rpc_id, sip_id))
 
 
 @csrf_exempt
 @require_POST
-def directory(request):
-    if not _ip_authorized(request):
-        return HttpResponse(XML_NOT_FOUND, content_type=_XML_CT, status=403)
-    payload = _request_payload(request)
-    extension_num = payload.get('user') or payload.get('extension') or ''
-    domain = payload.get('domain') or payload.get('key_value') or 'freeswitch.local'
-    tenant = resolve_tenant_for_telephony(payload)
-    return HttpResponse(build_directory_xml(tenant, extension_num, domain), content_type=_XML_CT)
+def exolve_events(request):
+    if not _secret_ok(request):
+        return JsonResponse({'error': 'forbidden'}, status=403)
 
-
-@csrf_exempt
-@require_POST
-def configuration(request):
-    if not _ip_authorized(request):
-        return HttpResponse(XML_NOT_FOUND, content_type=_XML_CT, status=403)
-    return HttpResponse(build_configuration_xml(), content_type=_XML_CT)
-
-
-@csrf_exempt
-@require_POST
-def events(request):
-    if not (_token_authorized(request) and _ip_authorized(request)):
-        return JsonResponse({'detail': 'Forbidden'}, status=403)
-    payload = _request_payload(request)
-    tenant = resolve_tenant_for_telephony(payload)
+    data = _payload(request)
+    called = str(data.get('to') or data.get('called_number') or '')
+    tenant = resolve_tenant_by_number(called)
     if not tenant:
-        return JsonResponse({'detail': 'Tenant not found for telephony request'}, status=404)
-    process_freeswitch_cdr.delay(tenant.id, payload)
-    return JsonResponse({'detail': 'accepted', 'tenant_slug': tenant.slug})
+        # Для типа 'e' поле 'to' может отсутствовать — пробуем 'from' маловероятно;
+        # без номера тенанта событие игнорируем, но фиксируем в лог.
+        logger.info('Exolve event без резолва тенанта: type=%s to=%s', data.get('type'), called)
+        return JsonResponse({'detail': 'ignored'})
+
+    process_exolve_event.delay(tenant.id, data)
+    return JsonResponse({'detail': 'accepted'})

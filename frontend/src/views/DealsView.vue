@@ -506,16 +506,6 @@ const onQuickCompanyCreated = async (res: { id: number }) => {
 
 .deal-link:hover { text-decoration: underline; }
 
-/* Contracts */
-.contract-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 0;
-  border-bottom: 1px solid var(--line);
-  font-size: 13px;
-}
-
 /* Status badges */
 .status-badge { padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
 .status-draft { background: var(--surface-alt); }

@@ -1,5 +1,82 @@
 # Dev Log
 
+## 2026-06-18 — Добивка модуля «Документооборот»: удаление legacy и мёртвого кода
+
+### Контекст:
+После рефакторинга DEC-043 в репозитории остались устаревшие артефакты, ссылающиеся на старый модуль `contracts`: неактуальная документация, прототип redesign и мёртвые CSS-классы `.contract-row` во frontend. Это нарушало инвариант DEC-043 «Любые оставшиеся в коде ссылки на contracts/contract — ошибка».
+
+### Что сделано:
+- **Удалены неактуальные файлы и директории:**
+  - `CLAUDE.md` — устаревшая техническая документация с упоминаниями `apps.contracts` и `/api/contracts/`.
+  - `docs/PLAN_PRICING_CALCULATOR.md` — устаревший планировочный документ с `max_contracts_per_month` и `contracts_basic`; актуальная реализация зафиксирована в `DECISIONS.md` (DEC-041).
+  - `redesign/` — прототипы React/JSX, не используемые в production SPA, содержащие текст «Согласовать договор с юристом».
+- **Удалён мёртвый CSS:**
+  - `frontend/src/views/DealsView.vue` — удалён блок `.contract-row` и комментарий `/* Contracts */`.
+  - `frontend/src/views/DealDetailView.vue` — удалён дублирующий блок `.contract-row` (активный класс `.document-row` уже определён в `DealDetailDialog.vue` и используется в `DealDetailView.vue`).
+- **Landing page (`templates/landing.html`) не затронут** — по решению владельца задачи его нужно переделать полностью в отдельной задаче.
+
+### Валидация:
+- `docker compose down && docker compose up -d --build` — стабильный старт.
+- `docker compose run --rm web python manage.py check` — 0 issues.
+- `docker compose run --rm web python manage.py makemigrations --check --dry-run` — без дрейфа.
+- Backend tests: **76/76 OK** (`apps.documents apps.crm apps.tenants apps.billing apps.users apps.notifications apps.integrations`).
+- Frontend: `typecheck` EXIT=0, `build` EXIT=0 (606 модулей), `vitest` 5/5.
+- HTTP checks: `/` 200, `/healthz` 200, frontend `/app/documents` 200, `/api/documents/` 401 (endpoint существует, защищён), `/app` 302.
+
+### Риски:
+- `templates/landing.html` всё ещё содержит пользовательские тексты «Договоры и подписание» — это осознанно отложено на отдельную задачу полного редизайна лендинга.
+- Корректные упоминания `contract`/`Договор` оставлены в `apps/documents` и `DocumentsView.vue` как значение типа документа `DocumentType.CONTRACT`.
+
+## 2026-06-17 — Рефакторинг модуля «Договоры» → «Документооборот» (DEC-043)
+
+### Что сделано:
+- **Backend rename:** `apps/contracts` → `apps.documents`; модели `Contract` → `Document`, `ContractTemplate` → `DocumentTemplate`; добавлен `DocumentType` (`contract/act/invoice/offer/addendum/other`); API `/api/documents/`, admin, tasks, public signing views, шаблоны писем обновлены.
+- **Типовые документы:** у `DocumentTemplate` появилось поле `document_type`; добавлен `apps/documents/seed.py` с системными шаблонами для каждого типа (3 договора + акт, счёт, оферта, доп. соглашение, прочее). Сиды вызываются в `provision_tenant()` и в data-migration `documents/0003_documenttemplate_document_type`.
+- **Генерация:** создаваемый документ наследует `document_type` от шаблона.
+- **Зависимости:** обновлены `crm` (activity type `document`, related_document FK, deal detail `documents`), `billing` (feature codes + лимит `max_documents_per_month`), `notifications` (event `document_signed`), `tenants`/`users` (help_text, seeds), `config` (urls/api/settings).
+- **Миграции:** свежие `documents/0001_initial.py` и `documents/0002_add_deal_fk.py` разрывают цикл с `crm`.
+- **Frontend rename:** `ContractsView.vue` → `DocumentsView.vue`; обновлены router (`/app/documents`), menu (`AppMenu.vue`, `SidebarNav.vue`), dashboard, deal detail/dialog, pipelines trigger (`create_document`), subscription/register usage, notifications events, types, `useFeatureGate`, landing, `api/crm.ts` (`documents`/`CrmDealDocumentRef`).
+- **Документация:** `docs/user-guide/07-contracts.md` → `07-documents.md` + обновлён `08-signing.md` и `README.md`; добавлены DEC-043 и release notes.
+
+### Валидация:
+- `docker compose down -v && docker compose up -d --build` — стабильный старт.
+- `docker compose run --rm web python manage.py check` — 0 issues.
+- `docker compose run --rm web python manage.py makemigrations --check --dry-run` — без дрейфа.
+- Backend tests: **63/63 OK** (`apps.documents apps.crm apps.tenants apps.billing apps.users`).
+- Frontend: `typecheck` EXIT=0, `build` EXIT=0 (606 модулей), `vitest` 5/5.
+- HTTP checks: `/` 200, `/healthz` 200, `/app/documents` 200, `/api/documents/` 200, `/api/crm/deals/` 200, публичная страница подписания `/sign/<token>/` 200.
+
+### Риски:
+- Внешние закладки на `/app/contracts` больше не работают (редирект не оставлен по решению варианта C).
+- Если где-то остался хардкод `contracts`/`contract_signing`/`max_contracts_per_month`, feature-gating или лимиты могут молча не сработать. Проверено grep по `frontend/` и `apps/`.
+
+## 2026-06-15 — Телефония MTS Exolve вместо FreeSWITCH (DEC-042), версия 0.7.0
+
+### Что сделано:
+- **Удалён FreeSWITCH целиком:** сервис и том в `docker-compose.yml`, файл `docker-compose.telephony.yml`, каталог `freeswitch/`, env-блок `FREESWITCH_*`/`SIP_BASE_DOMAIN` (`.env.example`, `config/settings.py`), beat-задача `check_sip_registrations`, фронтенд `useSIPPhone.ts` и зависимость `sip.js`, backend-зависимость `greenswitch`, публичные XML-эндпоинты телефонии в `config/urls.py`.
+- **Backend Exolve:**
+  - `apps/telephony/models.py` переписан: `ExolveChannel` (номер тенанта), `ExolveSIPAccount` (SIP менеджера, пароль в `EncryptedCharField`), `CallRecord` (провайдер-агностичный, ключ `call_sid`).
+  - `apps/tenants/models.py`: shared-модель `ExolveNumberLookup` (резолв тенанта по номеру), миграция `0006_exolve_number_lookup`.
+  - Миграция `telephony/0003_exolve`: удаление `SIPTrunk/PhoneExtension/IVRMenu/CallQueue`, `freeswitch_uuid→call_sid`, новые поля и модели Exolve.
+  - `apps/telephony/exolve_client.py` — HTTP-клиент Numbering/SIP API с полным логированием.
+  - `apps/telephony/exolve_service.py` — провижининг (Lock/Buy/SetCallForwarding, Create/GetAttributes/SetDisplayNumber), резолв тенанта, дедуп сделки, формирование `followme_struct`.
+  - `apps/telephony/public_views.py` — `exolve_ipcr` (JSON-RPC `getControlCallFollowMe`) и `exolve_events` (Call Events) с проверкой `EXOLVE_WEBHOOK_SECRET`.
+  - `apps/telephony/tasks.py` — `process_exolve_event` (журнал) + `download_call_record`.
+  - `apps/telephony/api.py` — `channel`, `number-reference`, `available-numbers`, `connect-number`, `sip-accounts(+provision)`, `webrtc-credentials`, `click-to-call`, `calls`, `stats`.
+  - `config/settings.py` — блок `EXOLVE_*`.
+- **Frontend Exolve:** `stores/phone.ts` (Web Voice SDK), `components/SoftPhone.vue` (глобальный, в `App.vue`), `components/ExolveNumberWizard.vue`, переписан `views/TelephonyView.vue`, переписан `api/telephony.ts`, кнопки «Позвонить» в `ContactsView`/`DealDetailView`, `package.json`: `-sip.js`, `+@mts-exolve/web-voice-sdk@^1.1.4`.
+- **Тесты:** старые телефонные тесты заменены на `apps/telephony/tests/test_exolve.py` (IPCR-дедуп, маршрут на ответственного, неизвестный номер, Call Events); поправлен `apps/crm/tests/test_dashboard_api.py` под новую `CallRecord`.
+
+### Валидация:
+- `manage.py check` — 0 issues. `makemigrations --check` — без дрейфа.
+- Backend-тесты: **131/131 OK** (включая 5 новых телефонных).
+- Frontend: `typecheck` EXIT=0 (типы Web Voice SDK резолвятся), `build` EXIT=0, `vitest` 5/5.
+- Рендер при поднятом стеке: `/healthz`=200, `/`=200, `/app`=200. Публичные webhook-и: `POST /telephony/exolve/ipcr/` → корректный JSON-RPC с пустым `followme_struct` для неизвестного номера; `POST /telephony/exolve/events/` → `ignored`; `/api/telephony/webrtc-credentials/` без авторизации → 401. Самодиагностика в логах web подтверждена.
+- **Сквозным результатом (реальный голосовой звонок) НЕ проверено** — требует боевого `EXOLVE_API_KEY`, закупленного номера и публичного HTTPS-URL на проде.
+
+### Риски:
+- Точная форма ответа `GetFree`, маршрутизация `REDIRECT_NUMBER` на SIP-аккаунт, автопроигрывание аудио в SDK и корреляция исходящих CDR с Call Events — подтверждаются на первом боевом прогоне (см. KNOWN_ISSUES).
+
 ## 2026-06-02 — Тарифы v2 — конфигуратор СВОБОДНОГО плана + калькулятор на лендинге (DEC-041)
 
 ### Что сделано:

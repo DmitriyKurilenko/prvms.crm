@@ -32,7 +32,6 @@ services:
     command: uvicorn config.asgi:application --host 0.0.0.0 --port 8000 --reload
     volumes:
       - .:/app
-      - call_recordings:/app/media/calls
     ports:
       - "${WEB_HOST_PORT:-18100}:8000"
     depends_on:
@@ -74,7 +73,6 @@ services:
     command: celery -A config worker -l info
     volumes:
       - .:/app
-      - call_recordings:/app/media/calls
     depends_on:
       db:
         condition: service_healthy
@@ -116,28 +114,6 @@ services:
     env_file:
       - .env
 
-  freeswitch:
-    image: signalwire/freeswitch-public-base:latest
-    profiles:
-      - telephony
-    ports:
-      - "${FREESWITCH_SIP_HOST_PORT:-15060}:5060/udp"
-      - "${FREESWITCH_SIP_HOST_PORT:-15060}:5060/tcp"
-      - "${FREESWITCH_TLS_HOST_PORT:-15061}:5061/tcp"
-      - "${FREESWITCH_WSS_HOST_PORT:-17443}:7443/tcp"
-      - "${FREESWITCH_ESL_PORT:-8021}:8021/tcp"
-      - "${FREESWITCH_RTP_PORT_RANGE:-26384-26484}:16384-16484/udp"
-    volumes:
-      - freeswitch_conf:/etc/freeswitch
-      - call_recordings:/var/lib/freeswitch/recordings
-      - ./freeswitch/xml_curl.conf.xml:/etc/freeswitch/autoload_configs/xml_curl.conf.xml:ro
-      - ./freeswitch/conf/lua.conf.xml:/etc/freeswitch/autoload_configs/lua.conf.xml:ro
-      - ./freeswitch/conf/acl.conf.xml:/etc/freeswitch/autoload_configs/acl.conf.xml:ro
-      - ./freeswitch/scripts/cdr_hook.lua:/etc/freeswitch/scripts/cdr_hook.lua:ro
-    environment:
-      - ESL_PASSWORD=${FREESWITCH_ESL_PASSWORD:-ClueCon}
-    restart: unless-stopped
-
   hermes:
     image: nousresearch/hermes-agent:latest
     container_name: prvmscrm-hermes
@@ -163,7 +139,5 @@ services:
 
 volumes:
   pgdata:
-  call_recordings:
   frontend_node_modules:
-  freeswitch_conf:
   hermes_profiles:

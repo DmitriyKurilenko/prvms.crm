@@ -208,7 +208,7 @@ const companyName = computed(() => {
 
 const activityLabel = (type: string) => ({
   call: 'Звонок', message: 'Сообщение', task: 'Задача', note: 'Заметка',
-  email: 'Email', contract: 'Договор', stage_change: 'Смена стадии', system: 'Система'
+  email: 'Email', document: 'Документ', stage_change: 'Смена стадии', system: 'Система'
 }[type] || type)
 
 const callContact = () => {

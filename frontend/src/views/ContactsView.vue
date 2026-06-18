@@ -68,6 +68,7 @@
             <template #body="{ data }">
               <div class="row-actions">
                 <button class="row-btn" title="Открыть" @click="openDetail(data.id)"><i class="pi pi-eye" /></button>
+                <button v-if="canCall && data.phone" class="row-btn" title="Позвонить" @click="phone.call(data.phone, { contactId: data.id })"><i class="pi pi-phone" /></button>
                 <button v-if="canUpdateContact" class="row-btn" title="Редактировать" @click="editContact(data)"><i class="pi pi-pencil" /></button>
                 <button v-if="canDeleteContact" class="row-btn row-btn-danger" title="Удалить" @click="removeContact(data.id)"><i class="pi pi-trash" /></button>
               </div>
@@ -188,9 +189,14 @@ import ContactDrawer from '@/components/ContactDrawer.vue'
 import * as crmApi from '@/api/crm'
 import type { CrmContact } from '@/api/crm'
 import { useAuthStore } from '@/stores/auth'
+import { useTenantStore } from '@/stores/tenant'
+import { usePhoneStore } from '@/stores/phone'
 import { normalizeCrmPermissions } from '@/utils/crmPermissions'
 
 const auth = useAuthStore()
+const tenant = useTenantStore()
+const phone = usePhoneStore()
+const canCall = computed(() => tenant.hasFeature('telephony'))
 const toast = useToast()
 const perms = computed(() => normalizeCrmPermissions(auth.user?.crm_permissions))
 const canCreateContact = computed(() => perms.value.contacts.can_create)

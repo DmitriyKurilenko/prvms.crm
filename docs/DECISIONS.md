@@ -1,5 +1,43 @@
 # Архитектурные решения
 
+## DEC-043: Рефакторинг модуля «Договоры» → «Документооборот» (2026-06-17)
+**Контекст:** Модуль изначально заточен только под договоры, но бизнес-процессы требуют работы с актами, счетами, офертами, дополнительными соглашениями и прочими документами. Названия `apps/contracts`, `Contract`, `ContractTemplate`, feature `contracts`, URL `/app/contracts` и лимит `max_contracts_per_month` вводили путаницу и ограничивали расширяемость.
+**Решение:**
+- **Полный rename без обратной совместимости** (вариант C): `apps/contracts` → `apps.documents`; модели `Contract` → `Document`, `ContractTemplate` → `DocumentTemplate`.
+- **Типизация документов:** добавлен `DocumentType` (`TextChoices`) с вариантами `contract`, `act`, `invoice`, `offer`, `addendum`, `other`. Тип хранится в `Document.document_type` и отображается в UI.
+- **Feature codes:** `contracts` → `documents`, `contract_signing` → `document_signing`, `custom_contract_templates` → `custom_document_templates`. Лимит `max_contracts_per_month` → `max_documents_per_month`.
+- **События и активности:** событие уведомлений `contract_signed` → `document_signed`; тип активности CRM `contract` → `document`; pipeline trigger `create_contract` → `create_document`.
+- **Frontend:** `/app/contracts` → `/app/documents`, `ContractsView.vue` → `DocumentsView.vue`, все menu/router/dashboard/subscription/register ссылки и лейблы приведены к термину «Документы».
+- **Миграции:** пересозданы на пустой БД. Для разрыва циклической зависимости `documents`↔`crm` `Document.deal` вынесен в отдельную миграцию `documents/0002_add_deal_fk.py`, зависящую от `crm.0005_add_esign_agreement_fields`.
+**Инварианты:**
+- Публичный URL подписания `/sign/<token>/` оставлен без изменений (слово «contract» отсутствует).
+- Django admin, API, tasks, public views, шаблоны и тесты используют только новые имена.
+- Любые оставшиеся в коде ссылки на `contracts`/`contract` — ошибка.
+**Альтернативы:**
+- Оставить `apps.contracts` и добавить `DocumentType` — отклонено: устаревшие названия продолжали бы путать разработчиков и пользователей.
+- Сохранить shim/alias для обратной совместимости — отклонено: БД пустая, legacy не нужен.
+**Последствия:** Требуется пересоздание БД (или последовательная миграция с очисткой `django_migrations` от старых `contracts`) и обновление внешних ссылок на `/app/contracts`.
+
+## DEC-042: Телефония перенесена на облако MTS Exolve, FreeSWITCH удалён (2026-06-15)
+**Контекст:** Прежняя телефония работала на самостоятельном FreeSWITCH (dialplan/directory/ESL через `xml_curl`, sip.js-софтфон, отдельный docker-сервис с SIP/RTP/ESL-портами). Контур был помечен экспериментальным (KNOWN_ISSUES #2), требовал сопровождения медиа-сервера и не давал «телефонию из коробки» для множества тенантов. Задача: новый канал-телефония через MTS Exolve, всё автоматически, голос в браузере, входящий создаёт сделку с контролем дублей и переадресуется ответственному.
+**Решение:**
+- **FreeSWITCH удалён полностью**: сервис из `docker-compose.yml`, `docker-compose.telephony.yml`, каталог `freeswitch/`, env-блок `FREESWITCH_*`/`SIP_BASE_DOMAIN`, ESL-код, sip.js и `useSIPPhone.ts`, публичные XML-эндпоинты (`dialplan/directory/events/configuration`). Зависимость `greenswitch` убрана.
+- **Облако Exolve** через официальные контракты: Numbering API (`GetFree → Lock → Buy → SetCallForwarding`), SIP API (`Create → GetAttributes → SetDisplayNumber`), Web Voice SDK (`@mts-exolve/web-voice-sdk`), Call Events webhook.
+- **Один номер на тенант**, закупается через API. Пользователь только выбирает номер в разделе «Телефония» (мастер `ExolveNumberWizard`); бронь, покупка и настройка переадресации — автоматические. Резолв тенанта по номеру — shared-модель `tenants.ExolveNumberLookup` (паттерн `SigningTokenLookup`).
+- **Внутренние номера менеджеров** = SIP-аккаунты Exolve (`telephony.ExolveSIPAccount`), создаются автоматически, CLI = номер тенанта. Браузер менеджера регистрируется через Web Voice SDK; глобальный софтфон — Pinia-store `stores/phone.ts` + `SoftPhone.vue` в `App.vue`.
+- **Входящий звонок** обрабатывается синхронно в IPCR-хуке `getControlCallFollowMe` (`POST /telephony/exolve/ipcr/`): резолв тенанта по `sip_id` (вызванный номер), контакт по `numberA`, **контроль дублей** (при наличии сделки в стадии `stage_type='open'` новая не создаётся), определение ответственного и `followme_struct` (`redirect_type=2`: ответственный order 1 → остальные активные SIP order 2). Возвращается JSON-RPC.
+- **Журнал и записи** — Call Events (`POST /telephony/exolve/events/`, события `b/o/s/h/d/e/crr`) → `CallRecord` (ключ `call_sid`), запись скачивается фоном через Bearer.
+**Инварианты:**
+- `EXOLVE_API_KEY` — один на платформу; webhook-и защищены `EXOLVE_WEBHOOK_SECRET` (`?key=…`).
+- «Активная сделка» для дедупа = сделка в стадии с `stage_type='open'`.
+- При ошибке решения по входящему IPCR возвращает пустой `followme_struct` — звонок не теряется (Exolve уходит на `reserve`).
+- Домен SIP всегда `sip.exolve.ru`; исходящий CLI задаётся `SetDisplayNumber` = номер тенанта.
+**Альтернативы:**
+- Сохранить FreeSWITCH и подключить Exolve как SIP-транк — отклонено: требует сопровождения медиа-сервера и не даёт динамическую маршрутизацию на ответственного.
+- Статическая переадресация номера на один SIP — отклонено: не покрывает требование «ответственному за контакт» (динамика на звонок).
+- Автоподбор номера без участия пользователя — отклонено по требованию: выбор номера делает пользователь в UI, остальное автоматически.
+**Граница достоверности:** реальный голосовой звонок и фактические ответы Exolve проверяются только на проде с боевым ключом; контур самодиагностируем (полный лог IPCR/событий/провижининга). См. KNOWN_ISSUES.
+
 ## DEC-041: Тарифы v2 — конфигуратор СВОБОДНОГО плана + калькулятор на лендинге (2026-06-02)
 **Контекст:** Предыдущие тарифы (`simple`/`basic`/`crm`) были фиксированными пакетами с жёсткими лимитами, не покрывающими сценарии «нужно 7 пользователей, но не нужна телефония» или «только Telegram + сайт». Пользователи либо переплачивали за неиспользуемые функции, либо уходили на конкурентов с гибким ценообразованием. Лендинг показывал статичные карточки без интерактива.
 **Решение:**

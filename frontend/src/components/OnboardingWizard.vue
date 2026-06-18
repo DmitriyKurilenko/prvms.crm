@@ -1,7 +1,7 @@
 <template>
   <div class="surface-card wizard">
     <h3 class="brand-heading">Настройка организации</h3>
-    <p class="step-label">Шаг {{ step }} из 5</p>
+    <p class="step-label">Шаг {{ step }} из 4</p>
 
     <div class="step-content">
       <!-- Step 1: Organization -->
@@ -12,25 +12,8 @@
         <PSelect v-model="form.timezone" :options="timezoneOptions" optionLabel="label" optionValue="value" placeholder="Выберите часовой пояс" />
       </template>
 
-      <!-- Step 2: CRM mode -->
+      <!-- Step 2: Managers -->
       <template v-else-if="step === 2">
-        <label class="field-label">Как вы будете вести клиентскую базу?</label>
-        <div class="crm-cards">
-          <div
-            v-for="opt in crmOptions"
-            :key="opt.value"
-            class="crm-card surface-card"
-            :class="{ selected: form.crm_mode === opt.value }"
-            @click="form.crm_mode = opt.value"
-          >
-            <strong>{{ opt.label }}</strong>
-            <small>{{ opt.desc }}</small>
-          </div>
-        </div>
-      </template>
-
-      <!-- Step 3: Managers -->
-      <template v-else-if="step === 3">
         <label class="field-label">Добавьте менеджеров вашей команды</label>
         <div v-for="(m, i) in managers" :key="i" class="manager-row">
           <PInputText v-model="m.name" placeholder="Имя" style="flex: 1" />
@@ -40,8 +23,8 @@
         <PButton text icon="pi pi-plus" label="Добавить менеджера" @click="addManager" />
       </template>
 
-      <!-- Step 4: Distribution strategy -->
-      <template v-else-if="step === 4">
+      <!-- Step 3: Distribution strategy -->
+      <template v-else-if="step === 3">
         <label class="field-label">Как распределять входящие заявки между менеджерами?</label>
         <div class="strategy-cards">
           <div
@@ -57,7 +40,7 @@
         </div>
       </template>
 
-      <!-- Step 5: Done -->
+      <!-- Step 4: Done -->
       <template v-else>
         <p>Базовая настройка завершена. Можно переходить в личный кабинет.</p>
       </template>
@@ -65,7 +48,7 @@
 
     <div class="actions">
       <PButton text label="Пропустить" @click="confirmSkip" />
-      <PButton :label="step < 5 ? 'Сохранить и продолжить' : 'Перейти в ЛК'" :disabled="saving || step > 5" @click="next" />
+      <PButton :label="step < 4 ? 'Сохранить и продолжить' : 'Перейти в ЛК'" :disabled="saving || step > 4" @click="next" />
     </div>
 
     <PDialog v-model:visible="showSkipDialog" header="Пропустить настройку?" :modal="true" :closable="true" style="width: min(400px, 90vw)">
@@ -110,12 +93,6 @@ const timezoneOptions = [
   { label: 'Ташкент (UTC+5)', value: 'Asia/Tashkent' },
 ]
 
-const crmOptions = [
-  { value: 'builtin', label: 'Встроенный CRM', desc: 'Воронки, сделки, контакты — всё внутри платформы' },
-  { value: 'amocrm', label: 'amoCRM', desc: 'Интеграция с amoCRM — данные синхронизируются автоматически' },
-  { value: 'bitrix24', label: 'Битрикс24', desc: 'Интеграция с Битрикс24 через webhook или OAuth' },
-]
-
 const strategyOptions = [
   { value: 'round_robin', label: 'По очереди', desc: 'Заявки назначаются менеджерам строго по очереди' },
   { value: 'min_load', label: 'Равномерно', desc: 'Заявка уходит менеджеру с наименьшей нагрузкой' },
@@ -126,7 +103,6 @@ const strategyOptions = [
 const form = reactive({
   org_name: tenantStore.current?.name || '',
   timezone: tenantStore.current?.timezone || 'Europe/Moscow',
-  crm_mode: tenantStore.current?.crm_mode || 'builtin',
   strategy: 'round_robin',
 })
 
@@ -143,7 +119,7 @@ const removeManager = (i: number) => {
 }
 
 const buildPayload = () => {
-  if (step.value === 3) {
+  if (step.value === 2) {
     const valid = managers.filter(m => m.email.trim())
     return { ...form, managers: valid }
   }
@@ -151,16 +127,16 @@ const buildPayload = () => {
 }
 
 const next = async () => {
-  if (step.value > 5) return
+  if (step.value > 4) return
   saving.value = true
   try {
     const data = await api<{ onboarding_step: number }>(`/onboarding/step/${step.value}/`, {
       method: 'POST',
       body: buildPayload(),
     })
-    step.value = Math.min(5, data.onboarding_step + 1)
+    step.value = Math.min(4, data.onboarding_step + 1)
     await tenantStore.reloadTenant()
-    if (step.value > 5 || tenantStore.current?.onboarding_step === 5) {
+    if (tenantStore.current?.onboarding_step === 4) {
       emit('done')
     }
   } catch {

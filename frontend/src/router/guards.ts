@@ -53,7 +53,7 @@ export function installGuards(router: Router, pinia: Pinia): void {
     const allowedDuringOnboarding = ['onboarding', 'subscription', 'settings', 'upgrade']
     if (
       tenant.current &&
-      (tenant.current.onboarding_step ?? 0) < 5 &&
+      (tenant.current.onboarding_step ?? 0) < 4 &&
       auth.user &&
       ['owner', 'admin'].includes(auth.user.role) &&
       !allowedDuringOnboarding.includes(to.name as string)

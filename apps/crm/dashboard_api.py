@@ -12,7 +12,7 @@ from django_tenants.utils import schema_context
 
 from apps.core.access import require_feature_access, require_roles
 from apps.core.tenant import get_request_tenant
-from apps.contracts.models import Contract
+from apps.documents.models import Document
 from apps.distribution.models import DistributionLog
 from apps.notifications.presence import list_online_user_ids
 from apps.telephony.models import CallRecord
@@ -27,17 +27,17 @@ def stats(request, date_from: str | None = None, date_to: str | None = None):
     require_roles(request, ['owner', 'admin', 'manager'])
     require_feature_access(request, 'analytics')
     start, end = _date_range(date_from, date_to)
-    contract_qs = Contract.objects.all()
+    document_qs = Document.objects.all()
     distribution_qs = DistributionLog.objects.all()
     calls_qs = CallRecord.objects.all()
     deals_qs = Deal.objects.all()
     if start:
-        contract_qs = contract_qs.filter(created_at__gte=start)
+        document_qs = document_qs.filter(created_at__gte=start)
         distribution_qs = distribution_qs.filter(created_at__gte=start)
         calls_qs = calls_qs.filter(started_at__gte=start)
         deals_qs = deals_qs.filter(updated_at__gte=start)
     if end:
-        contract_qs = contract_qs.filter(created_at__lte=end)
+        document_qs = document_qs.filter(created_at__lte=end)
         distribution_qs = distribution_qs.filter(created_at__lte=end)
         calls_qs = calls_qs.filter(started_at__lte=end)
         deals_qs = deals_qs.filter(updated_at__lte=end)
@@ -46,8 +46,8 @@ def stats(request, date_from: str | None = None, date_to: str | None = None):
     return {
         'deals_open': deals_qs.filter(stage__stage_type='open').count(),
         'deals_won': deals_qs.filter(stage__stage_type='won').count(),
-        'contracts_total': contract_qs.count(),
-        'contracts_signed': contract_qs.filter(status='signed').count(),
+        'documents_total': document_qs.count(),
+        'documents_signed': document_qs.filter(status='signed').count(),
         'distribution_today': DistributionLog.objects.filter(created_at__date=today).count(),
         'distribution_total': distribution_qs.count(),
         'calls_total': calls_qs.count(),

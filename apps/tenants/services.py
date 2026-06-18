@@ -48,8 +48,10 @@ def provision_tenant(tenant: Tenant) -> None:
     provisioning steps (default integrations, RBAC matrices, etc.) should
     go here, not be scattered across API modules.
     """
+    from apps.documents.seed import seed_system_templates_for_tenant
     from apps.notifications.services import seed_default_preferences
 
     with schema_context(tenant.schema_name):
         seed_default_preferences()
         ensure_default_pipeline()
+        seed_system_templates_for_tenant(tenant)

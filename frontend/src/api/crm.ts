@@ -45,7 +45,7 @@ export interface CrmStage {
   auto_action: Record<string, unknown>
 }
 
-export interface CrmDealContractRef {
+export interface CrmDealDocumentRef {
   id: number
   template_name: string | null
   status: string
@@ -79,7 +79,7 @@ export interface CrmDeal {
   company_id?: number | null
   expected_close_date?: string | null
   loss_reason?: string
-  contracts?: CrmDealContractRef[]
+  documents?: CrmDealDocumentRef[]
   chat_sessions?: CrmDealChatSessionRef[]
   created_at?: string
   updated_at: string

@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Договор подписан</title>
+    <title>Документ подписан</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f6f7fb; margin: 0; }
         .container { max-width: 600px; margin: 80px auto; background: #fff; border-radius: 12px; padding: 40px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); text-align: center; }
@@ -31,12 +31,12 @@
 <body>
 <div class="container">
     <div class="icon">✅</div>
-    <h1>Договор успешно подписан</h1>
-    <p class="meta">Договор #{{ contract_id }} подписан электронной подписью.</p>
+    <h1>Документ успешно подписан</h1>
+    <p class="meta">Документ #{{ document_id }} подписан электронной подписью.</p>
     <div class="details">
         <dl>
-            <dt>Номер договора</dt>
-            <dd>#{{ contract_id }}</dd>
+            <dt>Номер документа</dt>
+            <dd>#{{ document_id }}</dd>
             <dt>Дата подписания</dt>
             <dd>{{ signed_at|date:"d.m.Y H:i" }}</dd>
         </dl>

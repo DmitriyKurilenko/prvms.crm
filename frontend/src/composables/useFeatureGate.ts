@@ -12,7 +12,7 @@ export function useFeatureGate() {
 
     const map: Record<string, number | null | undefined> = {
       max_managers: plan.max_managers,
-      max_contracts_per_month: plan.max_contracts_per_month,
+      max_documents_per_month: plan.max_documents_per_month,
       max_crm_connections: plan.max_crm_connections,
       max_pipelines: plan.max_pipelines
     }

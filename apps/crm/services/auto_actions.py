@@ -4,8 +4,8 @@ from datetime import timedelta
 
 from django.utils import timezone
 
-from apps.contracts.models import ContractTemplate
-from apps.contracts.services import create_contract_from_deal
+from apps.documents.models import DocumentTemplate
+from apps.documents.services import create_document_from_deal
 from apps.notifications.services import notify
 from apps.crm.models import Activity, Deal, Stage
 
@@ -17,9 +17,9 @@ def process_stage_change(deal: Deal, old_stage: Stage, new_stage: Stage):
     if not action_type:
         return
 
-    if action_type == 'create_contract':
-        template = ContractTemplate.objects.get(id=action['template_id'])
-        create_contract_from_deal(deal, template)
+    if action_type == 'create_document':
+        template = DocumentTemplate.objects.get(id=action['template_id'])
+        create_document_from_deal(deal, template)
         return
 
     if action_type == 'send_notification':

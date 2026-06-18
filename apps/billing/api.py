@@ -37,7 +37,7 @@ class PlanOut(Schema):
     slug: str
     features: list[FeatureOut]
     max_managers: int | None
-    max_contracts_per_month: int | None
+    max_documents_per_month: int | None
     max_crm_connections: int | None
     max_pipelines: int | None
     price_monthly: float
