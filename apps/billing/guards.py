@@ -1,5 +1,6 @@
-from django.http import JsonResponse
 from functools import wraps
+
+from django.http import JsonResponse
 
 from apps.core.tenant import get_request_tenant
 

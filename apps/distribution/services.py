@@ -5,8 +5,9 @@ import logging
 from django.db import transaction
 
 from apps.integrations.adapters import get_adapter, get_adapter_for_tenant
-from apps.notifications.services import notify
 from apps.integrations.models import ManagerProfile
+from apps.notifications.services import notify
+
 from .models import DistributionLog, DistributionRule
 from .strategies import STRATEGIES
 
@@ -19,6 +20,7 @@ def ensure_builtin_manager_profiles() -> None:
     Creates missing profiles, updates names, deactivates removed members.
     """
     from django.db import connection as db_connection
+
     from apps.users.models import Membership
 
     tenant = db_connection.tenant

@@ -10,10 +10,10 @@ from ninja_jwt.authentication import JWTAuth
 
 from apps.core.access import require_roles
 from apps.core.tenant import get_request_tenant
-from apps.integrations.models import ManagerProfile
-from apps.users.models import Membership, User
 from apps.distribution.models import DistributionRule
+from apps.integrations.models import ManagerProfile
 from apps.tenants.services import ensure_default_pipeline
+from apps.users.models import Membership, User
 
 onboarding_router = Router(tags=['onboarding'], auth=JWTAuth())
 

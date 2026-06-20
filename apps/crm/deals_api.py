@@ -11,6 +11,7 @@ from apps.core.access import (
 from apps.core.tenant import get_request_tenant
 from apps.distribution.services import ensure_builtin_manager_profiles, try_distribute
 from apps.notifications.services import notify
+
 from ._api_common import (
     _apply_responsible_write_guard,
     _ensure_builtin,
@@ -130,7 +131,7 @@ def create_deal(request, payload: DealIn):
             deal.refresh_from_db()
     log_event(request, action='create', instance=deal)
     tenant = get_request_tenant(request)
-    notify(tenant, 'new_deal_created', {'deal_id': deal.id, 'link': f'/crm'})
+    notify(tenant, 'new_deal_created', {'deal_id': deal.id, 'link': '/crm'})
     return {'id': deal.id}
 
 
@@ -140,8 +141,8 @@ def get_deal(request, deal_id: int):
     _ensure_builtin(request)
     d = _scoped_object_or_error(request, Deal, deal_id, entity='deals', action='view')
     activities = Activity.objects.filter(deal_id=deal_id).order_by('-created_at')[:100]
-    from apps.documents.models import Document, SigningSession
     from apps.channels.models import ChatSession as ChannelChatSession
+    from apps.documents.models import Document, SigningSession
     deal_documents = list(Document.objects.filter(deal=d).order_by('-created_at'))
     session_map = {}
     if deal_documents:
@@ -298,7 +299,7 @@ def move_deal(request, deal_id: int, payload: DealMoveIn):
               changes={'Стадия': {'before': old_stage.name, 'after': new_stage.name}})
     process_stage_change(deal, old_stage, new_stage)
     tenant = get_request_tenant(request)
-    notify(tenant, 'deal_stage_changed', {'deal_id': deal.id, 'link': f'/crm'})
+    notify(tenant, 'deal_stage_changed', {'deal_id': deal.id, 'link': '/crm'})
     return {'detail': 'ok'}
 
 

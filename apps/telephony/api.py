@@ -12,6 +12,7 @@ from ninja_jwt.authentication import JWTAuth
 from apps.core.access import require_feature_access, require_roles
 from apps.core.tenant import get_request_tenant
 from apps.integrations.models import ManagerProfile
+
 from .exolve_client import ExolveError
 from .exolve_service import (
     connect_number,
@@ -72,7 +73,7 @@ def number_reference_view(request):
     try:
         return number_reference()
     except ExolveError as exc:
-        raise HttpError(502, f'Exolve: {exc}')
+        raise HttpError(502, f'Exolve: {exc}') from exc
 
 
 @telephony_router.get('/available-numbers/')
@@ -82,7 +83,7 @@ def available_numbers(request, type_id: int = 1104, region_id: int | None = None
     try:
         return list_available_numbers(type_id=type_id, region_id=region_id, mask=mask, limit=limit)
     except ExolveError as exc:
-        raise HttpError(502, f'Exolve: {exc}')
+        raise HttpError(502, f'Exolve: {exc}') from exc
 
 
 @telephony_router.post('/connect-number/')
@@ -99,7 +100,7 @@ def connect_number_view(request, payload: ConnectNumberIn):
             region_id=payload.region_id,
         )
     except ExolveError as exc:
-        raise HttpError(502, f'Exolve: {exc}')
+        raise HttpError(502, f'Exolve: {exc}') from exc
     return {'status': channel.status, 'exolve_number': channel.exolve_number, 'detail': channel.status_detail}
 
 
@@ -134,7 +135,7 @@ def provision_sip(request):
     try:
         count = ensure_sip_accounts(tenant)
     except ExolveError as exc:
-        raise HttpError(502, f'Exolve: {exc}')
+        raise HttpError(502, f'Exolve: {exc}') from exc
     return {'provisioned': count}
 
 

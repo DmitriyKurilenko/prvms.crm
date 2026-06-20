@@ -3,7 +3,8 @@ from datetime import timedelta
 from django.contrib import admin
 from django.utils import timezone
 from django_tenants.utils import schema_context
-from .models import Feature, Plan, Payment, TelephonyQuoteRequest
+
+from .models import Feature, Payment, Plan, TelephonyQuoteRequest
 
 
 @admin.register(Feature)

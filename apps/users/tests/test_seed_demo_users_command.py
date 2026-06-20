@@ -8,6 +8,7 @@ from django_tenants.utils import schema_context, tenant_context
 from apps.crm.models import Pipeline
 from apps.tenants.models import Tenant
 from apps.users.models import Membership, User
+
 from .base import TenantAPITestCase
 
 

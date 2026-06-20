@@ -4,6 +4,7 @@ from celery import shared_task
 from django_tenants.utils import schema_context, tenant_context
 
 from apps.tenants.models import Tenant
+
 from .usage import get_plan_usage_for_tenant
 
 

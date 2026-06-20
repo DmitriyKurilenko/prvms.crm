@@ -2,15 +2,13 @@ from __future__ import annotations
 
 from typing import Optional
 
-import requests
-from django.conf import settings
 from django.utils import timezone
 from django_tenants.utils import schema_context
 from ninja import Router, Schema
 from ninja.errors import HttpError
 from ninja_jwt.authentication import JWTAuth
 
-from apps.core.access import require_membership, require_roles
+from apps.core.access import require_membership
 from apps.core.tenant import get_request_tenant
 
 from .models import AIConversation, AIMessage
@@ -56,9 +54,8 @@ def chat(request, payload: ChatMessageIn):
                 title=payload.content[:100] if payload.content else 'Новый диалог',
             )
 
-    user_message = None
     with schema_context(tenant.schema_name):
-        user_message = AIMessage.objects.create(
+        AIMessage.objects.create(
             conversation=conversation,
             role='user',
             content=payload.content,

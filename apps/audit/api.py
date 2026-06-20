@@ -1,10 +1,13 @@
 import csv
 import io
 import json
+
+from django.http import HttpResponse
 from ninja import Router, Schema
 from ninja_jwt.authentication import JWTAuth
-from django.http import HttpResponse
+
 from apps.core.access import require_roles
+
 from .models import AuditEvent
 
 audit_router = Router(tags=['audit'], auth=JWTAuth())

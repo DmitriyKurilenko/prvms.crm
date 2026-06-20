@@ -10,15 +10,14 @@ importer) keeps working unchanged.
 The import order below preserves the original route-registration order.
 Do not remove these imports — they are required for endpoint registration.
 """
-from ._api_common import crm_router
-
 from . import (  # noqa: F401
-    stats_api,
-    contacts_api,
-    companies_api,
-    pipelines_api,
-    deals_api,
     activities_api,
+    companies_api,
+    contacts_api,
+    deals_api,
+    pipelines_api,
+    stats_api,
 )
+from ._api_common import crm_router
 
 __all__ = ['crm_router']

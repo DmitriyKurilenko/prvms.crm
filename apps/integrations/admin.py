@@ -1,5 +1,6 @@
 from django.contrib import admin
-from .models import CRMConnection, WebhookEndpoint, ManagerProfile, ManagerDayOff, IntegrationErrorLog
+
+from .models import CRMConnection, IntegrationErrorLog, ManagerDayOff, ManagerProfile, WebhookEndpoint
 
 
 @admin.register(CRMConnection)

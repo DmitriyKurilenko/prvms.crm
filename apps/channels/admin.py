@@ -1,5 +1,6 @@
 from django.contrib import admin
-from .models import MessengerChannel, ChatSession, MessageLog
+
+from .models import ChatSession, MessageLog, MessengerChannel
 
 
 @admin.register(MessengerChannel)

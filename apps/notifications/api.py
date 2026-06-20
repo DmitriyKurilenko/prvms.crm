@@ -1,10 +1,12 @@
 from django.conf import settings
-from django.utils import timezone
 from django.core.signing import TimestampSigner
+from django.utils import timezone
 from ninja import Router, Schema
 from ninja_jwt.authentication import JWTAuth
+
 from apps.core.access import require_membership, require_roles
 from apps.core.tenant import get_request_tenant
+
 from .models import Notification, NotificationPreference, TelegramBinding
 from .services import notify
 

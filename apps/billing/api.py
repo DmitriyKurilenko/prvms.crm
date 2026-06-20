@@ -1,19 +1,19 @@
 import logging
 import uuid
-from datetime import timedelta
 
 from django.conf import settings
-from django.utils import timezone
 from django_tenants.utils import schema_context
 from ninja import Router, Schema
 from ninja.errors import HttpError
 from ninja_jwt.authentication import JWTAuth
-from yookassa import Configuration as YooConfiguration, Payment as YooPayment
+from yookassa import Configuration as YooConfiguration
+from yookassa import Payment as YooPayment
 
 from apps.billing.catalog import get_active_plans_queryset, serialize_plan_for_client
 from apps.core.access import require_roles
 from apps.core.tenant import get_request_tenant
-from .models import Plan, Payment
+
+from .models import Payment, Plan
 
 logger = logging.getLogger(__name__)
 

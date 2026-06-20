@@ -6,7 +6,6 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 
 from apps.users.tests.base import TenantAPITestCase
 
-
 PNG_1x1 = (
     b'\x89PNG\r\n\x1a\n'
     b'\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde'

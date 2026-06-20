@@ -11,6 +11,7 @@ The skill will be auto-discovered by Hermes.
 """
 
 import json
+import logging
 import os
 import sys
 
@@ -18,10 +19,14 @@ sys.path.insert(0, '/app')
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 
 import django
+
 django.setup()
 
 from django_tenants.utils import schema_context
+
 from apps.tenants.models import Tenant
+
+logger = logging.getLogger(__name__)
 
 
 def handle(args: dict) -> dict:
@@ -45,7 +50,7 @@ def handle(args: dict) -> dict:
                 return {'error': f'Tenant not found: {tenant_slug}'}
 
         with schema_context(tenant.schema_name):
-            from apps.crm.models import Deal, Stage, Pipeline
+            from apps.crm.models import Deal
 
             try:
                 deal = Deal.objects.select_related('stage', 'pipeline', 'contact', 'company', 'responsible').get(id=deal_id)
@@ -67,12 +72,12 @@ def handle(args: dict) -> dict:
             }
             return result
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — граница skill→Hermes: ошибка возвращается агенту структурно
+        logger.exception('crm_get_deal skill failed for deal_id=%s tenant=%s', deal_id, tenant_slug)
         return {'error': str(e)}
 
 
 if __name__ == '__main__':
-    import sys
     args = json.loads(sys.argv[1]) if len(sys.argv) > 1 else {}
     result = handle(args)
     print(json.dumps(result, ensure_ascii=False, indent=2))

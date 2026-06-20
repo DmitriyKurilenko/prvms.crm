@@ -7,6 +7,7 @@ from typing import Protocol
 from django.utils import timezone
 
 from apps.integrations.models import ManagerProfile
+
 from .models import DistributionLog
 
 

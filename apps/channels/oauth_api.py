@@ -2,14 +2,15 @@ from __future__ import annotations
 
 import secrets
 
-from ninja import Router, Schema
-from ninja_jwt.authentication import JWTAuth
 from django.conf import settings
 from django.core import signing
 from django.db import connection
+from ninja import Router, Schema
+from ninja_jwt.authentication import JWTAuth
 
 from apps.core.access import require_roles
 from apps.core.tenant import get_request_tenant
+
 from .models import MessengerChannel
 from .providers import get_vk_group_info, register_vk_callback
 

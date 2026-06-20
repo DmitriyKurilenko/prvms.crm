@@ -8,11 +8,18 @@ from ninja_jwt.authentication import JWTAuth
 
 from apps.core.access import require_feature_access, require_roles
 from apps.core.tenant import get_request_tenant
+
 from .models import ChatSession, MessageLog, MessengerChannel
 from .providers import (
-    register_telegram_webhook, unregister_telegram_webhook, get_telegram_webhook_info,
-    register_max_webhook, unregister_max_webhook, get_max_webhook_info,
-    register_vk_callback, unregister_vk_callback, get_vk_callback_info,
+    get_max_webhook_info,
+    get_telegram_webhook_info,
+    get_vk_callback_info,
+    register_max_webhook,
+    register_telegram_webhook,
+    register_vk_callback,
+    unregister_max_webhook,
+    unregister_telegram_webhook,
+    unregister_vk_callback,
 )
 from .tasks import route_outgoing_message
 

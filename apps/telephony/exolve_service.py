@@ -15,9 +15,10 @@ import logging
 
 from django.conf import settings
 from django.utils import timezone
-from django_tenants.utils import schema_context, tenant_context
+from django_tenants.utils import schema_context
 
 from apps.tenants.models import ExolveNumberLookup, Tenant
+
 from .exolve_client import ExolveClient, ExolveError
 from .models import CallRecord, ExolveChannel, ExolveSIPAccount
 
@@ -340,8 +341,8 @@ def _get_or_create_contact(numberA: str):
 
 def _ensure_deal_with_dedup(contact, numberA: str):
     """Контроль дублей: при наличии активной (open) сделки новую не создаём."""
-    from apps.crm.models import Deal
     from apps.channels.tasks import _find_pipeline_and_stage
+    from apps.crm.models import Deal
     from apps.distribution.services import ensure_builtin_manager_profiles, try_distribute
 
     open_deal = (

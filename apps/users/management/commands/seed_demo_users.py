@@ -10,8 +10,8 @@ from django_tenants.utils import schema_context
 from apps.billing.models import Plan
 from apps.tenants.models import Domain, Tenant
 from apps.tenants.services import provision_tenant
+from apps.users.management._seed_common import reconcile_membership
 from apps.users.models import Membership, User
-
 
 DEFAULT_ROLES = ('owner', 'admin', 'manager')
 
@@ -203,7 +203,7 @@ class Command(BaseCommand):
     def _ensure_membership(self, user: User, tenant: Tenant, role: str) -> None:
         with schema_context('public'):
             now = timezone.now()
-            membership, created = Membership.objects.get_or_create(
+            membership, _ = Membership.objects.get_or_create(
                 user=user,
                 tenant=tenant,
                 defaults={
@@ -212,21 +212,4 @@ class Command(BaseCommand):
                     'joined_at': now,
                 },
             )
-            updates: list[str] = []
-            if membership.role != role:
-                membership.role = role
-                updates.append('role')
-            if not membership.is_active:
-                membership.is_active = True
-                updates.append('is_active')
-            if membership.joined_at is None:
-                membership.joined_at = now
-                updates.append('joined_at')
-            if membership.invite_token is not None:
-                membership.invite_token = None
-                updates.append('invite_token')
-            if membership.invited_at is not None:
-                membership.invited_at = None
-                updates.append('invited_at')
-            if updates:
-                membership.save(update_fields=updates)
+            reconcile_membership(membership, role, now=now)

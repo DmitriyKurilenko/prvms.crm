@@ -11,7 +11,6 @@ from apps.tenants.models import Tenant
 
 from .models import DocumentTemplate, DocumentType
 
-
 COMMON_SCHEMA = [
     {'key': 'deal_id', 'sample': '42'},
     {'key': 'deal_name', 'sample': 'Тестовая сделка'},

@@ -9,6 +9,7 @@ from django.views.decorators.http import require_POST
 from django_tenants.utils import schema_context, tenant_context
 
 from apps.tenants.models import Tenant
+
 from .models import MessengerChannel
 from .tasks import route_incoming_message
 

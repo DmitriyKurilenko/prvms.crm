@@ -5,18 +5,18 @@ from datetime import datetime, time
 from django.db.models import Avg, Count
 from django.utils import timezone
 from django.utils.dateparse import parse_date
+from django_tenants.utils import schema_context
 from ninja import Router
 from ninja_jwt.authentication import JWTAuth
 
-from django_tenants.utils import schema_context
-
 from apps.core.access import require_feature_access, require_roles
 from apps.core.tenant import get_request_tenant
-from apps.documents.models import Document
 from apps.distribution.models import DistributionLog
+from apps.documents.models import Document
 from apps.notifications.presence import list_online_user_ids
 from apps.telephony.models import CallRecord
 from apps.users.models import Membership
+
 from .models import Deal
 
 dashboard_router = Router(tags=['dashboard'], auth=JWTAuth())

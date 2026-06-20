@@ -3,6 +3,7 @@ from __future__ import annotations
 from apps.billing.guards import check_limit
 from apps.core.access import require_crm_permission, require_roles
 from apps.core.tenant import get_request_tenant
+
 from ._api_common import _ensure_builtin, crm_router
 from .models import Deal, Pipeline, Stage
 from .schemas import PipelineIn, PipelinePatchIn, StageIn, StagePatchIn

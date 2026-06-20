@@ -96,56 +96,18 @@
       </div>
 
       <!-- Edit manager dialog -->
-      <PDialog v-model:visible="editDialogVisible" :header="editingManager?.name || 'Менеджер'" modal style="width: 520px">
-        <template v-if="editingManager">
-          <div style="display: flex; flex-direction: column; gap: 14px">
-            <div>
-              <label class="field-label">Макс. одновременных сделок</label>
-              <PInputNumber v-model="editForm.max_active_deals" :min="1" :max="999" style="width: 100%" />
-            </div>
-
-            <div>
-              <label class="field-label">Рабочие дни</label>
-              <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px">
-                <PButton v-for="(dayLabel, dayKey) in weekDays" :key="dayKey"
-                  :label="dayLabel" size="small"
-                  :outlined="!editForm.schedule.working_days?.includes(dayKey)"
-                  @click="toggleWorkingDay(dayKey)" />
-              </div>
-            </div>
-
-            <div style="display: flex; gap: 12px">
-              <div style="flex: 1">
-                <label class="field-label">Начало</label>
-                <PInputText v-model="editForm.schedule.start_time" placeholder="09:00" style="width: 100%" />
-              </div>
-              <div style="flex: 1">
-                <label class="field-label">Конец</label>
-                <PInputText v-model="editForm.schedule.end_time" placeholder="18:00" style="width: 100%" />
-              </div>
-            </div>
-
-            <div>
-              <label class="field-label" style="margin-bottom: 6px; display: block">Выходные / отпуска</label>
-              <div v-for="d in editingManager.days_off" :key="d.id" style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px; font-size: 0.9em">
-                <span>{{ d.date }}</span>
-                <span style="color: var(--text-muted)">{{ d.reason }}</span>
-                <PButton icon="pi pi-times" text size="small" severity="danger" @click="removeDayOff(d.id)" />
-              </div>
-              <div style="display: flex; gap: 8px; align-items: flex-end; margin-top: 6px">
-                <PInputText v-model="newDayOff.date" placeholder="2026-05-01" style="width: 140px" />
-                <PInputText v-model="newDayOff.reason" placeholder="Причина" style="flex: 1" />
-                <PButton icon="pi pi-plus" size="small" @click="addDayOff" :disabled="!newDayOff.date" />
-              </div>
-            </div>
-          </div>
-
-          <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px">
-            <PButton label="Отмена" text @click="editDialogVisible = false" />
-            <PButton label="Сохранить" @click="saveManager" />
-          </div>
-        </template>
-      </PDialog>
+      <ManagerEditDialog
+        :visible="editDialogVisible"
+        :manager="editingManager"
+        :form="editForm"
+        :new-day-off="newDayOff"
+        :week-days="weekDays"
+        @update:visible="editDialogVisible = $event"
+        @toggle-working-day="toggleWorkingDay"
+        @add-day-off="addDayOff"
+        @remove-day-off="removeDayOff"
+        @save="saveManager"
+      />
     </template>
 
     <!-- ═══ ROLE PERMISSIONS TAB ═══ -->
@@ -211,6 +173,7 @@ import { useRoute } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import { api } from '@/api/http'
 import DistributionView from '@/views/DistributionView.vue'
+import ManagerEditDialog from '@/components/ManagerEditDialog.vue'
 
 /* ── state ── */
 const toast = useToast()

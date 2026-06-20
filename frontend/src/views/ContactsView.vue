@@ -89,90 +89,15 @@
       />
 
       <!-- Contact Form -->
-      <PDialog
-        v-model:visible="showForm"
-        :header="contactForm.id ? 'Редактировать контакт' : 'Новый контакт'"
-        :style="{ width: '500px', maxWidth: '95vw' }"
-        modal
-      >
-        <div class="form-grid">
-          <div class="form-row-2">
-            <div>
-              <label class="field-label">Имя *</label>
-              <PInputText v-model="contactForm.first_name" placeholder="Имя" class="w-full" />
-            </div>
-            <div>
-              <label class="field-label">Фамилия</label>
-              <PInputText v-model="contactForm.last_name" placeholder="Фамилия" class="w-full" />
-            </div>
-          </div>
-          <div class="form-row-2">
-            <div>
-              <label class="field-label">Телефон</label>
-              <PInputText v-model="contactForm.phone" placeholder="+7 (___) ___-__-__" class="w-full" />
-            </div>
-            <div>
-              <label class="field-label">Email</label>
-              <PInputText v-model="contactForm.email" placeholder="email@example.com" class="w-full" />
-            </div>
-          </div>
-          <div class="form-row-2">
-            <div>
-              <label class="field-label">Должность</label>
-              <PInputText v-model="contactForm.position" placeholder="Менеджер, директор..." class="w-full" />
-            </div>
-            <div>
-              <label class="field-label">Компания</label>
-              <PSelect
-                v-model="contactForm.company_id"
-                :options="companyOptions"
-                optionLabel="label"
-                optionValue="value"
-                placeholder="— не выбрана —"
-                showClear
-                filter
-                filterPlaceholder="Поиск…"
-                class="w-full"
-              />
-            </div>
-          </div>
-          <div class="form-row-2">
-            <div>
-              <label class="field-label">Мессенджер</label>
-              <PInputText v-model="contactForm.messenger_id" placeholder="Telegram, WhatsApp..." class="w-full" />
-            </div>
-            <div>
-              <label class="field-label">Источник</label>
-              <PSelect
-                v-model="contactForm.source"
-                :options="sourceOptions"
-                optionLabel="label"
-                optionValue="value"
-                placeholder="— не указан —"
-                showClear
-                class="w-full"
-              />
-            </div>
-          </div>
-          <div>
-            <label class="field-label">Ответственный</label>
-            <PSelect
-              v-model="contactForm.responsible_id"
-              :options="managerOptions"
-              optionLabel="label"
-              optionValue="value"
-              placeholder="— не выбран —"
-              showClear
-              class="w-full"
-            />
-          </div>
-          <PButton
-            :label="contactForm.id ? 'Сохранить' : 'Создать'"
-            :disabled="!contactForm.first_name"
-            @click="submitContact"
-          />
-        </div>
-      </PDialog>
+      <ContactFormDialog
+        :visible="showForm"
+        :form="contactForm"
+        :company-options="companyOptions"
+        :source-options="sourceOptions"
+        :manager-options="managerOptions"
+        @update:visible="showForm = $event"
+        @submit="submitContact"
+      />
     </section>
 
     <template #locked>
@@ -186,6 +111,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import FeatureGate from '@/components/FeatureGate.vue'
 import ContactDrawer from '@/components/ContactDrawer.vue'
+import ContactFormDialog from '@/components/ContactFormDialog.vue'
 import * as crmApi from '@/api/crm'
 import type { CrmContact } from '@/api/crm'
 import { useAuthStore } from '@/stores/auth'

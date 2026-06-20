@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import sys
+from dataclasses import dataclass
 
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
@@ -11,8 +11,8 @@ from django_tenants.utils import schema_context, tenant_context
 
 from apps.billing.models import Plan
 from apps.tenants.models import Domain, Tenant
+from apps.users.management._seed_common import reconcile_membership
 from apps.users.models import Membership, User
-
 
 ROLE_ORDER = ('owner', 'admin', 'manager', 'viewer')
 BOOTSTRAP_ROLE_ORDER = ('owner', 'manager')
@@ -323,24 +323,7 @@ class Command(BaseCommand):
                     },
                 )
 
-                updates: list[str] = []
-                if membership.role != role:
-                    membership.role = role
-                    updates.append('role')
-                if not membership.is_active:
-                    membership.is_active = True
-                    updates.append('is_active')
-                if membership.joined_at is None:
-                    membership.joined_at = now
-                    updates.append('joined_at')
-                if membership.invite_token is not None:
-                    membership.invite_token = None
-                    updates.append('invite_token')
-                if membership.invited_at is not None:
-                    membership.invited_at = None
-                    updates.append('invited_at')
-                if updates:
-                    membership.save(update_fields=updates)
+                reconcile_membership(membership, role, now=now)
 
                 results[role] = AccountResult(
                     role=role,
@@ -405,24 +388,7 @@ class Command(BaseCommand):
                         'joined_at': timezone.now(),
                     },
                 )
-                membership_updates: list[str] = []
-                if membership.role != PLATFORM_ADMIN_ROLE:
-                    membership.role = PLATFORM_ADMIN_ROLE
-                    membership_updates.append('role')
-                if not membership.is_active:
-                    membership.is_active = True
-                    membership_updates.append('is_active')
-                if membership.joined_at is None:
-                    membership.joined_at = timezone.now()
-                    membership_updates.append('joined_at')
-                if membership.invite_token is not None:
-                    membership.invite_token = None
-                    membership_updates.append('invite_token')
-                if membership.invited_at is not None:
-                    membership.invited_at = None
-                    membership_updates.append('invited_at')
-                if membership_updates:
-                    membership.save(update_fields=membership_updates)
+                membership_updates = reconcile_membership(membership, PLATFORM_ADMIN_ROLE, now=timezone.now())
 
                 if membership_created:
                     membership_status = 'created'

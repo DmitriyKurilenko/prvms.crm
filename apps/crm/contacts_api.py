@@ -8,6 +8,7 @@ from apps.core.access import (
     normalize_crm_responsible_for_write,
     require_crm_permission,
 )
+
 from ._api_common import (
     _apply_responsible_write_guard,
     _ensure_builtin,

@@ -119,31 +119,18 @@
 
           <!-- Chat tab -->
           <div v-if="activeTab === 'chat'" class="tab-pane animate-fade">
-            <div v-if="chatSessions.length" class="chat-pane">
-              <div class="chat-channel-select">
-                <label class="field-label">Канал общения</label>
-                <PSelect v-model="selectedChatSessionId" :options="chatSessionOptions" optionLabel="label" optionValue="value" placeholder="Выберите канал" style="width: 100%" />
-              </div>
-              <template v-if="selectedChatSessionId">
-                <div ref="messagesContainer" class="chat-messages">
-                  <div v-for="m in chatMessages" :key="m.id" :class="['chat-bubble', m.direction === 'out' ? 'chat-out' : 'chat-in']">
-                    <div>{{ m.text }}</div>
-                    <div class="chat-meta">
-                      {{ formatTime(m.created_at) }}
-                      <span v-if="m.direction === 'out' && !m.delivered" style="color: #dc2626"> ✕</span>
-                    </div>
-                    <div v-if="m.error" class="chat-error">{{ m.error }}</div>
-                  </div>
-                  <div v-if="!chatMessages.length" class="empty-state">Нет сообщений</div>
-                </div>
-                <form v-if="canUpdateDeal" @submit.prevent="sendChatMessage" class="chat-input-row">
-                  <PInputText v-model="chatMessageText" placeholder="Написать ответ…" style="flex: 1" />
-                  <PButton type="submit" icon="pi pi-send" :disabled="!chatMessageText.trim()" />
-                </form>
-              </template>
-              <div v-else class="empty-state">Выберите канал общения</div>
-            </div>
-            <div v-else class="empty-state">Нет привязанных каналов общения</div>
+            <DealChatTab
+              ref="chatTabRef"
+              :sessions="chatSessions"
+              :session-options="chatSessionOptions"
+              :selected-session-id="selectedChatSessionId"
+              :messages="chatMessages"
+              :message-text="chatMessageText"
+              :can-send="canUpdateDeal"
+              @update:selected-session-id="selectedChatSessionId = $event"
+              @update:message-text="chatMessageText = $event"
+              @send-message="sendChatMessage"
+            />
           </div>
         </div>
       </div>
@@ -159,10 +146,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useApiCall } from '@/composables/useApiCall'
 import FeatureGate from '@/components/FeatureGate.vue'
+import DealChatTab from '@/components/DealChatTab.vue'
 import QuickContactDialog from '@/components/QuickContactDialog.vue'
 import QuickCompanyDialog from '@/components/QuickCompanyDialog.vue'
 import * as crmApi from '@/api/crm'
@@ -173,7 +161,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useTenantStore } from '@/stores/tenant'
 import { usePhoneStore } from '@/stores/phone'
 import { normalizeCrmPermissions } from '@/utils/crmPermissions'
-import { formatDate, formatDateTime, formatTime } from '@/utils/datetime'
+import { formatDate, formatDateTime } from '@/utils/datetime'
 
 const route = useRoute()
 const router = useRouter()
@@ -340,7 +328,7 @@ const chatSessionOptions = computed(() =>
 const selectedChatSessionId = ref<number | null>(null)
 const chatMessages = ref<any[]>([])
 const chatMessageText = ref('')
-const messagesContainer = ref<HTMLElement | null>(null)
+const chatTabRef = ref<{ scrollToBottom: () => Promise<void> } | null>(null)
 
 const activeChatSession = computed(() => chatSessions.value.find(s => s.id === selectedChatSessionId.value))
 
@@ -385,10 +373,7 @@ const sendChatMessage = async () => {
 }
 
 const scrollToBottom = async () => {
-  await nextTick()
-  if (messagesContainer.value) {
-    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
-  }
+  await chatTabRef.value?.scrollToBottom()
 }
 
 /* --- WS (chat) --- */
@@ -574,48 +559,4 @@ const documentStatusLabel = (s: string) => ({ draft: 'Черновик', sent: '
 .tl-date { font-size: 12px; color: var(--text-muted); }
 .add-activity-row { display: flex; gap: 6px; }
 .empty-state { color: var(--text-muted); padding: 24px; text-align: center; }
-
-/* Chat */
-.chat-pane { display: flex; flex-direction: column; gap: 10px; height: 100%; }
-.chat-channel-select { flex-shrink: 0; }
-.chat-messages {
-  flex: 1;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 8px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--bg);
-}
-.chat-bubble {
-  max-width: 75%;
-  padding: 8px 12px;
-  border-radius: 12px;
-  font-size: 0.9em;
-}
-.chat-in {
-  align-self: flex-start;
-  background: var(--p-surface-100);
-}
-.chat-out {
-  align-self: flex-end;
-  background: var(--p-primary-100);
-}
-.chat-meta {
-  font-size: 0.7em;
-  color: var(--text-muted);
-  text-align: right;
-  margin-top: 2px;
-}
-.chat-error {
-  font-size: 0.7em;
-  color: #dc2626;
-}
-.chat-input-row {
-  display: flex;
-  gap: 8px;
-  flex-shrink: 0;
-}
 </style>

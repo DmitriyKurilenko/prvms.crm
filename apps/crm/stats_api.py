@@ -9,6 +9,7 @@ from apps.core.access import (
 )
 from apps.core.tenant import get_request_tenant
 from apps.users.models import Membership
+
 from ._api_common import _ensure_builtin, crm_router
 from .models import Deal
 

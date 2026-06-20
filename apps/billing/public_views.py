@@ -6,7 +6,6 @@ from math import ceil
 
 from django.conf import settings
 from django.core.cache import cache
-from django.core.mail import send_mail
 from django.http import JsonResponse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
@@ -14,7 +13,6 @@ from django.views.decorators.csrf import csrf_exempt
 from apps.notifications.tasks import send_email_async
 
 from .models import PricingQuote, TelephonyQuoteRequest
-
 
 # ---------- Helpers ----------
 
@@ -62,14 +60,14 @@ def _calculate_quote(data: dict) -> tuple[int, list[dict], bool]:
     doc_total = doc_blocks * cfg['documents_per_100']
     total += doc_total
     if doc_total:
-        breakdown.append({'label': 'Документы', 'qty': documents, 'unit_price': cfg['documents_per_100'], 'total': doc_total, 'note': f'за каждые 100'})
+        breakdown.append({'label': 'Документы', 'qty': documents, 'unit_price': cfg['documents_per_100'], 'total': doc_total, 'note': 'за каждые 100'})
 
     signatures = max(0, int(data.get('signatures', 0)))
     sig_blocks = ceil(signatures / 50)
     sig_total = sig_blocks * cfg['signatures_per_50']
     total += sig_total
     if sig_total:
-        breakdown.append({'label': 'Подписания', 'qty': signatures, 'unit_price': cfg['signatures_per_50'], 'total': sig_total, 'note': f'за каждые 50'})
+        breakdown.append({'label': 'Подписания', 'qty': signatures, 'unit_price': cfg['signatures_per_50'], 'total': sig_total, 'note': 'за каждые 50'})
 
     if telephony:
         breakdown.append({'label': 'Телефония', 'qty': 1, 'unit_price': 0, 'total': 0, 'note': 'по запросу'})

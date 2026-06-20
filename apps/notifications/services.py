@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-from django.conf import settings
+import requests
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
+from django.conf import settings
 from django.core.mail import send_mail
 from django_tenants.utils import schema_context, tenant_context
-import requests
 
 from apps.users.models import Membership, User
+
 from .models import Notification, NotificationEvent, NotificationPreference, TelegramBinding
 
 _DEFAULT_ROLES = ['owner', 'admin']

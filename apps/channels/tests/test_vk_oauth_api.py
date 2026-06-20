@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from django.conf import settings
 from django.core import signing
 
 from apps.channels.models import MessengerChannel

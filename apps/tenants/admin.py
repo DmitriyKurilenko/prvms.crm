@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django_tenants.admin import TenantAdminMixin
-from .models import Tenant, Domain, SigningTokenLookup
+
+from .models import Domain, SigningTokenLookup, Tenant
 
 
 @admin.register(Tenant)

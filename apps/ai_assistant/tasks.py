@@ -8,6 +8,7 @@ from channels.layers import get_channel_layer
 from django_tenants.utils import schema_context
 
 from apps.tenants.models import Tenant
+
 from .services import send_notification_via_hermes
 
 logger = logging.getLogger(__name__)

@@ -7,7 +7,7 @@ from django.utils import timezone
 from django_tenants.utils import schema_context
 
 from apps.documents.models import Document, DocumentTemplate, SigningSession
-from apps.documents.services import SigningError, send_for_signing, request_signing_otp, verify_signing
+from apps.documents.services import SigningError, request_signing_otp, send_for_signing, verify_signing
 from apps.tenants.models import SigningTokenLookup
 from apps.users.tests.base import TenantAPITestCase
 

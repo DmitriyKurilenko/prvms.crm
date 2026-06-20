@@ -1,5 +1,6 @@
 from django.contrib import admin
-from .models import NotificationPreference, Notification, TelegramBinding
+
+from .models import Notification, NotificationPreference, TelegramBinding
 
 
 @admin.register(NotificationPreference)

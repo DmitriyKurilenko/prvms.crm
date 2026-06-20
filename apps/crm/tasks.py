@@ -4,8 +4,9 @@ from celery import shared_task
 from django.utils import timezone
 from django_tenants.utils import schema_context, tenant_context
 
-from apps.tenants.models import Tenant
 from apps.notifications.services import notify
+from apps.tenants.models import Tenant
+
 from .models import Activity, Deal
 from .services.auto_actions import process_stage_change
 

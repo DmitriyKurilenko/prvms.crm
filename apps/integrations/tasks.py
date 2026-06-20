@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from django.utils import timezone
 from celery import shared_task
+from django.utils import timezone
 from django_tenants.utils import schema_context, tenant_context
 
 from apps.tenants.models import Tenant
+
 from .models import CRMConnection, ManagerProfile
 from .services import add_error_log, call_adapter_with_reconnect, clear_connection_error, is_connection_authorized
 

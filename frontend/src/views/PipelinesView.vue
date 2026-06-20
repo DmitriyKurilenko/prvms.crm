@@ -91,46 +91,22 @@
         </div>
       </PDialog>
 
-      <PDialog v-model:visible="showTriggerConfig" header="Триггер" :style="{ width: '450px', maxWidth: '95vw' }" modal>
-        <div class="form-grid">
-          <div v-if="!triggerStage">
-            <label class="field-label">Воронка *</label>
-            <PSelect v-model="triggerPipelineId" :options="pipelines" optionLabel="name" optionValue="id" placeholder="Выберите воронку" @change="onTriggerPipelineChange" class="w-full" />
-          </div>
-          <div v-if="!triggerStage">
-            <label class="field-label">Этап *</label>
-            <PSelect v-model="triggerStageId" :options="triggerStageOptions" optionLabel="label" optionValue="value" placeholder="Выберите этап" class="w-full" />
-          </div>
-          <div v-if="triggerStage">
-            <label class="field-label">Этап: {{ triggerStage.name }}</label>
-          </div>
-          <div>
-            <label class="field-label">Действие *</label>
-            <PSelect v-model="triggerForm.type" :options="triggerTypeOptions" optionLabel="label" optionValue="value" placeholder="Выберите действие" class="w-full" />
-          </div>
-          <div v-if="triggerForm.type === 'create_task'">
-            <label class="field-label">Название задачи</label>
-            <PInputText v-model="triggerForm.title" placeholder="Новая задача" class="w-full" />
-          </div>
-          <div v-if="triggerForm.type === 'create_task'">
-            <label class="field-label">Через дней</label>
-            <PInputText v-model.number="triggerForm.days_offset" type="number" min="0" class="w-full" />
-          </div>
-          <div v-if="triggerForm.type === 'send_notification'">
-            <label class="field-label">Событие</label>
-            <PInputText v-model="triggerForm.event" placeholder="deal_stage_changed" class="w-full" />
-          </div>
-          <div v-if="triggerForm.type === 'create_document'">
-            <label class="field-label">Шаблон документа *</label>
-            <PSelect v-model="triggerForm.template_id" :options="triggerTemplateOptions" optionLabel="label" optionValue="value" placeholder="Выберите шаблон" class="w-full" />
-          </div>
-          <PButton
-            label="Сохранить"
-            :disabled="!triggerForm.type || (!triggerStage && !triggerStageId) || (triggerForm.type === 'create_document' && !triggerForm.template_id)"
-            @click="saveTrigger"
-          />
-        </div>
-      </PDialog>
+      <TriggerConfigDialog
+        :visible="showTriggerConfig"
+        :trigger-stage="triggerStage"
+        :pipelines="pipelines"
+        :stage-options="triggerStageOptions"
+        :form="triggerForm"
+        :type-options="triggerTypeOptions"
+        :template-options="triggerTemplateOptions"
+        :pipeline-id="triggerPipelineId"
+        :stage-id="triggerStageId"
+        @update:visible="showTriggerConfig = $event"
+        @update:pipeline-id="triggerPipelineId = $event"
+        @update:stage-id="triggerStageId = $event"
+        @pipeline-change="onTriggerPipelineChange"
+        @save="saveTrigger"
+      />
     </section>
 
     <template #locked>
@@ -143,6 +119,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import FeatureGate from '@/components/FeatureGate.vue'
+import TriggerConfigDialog from '@/components/TriggerConfigDialog.vue'
 import * as crmApi from '@/api/crm'
 import type { CrmPipeline, CrmStage } from '@/api/crm'
 import { api } from '@/api/http'

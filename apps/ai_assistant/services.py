@@ -1,4 +1,3 @@
-import json
 import logging
 from typing import Optional
 
@@ -6,7 +5,7 @@ import requests
 from django.conf import settings
 from django_tenants.utils import schema_context
 
-from apps.crm.models import Activity, Contact, Deal
+from apps.crm.models import Contact, Deal
 from apps.users.models import User
 
 logger = logging.getLogger(__name__)

@@ -4,10 +4,10 @@ from datetime import timedelta
 
 from django.utils import timezone
 
+from apps.crm.models import Activity, Deal, Stage
 from apps.documents.models import DocumentTemplate
 from apps.documents.services import create_document_from_deal
 from apps.notifications.services import notify
-from apps.crm.models import Activity, Deal, Stage
 
 
 def process_stage_change(deal: Deal, old_stage: Stage, new_stage: Stage):

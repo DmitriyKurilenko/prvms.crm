@@ -1,6 +1,7 @@
-import environ
 from datetime import timedelta
 from pathlib import Path
+
+import environ
 
 env = environ.Env(
     DEBUG=(bool, False),
@@ -73,6 +74,7 @@ AUTH_USER_MODEL = 'users.User'
 # ---------- Middleware ----------
 MIDDLEWARE = [
     'apps.core.middleware.HealthCheckBypassMiddleware',
+    'django.middleware.gzip.GZipMiddleware',
     'django_tenants.middleware.main.TenantMainMiddleware',
     'apps.core.middleware.EnsureTenantContextMiddleware',
     'corsheaders.middleware.CorsMiddleware',
@@ -203,6 +205,53 @@ CACHES = {
         'BACKEND': 'django.core.cache.backends.redis.RedisCache',
         'LOCATION': REDIS_URL,
     }
+}
+
+# ---------- Logging ----------
+# Единая точка наблюдаемости. До этого проект полагался на дефолты Django,
+# из-за чего «самодиагностика» интеграций (логи Exolve/ЮKassa/CRM-webhook,
+# см. KNOWN_ISSUES #23) не была настроена структурно. disable_existing_loggers
+# намеренно False — чтобы не глушить логгеры Django/Celery/django-tenants.
+LOG_LEVEL = env('LOG_LEVEL', default='INFO')
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '[{asctime}] {levelname} {name}: {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': LOG_LEVEL,
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': env('DJANGO_LOG_LEVEL', default='INFO'),
+            'propagate': False,
+        },
+        'django.request': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        # Доменные логгеры внешних интеграций — единая точка наблюдения за
+        # граничными вызовами (Exolve, внешние CRM, ЮKassa, мессенджеры, ЭДО).
+        'apps.telephony': {'handlers': ['console'], 'level': LOG_LEVEL, 'propagate': False},
+        'apps.integrations': {'handlers': ['console'], 'level': LOG_LEVEL, 'propagate': False},
+        'apps.billing': {'handlers': ['console'], 'level': LOG_LEVEL, 'propagate': False},
+        'apps.channels': {'handlers': ['console'], 'level': LOG_LEVEL, 'propagate': False},
+        'apps.documents': {'handlers': ['console'], 'level': LOG_LEVEL, 'propagate': False},
+        'apps.ai_assistant': {'handlers': ['console'], 'level': LOG_LEVEL, 'propagate': False},
+    },
 }
 
 # ---------- Encryption ----------

@@ -7,7 +7,14 @@ from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
-from .services import SigningError, _resolve_signing_session, get_signing_context, request_signing_otp, send_signed_document_email, verify_signing
+from .services import (
+    SigningError,
+    _resolve_signing_session,
+    get_signing_context,
+    request_signing_otp,
+    send_signed_document_email,
+    verify_signing,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -16,8 +23,9 @@ logger = logging.getLogger(__name__)
 def sign_esign_agreement(request, token: str):
     """Public view: render the e-signing agreement text for review before signing."""
     from django_tenants.utils import tenant_context
+
     from .models import DocumentTemplate
-    from .services import _extract_data_from_deal, _apply_field_mappings, _render_html
+    from .services import _apply_field_mappings, _extract_data_from_deal, _render_html
     try:
         tenant, session = _resolve_signing_session(str(token))
     except SigningError as exc:

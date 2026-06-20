@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.8.1] — 2026-06-20
+
+### Landing PageSpeed hardening — user-visible
+
+**Доводка главной страницы по отчёту Lighthouse против `crm.prvms.ru`.**
+- **Accessibility (контраст):** белый текст на зелёных кнопках `#43a047` давал контраст ≈3.0:1 (ниже WCAG AA 4.5:1). Зелёный для заливок с текстом в светлой теме затемнён: `--brand` `#43a047`→`#2e7d32` (белый текст 5.13:1), `--brand-strong` `#2e7d32`→`#1b5e20`. Декоративные галочки списков остаются свежо-зелёными.
+- **Performance (Document request latency):** HTML-документ отдавался без сжатия. Добавлен `django.middleware.gzip.GZipMiddleware` (после `HealthCheckBypassMiddleware`); документ на проводе 100 469 → 37 266 байт, `content-encoding: gzip`.
+- **SEO (robots.txt/sitemap.xml):** в проде `/robots.txt` ловил `prvms-spa` и отдавал HTML SPA. Добавлены `frontend/public/robots.txt`, `frontend/public/sitemap.xml` (Vite копирует `public/` в `dist/`, nginx отдаёт до SPA-фолбэка).
+- **Agentic Browsing:** добавлен `frontend/public/llms.txt` с H1-заголовком и ссылками.
+- **Брендинг:** официальный логотип-леттеринг `logo_text.png` встроен инлайн как WebP `<symbol>` (≈7.6/5.8 КБ светлый/тёмный варианты), переиспользуется через `<use>`; favicon обновлён с `logo.png`. Исходные PNG в репозиторий не коммитятся (`.gitignore`).
+
+### Сквозной рефакторинг проекта (DEC-044) — internal
+
+**Блок 0 (гигиена репозитория):** удалено постороннее дерево `frontend/src/composables/node_modules` (24 МБ); исторические спецификации `NEW_PROJECT_SPEC.md` и `MAX.md` перенесены в `docs/specs/`; удалён мёртвый легаси reverse-proxy (`nginx/` + `setup-ssl.sh`, замещённые Traefik в DEC-040); расписание celery beat уведено в `/tmp/celerybeat-schedule`.
+
+**Блок 1 (наблюдаемость):** в `config/settings.py` добавлен словарь `LOGGING` с именованными доменными логгерами внешних интеграций (`apps.telephony`, `apps.integrations`, `apps.billing`, `apps.channels`, `apps.documents`, `apps.ai_assistant`); `disable_existing_loggers=False`; уровень управляется `LOG_LEVEL`/`DJANGO_LOG_LEVEL`.
+
+**Блок 2 (статанализ ruff):** введён `pyproject.toml` с конфигом ruff (F/E/B/BLE/I), `requirements-dev.txt` с `ruff==0.15.18`, lint-job в CI как зависимость деплоя. 146 авто-исправлений (сортировка импортов, неиспользуемые импорты/переменные, f-строки без подстановок). Ручные корректностные правки: сужен `except Exception` → `except DisallowedHost` в `apps/core/tenant.py`; устранён **латентный `NameError`** в `apps/ai_assistant/consumers.py` (F821: `AIConversation`/`AIMessage` использовались без импорта); 6×B904 получили `raise … from exc`/`from None`; Hermes-скиллы получили логирование и `# noqa: BLE001`. E501 сознательно отложен на будущий проход `ruff format`.
+
+**Блок 3 (декомпозиция Vue-views):** шесть крупных view приведены к паттерну «родитель владеет состоянием, дочерний — презентационный» (DEC-036). Вынесены `DealChatTab.vue`, `TemplateHtmlEditor.vue`, `DealsKanbanBoard.vue`, `ContactFormDialog.vue`, `ManagerEditDialog.vue`, `TriggerConfigDialog.vue`. View уменьшились с 3233 до 2778 строк. Удалён мёртвый код `KanbanBoard.vue` + `DealCard.vue`.
+
+**Блок 4 (дедупликация seed + тесты):** триплицированная логика приведения `Membership` к каноническому состоянию вынесена в `apps/users/management/_seed_common.py::reconcile_membership`. Добавлены фронтенд-тесты `utils/datetime.test.ts` (6 новых кейсов; всего vitest 5→11).
+
+**Блок 5 (документация):** синхронизированы устаревшие KNOWN_ISSUES #11 (CI существует) и #15 (`ContractsView` → `DocumentsView`); зафиксированы DEC-044, эта запись и строка TASK_STATE.
+
+**Сопутствующее:** исправлен устаревший assertion в `apps/tenants/tests/test_tenant_resolver.py` (проверял absentную строку «CRM-платформа для продаж» и жёсткий `<html lang="ru">` после ребрендинга «ГусьБерри»).
+
+**Validation:** `manage.py check` 0 issues; `makemigrations --check` без дрейфа; `ruff check .` чисто; **132/132** backend tests; frontend `typecheck` EXIT=0, `build` EXIT=0, `vitest` **11/11**; HTTP `/`→200, `/healthz`→200, `/app`→302, `/api/docs`→200, frontend `/`→200. Браузер-QA 6 декомпозированных экранов не выполнялся (нет браузера в среде) — KNOWN_ISSUES #17.
+
+---
+
 ## [0.8.0] — 2026-06-18
 
 ### Landing page redesigned under «ГусьБерри» brand — user-visible

@@ -15,15 +15,15 @@ NOTE: `test_signing_flow` patches `_send_otp`/`_generate_otp` at
 `apps.documents.signing.*` (where `request_signing_otp` executes), not
 here — patching this shim would not affect the call sites.
 """
+from .esign_agreement import _ensure_esign_agreement
 from .mapping import _apply_field_mappings, _extract_data_from_deal, _resolve_field_path
+from .otp import _generate_otp, _hash_otp, _send_otp, _send_sms, _verify_otp
 from .pdf import (
     _compute_pdf_hash,
     _regenerate_pdf_with_signature,
     _render_html,
     _render_pdf,
 )
-from .otp import _generate_otp, _hash_otp, _send_otp, _send_sms, _verify_otp
-from .esign_agreement import _ensure_esign_agreement
 from .signing import (
     SigningContext,
     SigningError,

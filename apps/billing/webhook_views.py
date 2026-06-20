@@ -31,7 +31,7 @@ def yookassa_webhook(request):
 
     try:
         notification = WebhookNotificationFactory().create(event_json)
-    except Exception:
+    except Exception:  # noqa: BLE001 — недоверенный webhook-payload ЮKassa: любую ошибку парсинга трактуем как 400
         logger.warning('YooKassa webhook: failed to parse notification', exc_info=True)
         return HttpResponseBadRequest('Invalid notification')
 

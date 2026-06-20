@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from django.db.models import Q
+from django_tenants.utils import schema_context
 from ninja.errors import HttpError
 
 from apps.users.models import Membership
@@ -11,7 +12,7 @@ from apps.users.permissions import (
     get_team_member_user_ids,
     is_assignable_member,
 )
-from django_tenants.utils import schema_context
+
 from .tenant import get_request_tenant
 
 

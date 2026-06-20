@@ -3,6 +3,7 @@ from __future__ import annotations
 import secrets
 
 from apps.core.access import require_roles
+
 from ._api_common import (
     WebhookIn,
     _require_connection_feature_access,

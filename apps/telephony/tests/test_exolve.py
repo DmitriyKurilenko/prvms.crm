@@ -6,9 +6,9 @@ from django.db import connection
 from django_tenants.utils import schema_context
 
 from apps.crm.models import Contact, Deal, Pipeline, Stage
-from apps.tenants.models import ExolveNumberLookup
 from apps.telephony.models import CallRecord, ExolveChannel, ExolveSIPAccount
 from apps.telephony.tasks import process_exolve_event
+from apps.tenants.models import ExolveNumberLookup
 from apps.users.tests.base import TenantAPITestCase
 
 TENANT_NUMBER = '79991110000'

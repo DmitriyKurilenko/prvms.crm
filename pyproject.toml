@@ -1,0 +1,50 @@
+# Ruff — статический анализ backend-кода.
+# Введён осознанно узким набором: корректностные семейства (pyflakes F,
+# bugbear B, blind-except BLE, isort I) включены и обязаны быть зелёными в CI.
+# Стилистический E501 (длина строки) отложен на отдельный проход `ruff format`,
+# чтобы не смешивать переформатирование 800+ строк с правкой корректности.
+[tool.ruff]
+target-version = "py313"
+line-length = 120
+# Кэш вне /app: иначе watchfiles uvicorn (--reload) видит запись .ruff_cache
+# как изменение исходников и уходит в перезапуск во время локального прогона.
+cache-dir = "/tmp/ruff-cache"
+extend-exclude = [
+    "**/migrations/**",   # генерируются Django, не линтуем
+    "frontend/**",
+    "staticfiles/**",
+    "media/**",
+    "backups/**",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "BLE", "I"]
+ignore = [
+    "E501",  # длина строки — отдельный проход `ruff format`
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Агрегатор django-ninja: роутеры импортируются после создания NinjaAPI,
+# чтобы разорвать циклические импорты — поздние импорты здесь намеренны.
+"config/api.py" = ["E402"]
+# ASGI: маршрутизация импортируется после django.setup().
+"config/asgi.py" = ["E402"]
+# Hermes-скиллы исполняются как самостоятельные скрипты и правят sys.path
+# до импортов Django.
+"apps/ai_assistant/hermes_skills/*.py" = ["E402"]
+
+[tool.ruff.lint.flake8-bugbear]
+# DI-параметры django-ninja вызываются в дефолтах аргументов по контракту
+# фреймворка (как в FastAPI) — это не мутабельный дефолт-аргумент.
+extend-immutable-calls = [
+    "ninja.File",
+    "ninja.Body",
+    "ninja.Query",
+    "ninja.Form",
+    "ninja.Path",
+    "ninja.Header",
+    "ninja.Cookie",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["apps", "config"]

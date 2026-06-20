@@ -15,8 +15,9 @@ from apps.billing.guards import check_limit
 from apps.core.access import require_feature_access, require_roles
 from apps.core.tenant import get_request_tenant
 from apps.crm.models import Deal
+
 from .models import Document, DocumentTemplate, FieldMapping
-from .services import create_document_from_deal, send_for_signing, SigningError
+from .services import SigningError, create_document_from_deal, send_for_signing
 
 documents_router = Router(tags=['documents'], auth=JWTAuth())
 
@@ -232,14 +233,15 @@ def get_document_pdf(request, document_id: int):
     query_token = request.GET.get('token')
     if not query_token:
         raise HttpError(401, 'Token required')
-    from apps.users.models import User
     from ninja_jwt.exceptions import TokenError
     from ninja_jwt.tokens import AccessToken
+
+    from apps.users.models import User
     try:
         validated = AccessToken(query_token)
         request.auth = User.objects.get(id=validated['user_id'])
     except (TokenError, User.DoesNotExist, KeyError):
-        raise HttpError(401, 'Invalid token')
+        raise HttpError(401, 'Invalid token') from None
     require_roles(request, ['owner', 'admin', 'manager'])
     require_feature_access(request, 'documents')
     document = Document.objects.get(id=document_id)
@@ -272,9 +274,9 @@ def verify_document_signing(request, document_id: int, payload: VerifySigningIn)
     if not session:
         raise HttpError(400, 'No signing session found')
 
-    from .services import verify_signing as _verify, SigningError
+    from .services import verify_signing as _verify
     try:
         result = _verify(str(session.token), payload.code, request.META.get('REMOTE_ADDR'), request.META.get('HTTP_USER_AGENT'))
     except SigningError as exc:
-        raise HttpError(400, str(exc))
+        raise HttpError(400, str(exc)) from exc
     return {'detail': 'ok', 'status': result.status}

@@ -4,6 +4,7 @@ from celery import shared_task
 from django_tenants.utils import schema_context, tenant_context
 
 from apps.tenants.models import Tenant
+
 from .services import assign_entity, choose_rule
 
 

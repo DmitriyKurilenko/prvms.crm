@@ -6,6 +6,7 @@ from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from django_tenants.utils import schema_context
 
+from apps.ai_assistant.models import AIConversation, AIMessage
 from apps.tenants.models import Tenant
 from apps.users.models import Membership
 
@@ -47,9 +48,8 @@ class AIAssistantConsumer(AsyncJsonWebsocketConsumer):
         await self.send_json(event['payload'])
 
     async def _handle_message(self, content: dict):
+
         from .services import send_to_hermes
-        from .models import AIConversation, AIMessage
-        from django.utils import timezone
 
         message = content.get('message', '')
         conversation_id = content.get('conversation_id')

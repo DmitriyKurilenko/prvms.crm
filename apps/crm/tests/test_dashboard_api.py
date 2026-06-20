@@ -4,9 +4,9 @@ from unittest.mock import patch
 
 from django.utils import timezone
 
-from apps.documents.models import Document, DocumentTemplate
 from apps.crm.models import Deal, Pipeline, Stage
 from apps.distribution.models import DistributionLog
+from apps.documents.models import Document, DocumentTemplate
 from apps.telephony.models import CallRecord
 from apps.users.tests.base import TenantAPITestCase
 
@@ -127,6 +127,7 @@ class DashboardAPITest(TenantAPITestCase):
 
     def test_managers_online_requires_analytics_feature(self):
         from django_tenants.utils import schema_context
+
         from apps.billing.models import Feature
 
         plan = self.tenant.plan

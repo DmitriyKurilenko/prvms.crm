@@ -13,7 +13,6 @@ from apps.billing.usage import get_plan_usage_for_tenant
 from apps.core.access import require_membership, require_roles
 from apps.core.tenant import get_request_tenant
 
-
 tenant_router = Router(tags=['tenant'], auth=JWTAuth())
 
 

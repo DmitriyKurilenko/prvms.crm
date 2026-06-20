@@ -9,6 +9,7 @@ This script should be placed in:
 """
 
 import json
+import logging
 import os
 import sys
 
@@ -16,10 +17,14 @@ sys.path.insert(0, '/app')
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 
 import django
+
 django.setup()
 
 from django_tenants.utils import schema_context
+
 from apps.tenants.models import Tenant
+
+logger = logging.getLogger(__name__)
 
 
 def handle(args: dict) -> dict:
@@ -52,9 +57,10 @@ def handle(args: dict) -> dict:
                 return {'error': f'Tenant not found: {tenant_slug}'}
 
         with schema_context(tenant.schema_name):
+            from django.utils import timezone
+
             from apps.crm.models import Activity, Deal
             from apps.users.models import User
-            from django.utils import timezone
 
             task_data = {
                 'activity_type': 'task',
@@ -87,7 +93,8 @@ def handle(args: dict) -> dict:
                 'status': activity.status,
             }
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — граница skill→Hermes: ошибка возвращается агенту структурно
+        logger.exception('crm_create_task skill failed for tenant=%s', tenant_slug)
         return {'error': str(e)}
 
 

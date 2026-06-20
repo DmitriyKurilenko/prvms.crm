@@ -1,17 +1,26 @@
-from django.contrib import admin
-from django.urls import path
 from django.conf import settings
 from django.conf.urls.static import static
-from .api import api
-from .views import healthz, landing_page, frontend_entry
-from apps.documents.public_views import sign_page, sign_request_otp, sign_verify, sign_download_pdf, sign_send_email, sign_esign_agreement
-from apps.integrations.webhook_views import incoming_crm_webhook
-from apps.channels.public_views import channel_webhook
-from apps.telephony.public_views import exolve_ipcr, exolve_events
-from apps.billing.webhook_views import yookassa_webhook
-from apps.billing.public_views import pricing_calculator_quote, pricing_telephony_request
-from apps.notifications.views import TelegramBotWebhookView
+from django.contrib import admin
+from django.urls import path
+
 from apps.ai_assistant.public_views import hermes_webhook
+from apps.billing.public_views import pricing_calculator_quote, pricing_telephony_request
+from apps.billing.webhook_views import yookassa_webhook
+from apps.channels.public_views import channel_webhook
+from apps.documents.public_views import (
+    sign_download_pdf,
+    sign_esign_agreement,
+    sign_page,
+    sign_request_otp,
+    sign_send_email,
+    sign_verify,
+)
+from apps.integrations.webhook_views import incoming_crm_webhook
+from apps.notifications.views import TelegramBotWebhookView
+from apps.telephony.public_views import exolve_events, exolve_ipcr
+
+from .api import api
+from .views import frontend_entry, healthz, landing_page
 
 urlpatterns = [
     path('', landing_page),

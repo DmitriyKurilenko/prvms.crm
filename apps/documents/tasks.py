@@ -4,8 +4,9 @@ from celery import shared_task
 from django.utils import timezone
 from django_tenants.utils import schema_context, tenant_context
 
-from apps.tenants.models import Tenant
 from apps.integrations.adapters import get_adapter_for_tenant
+from apps.tenants.models import Tenant
+
 from .models import Document, SigningSession
 from .services import send_for_signing
 

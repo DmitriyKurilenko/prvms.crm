@@ -1,5 +1,6 @@
 from django.contrib import admin
-from .models import DistributionRule, DistributionLog
+
+from .models import DistributionLog, DistributionRule
 
 
 @admin.register(DistributionRule)

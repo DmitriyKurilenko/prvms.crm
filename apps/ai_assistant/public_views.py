@@ -7,14 +7,12 @@ import hmac
 import json
 import logging
 
-from django.conf import settings
-from django.http import JsonResponse
-from django.utils import timezone
-from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_POST
-
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
+from django.conf import settings
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
 from django_tenants.utils import schema_context
 
 from apps.tenants.models import Tenant

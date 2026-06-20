@@ -3,12 +3,11 @@ from __future__ import annotations
 from django.utils import timezone
 from django_tenants.utils import schema_context
 
-from apps.documents.models import Document
+from apps.channels.models import MessengerChannel
 from apps.crm.models import Pipeline
+from apps.documents.models import Document
 from apps.integrations.models import CRMConnection
 from apps.users.models import Membership
-from apps.channels.models import MessengerChannel
-
 
 MANAGER_LIMIT_ROLES = ('owner', 'admin', 'manager')
 

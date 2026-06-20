@@ -135,7 +135,7 @@ services:
   celery-beat:
     image: prvms-crm-web:latest
     restart: always
-    command: celery -A config beat -l info
+    command: celery -A config beat -l info --schedule /tmp/celerybeat-schedule
     volumes:
       - ./logs:/app/logs
     networks:

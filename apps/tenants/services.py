@@ -10,7 +10,6 @@ from django_tenants.utils import schema_context
 
 from apps.tenants.models import Tenant
 
-
 DEFAULT_PIPELINE_STAGES = (
     ('Новая заявка', 'open', '#3B82F6', 0),
     ('Квалификация', 'open', '#8B5CF6', 1),

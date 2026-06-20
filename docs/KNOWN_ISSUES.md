@@ -110,11 +110,9 @@
    - Файлы: `apps/*/tests/*`, `frontend/src/**/*.test.ts`
    - План закрытия: добавить Playwright e2e (auth/tenant switch/core CRM flows) и отдельный performance-профиль для API/WebSocket/Celery
 
-11. CI отсутствует — нет автоматического прогона `manage.py check`/тестов/typecheck/vitest при PR.
-    - Файлы: нет `.github/workflows/`
-    - План закрытия: добавить GitHub Actions workflow с матрицей backend (Python 3.13 + Postgres) + frontend (Node 24).
+11. ~~CI отсутствует — нет автоматического прогона `manage.py check`/тестов/typecheck/vitest при PR.~~ **Закрыто (констатация: было неактуально):** CI существует в `.github/workflows/ci.yml` — backend (`check` + migrations guard + tests на Python 3.13 + Postgres), frontend (typecheck + vitest + build на Node 24), deploy на push в main. **2026-06-20 (DEC-044):** добавлена отдельная lint-job (ruff F/E/B/BLE/I), от которой зависит деплой.
 
-15. `TelephonyView`/`ContractsView` — кандидаты на декомпозицию (P2-1 продолжение, DEC-036).
+15. `TelephonyView`/`DocumentsView` — кандидаты на декомпозицию фронтенда (P2-1 продолжение, DEC-036). **Примечание (2026-06-20):** `ContractsView` переименован в `DocumentsView` (DEC-043); декомпозиция фронтенда (Блок 3 аудита DEC-044) в работу 2026-06-20 не входила — выполнялись только backend/инфра-блоки 0–2.
     - **Контекст:** P2-1 выполнен полностью, включая ранее отложенный ChatsTab. `DealsView` 760→623, `IntegrationsView` 645→415, `ChannelsView` 605→452 — 9 новых презентационных компонентов; вся логика/WS остаётся в родителях. ChatsTab решён без эвристик: дочерний компонент владеет только scroll-DOM-узлом и экспонирует `scrollToBottom()` через `defineExpose`; родительские WS/send/load-обработчики вызывают его в тех же точках управления (1:1 перенос потока, не watcher-догадка) — проверяется `typecheck`+`vite build`. Все гейты зелёные.
     - **Файлы:** `frontend/src/views/{TelephonyView,ContractsView}.vue` (≈555/554 LOC, ещё не декомпозированы)
     - **План закрытия:** применить тот же паттерн «parent owns state, child presentational» + гейт `typecheck`/`vite build`; рекомендуется браузер-QA телефонии/договоров при следующем визуальном прогоне.

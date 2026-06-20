@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from apps.users.tests.base import TenantAPITestCase
 
@@ -44,6 +44,7 @@ class AIServicesTest(TenantAPITestCase):
 
     def test_send_to_hermes_timeout(self):
         import requests
+
         from apps.ai_assistant.services import send_to_hermes
 
         with patch('apps.ai_assistant.services.requests.post', side_effect=requests.exceptions.Timeout()):
@@ -96,9 +97,9 @@ class AIModelsTest(TenantAPITestCase):
         conversation = AIConversation.objects.create(
             user=self.owner,
         )
-        msg1 = AIMessage.objects.create(conversation=conversation, role='user', content='First')
-        msg2 = AIMessage.objects.create(conversation=conversation, role='assistant', content='Second')
-        msg3 = AIMessage.objects.create(conversation=conversation, role='user', content='Third')
+        AIMessage.objects.create(conversation=conversation, role='user', content='First')
+        AIMessage.objects.create(conversation=conversation, role='assistant', content='Second')
+        AIMessage.objects.create(conversation=conversation, role='user', content='Third')
 
         messages = list(conversation.messages.order_by('created_at'))
         self.assertEqual(messages[0].content, 'First')

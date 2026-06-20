@@ -11,7 +11,6 @@ from ninja_jwt.tokens import RefreshToken
 from apps.billing.models import Feature, Plan
 from apps.users.models import Membership, User
 
-
 ALL_FEATURE_CODES = [
     'distribution',
     'documents',

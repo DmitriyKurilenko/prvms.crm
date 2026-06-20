@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
 from asgiref.sync import async_to_sync
 from celery import shared_task
@@ -9,8 +10,14 @@ from django_tenants.utils import schema_context, tenant_context
 
 from apps.integrations.adapters import get_adapter_for_tenant
 from apps.tenants.models import Tenant
-from .providers import normalize_incoming_payload, send_outgoing
+
 from .models import ChatSession, MessageLog, MessengerChannel
+from .providers import normalize_incoming_payload, send_outgoing
+
+if TYPE_CHECKING:
+    # Импортируется только для аннотаций: рантайм-импорт Contact живёт внутри
+    # функции, чтобы не тянуть tenant-модель CRM на уровень модуля.
+    from apps.crm.models import Contact
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +83,7 @@ def _find_pipeline_and_stage() -> tuple | None:
 
     Returns (pipeline, stage) or logs the exact reason and returns None.
     """
-    from apps.crm.models import Pipeline, Stage
+    from apps.crm.models import Pipeline
 
     pipeline = (
         Pipeline.objects.filter(is_default=True, is_active=True).order_by('id').first()

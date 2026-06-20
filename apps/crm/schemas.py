@@ -15,7 +15,6 @@ from __future__ import annotations
 
 from ninja import Field, Schema
 
-
 # --- Contacts ---------------------------------------------------------------
 
 class ContactIn(Schema):

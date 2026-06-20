@@ -1,5 +1,6 @@
 from django.contrib import admin
-from .models import Contact, Company, Pipeline, Stage, Deal, Activity
+
+from .models import Activity, Company, Contact, Deal, Pipeline, Stage
 
 
 @admin.register(Contact)

@@ -16,9 +16,15 @@ dist/
 build/
 .mypy_cache/
 .pytest_cache/
+.ruff_cache/
 celerybeat*
 cookies.txt
 
 /.claude
 /backups
 .DS_Store
+
+# Local artifacts (Lighthouse reports, brand source PNGs — only inline WebP is committed)
+/pagespeed
+/logo.PNG
+/logo_text.png

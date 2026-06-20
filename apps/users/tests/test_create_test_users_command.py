@@ -8,6 +8,7 @@ from django_tenants.utils import schema_context, tenant_context
 from apps.billing.models import Plan
 from apps.tenants.models import Domain, Tenant
 from apps.users.models import Membership, User
+
 from .base import TenantAPITestCase
 
 

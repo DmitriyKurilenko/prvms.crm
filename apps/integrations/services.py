@@ -10,7 +10,6 @@ from django.utils import timezone
 from .adapters import get_adapter
 from .models import CRMConnection, IntegrationErrorLog, WebhookEndpoint
 
-
 STATUS_LABELS = {
     'working': 'Работает',
     'requires_authorization': 'Требуется авторизация',

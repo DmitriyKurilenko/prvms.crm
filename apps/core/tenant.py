@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from django.conf import settings
+from django.core.exceptions import DisallowedHost
 from django.db import connection
 from django_tenants.utils import schema_context
 from ninja.errors import HttpError
 
 from apps.tenants.models import Domain, Tenant
-
 
 LOCAL_HOST_ALIASES = {'localhost', '127.0.0.1', '::1'}
 
@@ -86,7 +86,7 @@ def _request_host(request) -> str:
     raw = ''
     try:
         raw = request.get_host()
-    except Exception:  # noqa: BLE001
+    except DisallowedHost:
         raw = request.META.get('HTTP_HOST', '')
     host = str(raw).split(':', 1)[0].strip().lower()
     if host in LOCAL_HOST_ALIASES:

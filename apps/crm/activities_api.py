@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from apps.core.access import require_crm_permission, require_roles
+
 from ._api_common import (
     _ensure_builtin,
     _scoped_object_or_error,

@@ -7,8 +7,8 @@ from datetime import timedelta
 from django.utils import timezone
 from django_tenants.utils import schema_context, tenant_context
 
-from apps.documents.models import Document, DocumentTemplate
 from apps.crm.models import Pipeline
+from apps.documents.models import Document, DocumentTemplate
 from apps.integrations.models import CRMConnection
 from apps.tenants.models import Tenant
 from apps.users.models import Membership, User

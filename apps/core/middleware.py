@@ -5,7 +5,6 @@ from django.utils import translation
 
 from .tenant import get_request_tenant
 
-
 SUPPORTED_LANGUAGES = ('ru', 'en')
 
 # Paths that must respond before tenant resolution. Liveness/readiness probes

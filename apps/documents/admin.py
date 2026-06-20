@@ -1,5 +1,6 @@
 from django.contrib import admin
-from .models import DocumentTemplate, FieldMapping, Document, SigningSession
+
+from .models import Document, DocumentTemplate, SigningSession
 
 
 @admin.register(DocumentTemplate)

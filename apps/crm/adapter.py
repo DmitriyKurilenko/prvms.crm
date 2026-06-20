@@ -1,7 +1,8 @@
 from django.core.files.base import ContentFile
 
 from apps.integrations.adapters import LeadData
-from .models import Deal, Contact, Activity
+
+from .models import Activity, Contact, Deal
 
 
 class BuiltinCRMAdapter:
@@ -57,9 +58,10 @@ class BuiltinCRMAdapter:
         return default_storage.url(path)
 
     def list_users(self):
-        from apps.users.models import Membership
-        from apps.integrations.adapters import CRMUser
         from django.db import connection
+
+        from apps.integrations.adapters import CRMUser
+        from apps.users.models import Membership
         members = Membership.objects.filter(
             tenant=connection.tenant, is_active=True,
         ).exclude(role='viewer').select_related('user')

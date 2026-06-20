@@ -7,12 +7,13 @@ import requests
 from django.conf import settings
 from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
 from django.http import JsonResponse
+from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
-from django.utils.decorators import method_decorator
+
+from apps.users.models import User
 
 from .models import TelegramBinding
-from apps.users.models import User
 
 logger = logging.getLogger(__name__)
 

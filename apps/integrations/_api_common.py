@@ -24,8 +24,9 @@ from ninja_jwt.authentication import JWTAuth
 from apps.core.access import require_feature_access
 from apps.core.tenant import get_request_tenant
 from apps.tenants.models import Tenant
+
 from .models import CRMConnection, WebhookEndpoint
-from .services import missing_scopes_for_connection, add_error_log
+from .services import add_error_log, missing_scopes_for_connection
 
 integrations_router = Router(tags=['integrations'], auth=JWTAuth())
 

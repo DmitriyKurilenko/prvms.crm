@@ -16,8 +16,10 @@ class TenantResolverTest(TenantAPITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('text/html', response['Content-Type'])
         content = response.content.decode()
-        self.assertIn('CRM-платформа для продаж', content)
-        self.assertIn('<html lang="ru">', content)
+        # Проверяем по устойчивому бренд-маркеру, а не по маркетинговой копии,
+        # которая меняется при редизайне лендинга.
+        self.assertIn('ГусьБерри', content)
+        self.assertIn('<html lang="ru"', content)
 
     def test_login_and_register_shortcuts_redirect_to_frontend(self):
         login_response = self.client.get('/login', HTTP_HOST='localhost')
