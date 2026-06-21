@@ -259,8 +259,32 @@ FIELD_ENCRYPTION_KEY = env('FIELD_ENCRYPTION_KEY', default='')
 SALT_KEY = env.list('SALT_KEY', default=[FIELD_ENCRYPTION_KEY or SECRET_KEY])
 
 # ---------- Email ----------
-EMAIL_BACKEND = env('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
-DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='noreply@platform.ru')
+# Транспорт читается из nodemailer-стиля env-переменных (SMTP_*/CONTACT_*),
+# которые задаёт хостинг (Beget), и маппится на Django EMAIL_*.
+# Если EMAIL_BACKEND не задан явно, выбираем SMTP при наличии внешнего хоста,
+# иначе падаем обратно к console (безопасный dev-режим). Это исключает
+# молчаливую потерю писем, когда SMTP_HOST заполнен, а backend остался console.
+_smtp_host = env('SMTP_HOST', default='')
+EMAIL_BACKEND = env(
+    'EMAIL_BACKEND',
+    default=(
+        'django.core.mail.backends.smtp.EmailBackend'
+        if _smtp_host and _smtp_host not in ('localhost', '127.0.0.1')
+        else 'django.core.mail.backends.console.EmailBackend'
+    ),
+)
+EMAIL_HOST = env('SMTP_HOST', default='localhost')
+EMAIL_PORT = env.int('SMTP_PORT', default=587)
+EMAIL_HOST_USER = env('SMTP_USER', default='')
+EMAIL_HOST_PASSWORD = env('SMTP_PASS', default='')
+EMAIL_TIMEOUT = env.int('EMAIL_TIMEOUT', default=10)
+# nodemailer `secure`: true → неявный TLS (SMTPS, порт 465); false → STARTTLS (587).
+# Django требует взаимоисключающие USE_SSL/USE_TLS — деривация гарантирует это.
+EMAIL_USE_SSL = env.bool('SMTP_SECURE', default=False)
+EMAIL_USE_TLS = (not EMAIL_USE_SSL) and EMAIL_HOST not in ('', 'localhost')
+# From-адрес писем и адрес-получатель заявок с лендинга.
+DEFAULT_FROM_EMAIL = env('CONTACT_FROM', default=env('DEFAULT_FROM_EMAIL', default='noreply@platform.ru'))
+SUPPORT_EMAIL = env('CONTACT_TO', default='')
 
 # ---------- Pricing Calculator ----------
 PRICING_CUSTOM = {

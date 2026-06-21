@@ -59,6 +59,14 @@
     - **Исправление (DEC-034):** `HealthCheckBypassMiddleware` отвечает на `/healthz` до tenant resolution; healthcheck `frontend-app` удалён (nginx без healthcheck → Traefik сразу регистрирует роутер); `deploy.sh`/`start-all.sh` идемпотентно пересоздают `/opt/crm_prvms/*` симлинки на каждый запуск (копии бэкапятся в `*.copy_replaced_*.bak`); `bring_up()` использует `--force-recreate`; в `start-all.sh` добавлен preflight на `PUBLIC_HOSTNAME`. DEC-033 (перезапуск Traefik) сохранён как defensive measure.
     - **Файлы:** `apps/core/middleware.py`, `config/settings.py`, `vps-deployment/crm_prvms/docker-compose.yml`, `vps-deployment/crm_prvms/deploy.sh`, `vps-deployment/scripts/start-all.sh`, `.gitignore`
 
+## Закрытые (2026-06-21)
+
+26. ~~Заявки с лендинга не приходят на почту: в логе Celery `delivered=1`, но письмо печатается воркером.~~
+    - **Истинная причина:** в запущенном стеке активен `django.core.mail.backends.console.EmailBackend`. В репозиторийном `.env` уже был переключён на SMTP, но `.env.example` по умолчанию задавал `console`; при копировании примера и заполнении только SMTP-блока получался молчаливый fallback. Docker Compose также не перечитывает `env_file` без пересоздания контейнеров, поэтому смена переменной без `--force-recreate`/`--build` не влияла на работающий воркер.
+    - **Исправление:** `settings.py` теперь автоматически выбирает SMTP-бэкенд, если задан `SMTP_HOST`, но `EMAIL_BACKEND` не указан явно; добавлен Django system check `notifications.W001`, который предупреждает в `manage.py check` о конфликте `console + SMTP_HOST`; `.env.example` приведён к автовыбору backend.
+    - **Файлы:** `config/settings.py`, `apps/notifications/checks.py`, `apps/notifications/apps.py`, `.env.example`
+    - **Действие для продолжения:** пересоздать контейнеры (`docker compose down && up -d --build`) и убедиться, что в рабочем `.env` нет явного `EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend`.
+
 ## Открытые
 
 22. **Канал ВКонтакте — ограничения первой версии.**

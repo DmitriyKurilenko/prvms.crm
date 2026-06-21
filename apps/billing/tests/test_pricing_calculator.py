@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import json
 from datetime import timedelta
+from unittest.mock import patch
 
 from django.core.cache import cache
-from django.test import Client, TestCase
+from django.test import Client, TestCase, override_settings
 from django.utils import timezone
 from django_tenants.utils import schema_context
 
@@ -170,6 +171,46 @@ class TelephonyRequestViewTest(TestCase):
             content_type='application/json',
         )
         self.assertEqual(resp.status_code, 400)
+
+    @override_settings(SUPPORT_EMAIL='support@prvms.ru')
+    @patch('apps.billing.public_views.send_email_async.delay')
+    def test_contact_form_queues_email(self, mock_delay):
+        payload = {
+            'name': 'Пётр',
+            'phone': '+79990001122',
+            'email': 'petr@example.com',
+            'configuration': {'message': 'Хочу навести порядок в заявках', 'source': 'landing-contact'},
+        }
+        resp = self.client.post(
+            '/api/public/pricing/telephony-request/',
+            data=json.dumps(payload),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(TelephonyQuoteRequest.objects.count(), 1)
+        mock_delay.assert_called_once()
+        subject, body, from_email, recipients = mock_delay.call_args.args
+        self.assertIn('Пётр', subject)
+        self.assertEqual(recipients, ['support@prvms.ru'])
+        self.assertIn('+79990001122', body)
+        self.assertIn('Хочу навести порядок в заявках', body)
+
+    @override_settings(SUPPORT_EMAIL='', DEFAULT_FROM_EMAIL='')
+    @patch('apps.billing.public_views.send_email_async.delay')
+    def test_contact_form_no_recipient_skips_email(self, mock_delay):
+        payload = {
+            'name': 'Анна',
+            'phone': '+79993334455',
+            'configuration': {'message': 'тест', 'source': 'landing-contact'},
+        }
+        resp = self.client.post(
+            '/api/public/pricing/telephony-request/',
+            data=json.dumps(payload),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(TelephonyQuoteRequest.objects.count(), 1)
+        mock_delay.assert_not_called()
 
 
 class QuoteRegistrationTest(TestCase):

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import timedelta
 from math import ceil
 
@@ -13,6 +14,8 @@ from django.views.decorators.csrf import csrf_exempt
 from apps.notifications.tasks import send_email_async
 
 from .models import PricingQuote, TelephonyQuoteRequest
+
+logger = logging.getLogger(__name__)
 
 # ---------- Helpers ----------
 
@@ -139,18 +142,35 @@ def pricing_telephony_request(request):
         config_json=config,
     )
 
-    # Async email to support
-    support_email = getattr(settings, 'SUPPORT_EMAIL', '') or getattr(settings, 'DEFAULT_FROM_EMAIL', '')
-    if support_email:
+    # Заявка сохранена в БД независимо от доставки письма. Ниже — уведомление по почте.
+    source = str(config.get('source', '')).strip() if isinstance(config, dict) else ''
+    message_text = str(config.get('message', '')).strip() if isinstance(config, dict) else ''
+    is_contact = source == 'landing-contact'
+
+    if is_contact:
+        subject = f'Новая заявка с сайта от {name}'
+        intro = 'Новая заявка с лендинга «Написать нам».'
+    else:
         subject = f'Заявка на телефонию от {name}'
-        message_lines = [
-            'Новая заявка на подключение телефонии (СВОБОДНЫЙ тариф).',
-            '',
-            f'Имя: {name}',
-            f'Email: {email}',
-            f'Телефон: {phone}',
-            f'Конфигурация: {json.dumps(config, ensure_ascii=False, indent=2)}',
-        ]
-        send_email_async.delay(subject, '\n'.join(message_lines), None, [support_email])
+        intro = 'Новая заявка на подключение телефонии (СВОБОДНЫЙ тариф).'
+
+    body_lines = [
+        intro,
+        '',
+        f'Имя: {name}',
+        f'Телефон: {phone or "—"}',
+        f'Email: {email or "—"}',
+    ]
+    if message_text:
+        body_lines += ['', 'Сообщение:', message_text]
+    if not is_contact and config:
+        body_lines += ['', 'Конфигурация:', json.dumps(config, ensure_ascii=False, indent=2)]
+
+    recipient = getattr(settings, 'SUPPORT_EMAIL', '') or getattr(settings, 'DEFAULT_FROM_EMAIL', '')
+    if recipient:
+        send_email_async.delay(subject, '\n'.join(body_lines), None, [recipient])
+        logger.info('Lead email queued: source=%s recipient=%s name=%s', source or 'telephony', recipient, name)
+    else:
+        logger.warning('Lead saved but no recipient configured (SUPPORT_EMAIL/CONTACT_TO empty); email skipped for %s', name)
 
     return JsonResponse({'status': 'ok'})

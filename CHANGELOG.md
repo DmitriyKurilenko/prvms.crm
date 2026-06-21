@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.8.2] — 2026-06-21
+
+### Fixed — Landing contact form email delivery (DEC-045)
+
+**Form "Написать нам" on the landing page now sends emails to the configured address.**
+
+The `POST /api/public/pricing/telephony-request/` handler saved requests to the DB and queued emails, but letters were never delivered: `EMAIL_BACKEND` was `console`, SMTP parameters were not forwarded from the hosting environment, and there was no dedicated recipient env variable. Hosting (Beget) uses nodemailer-style env names (`SMTP_HOST/SMTP_PORT/SMTP_SECURE/SMTP_USER/SMTP_PASS`, `CONTACT_TO/CONTACT_FROM`), not Django's `EMAIL_*` names.
+
+- `config/settings.py`: hosting env vars mapped to Django mail contract (`SMTP_HOST→EMAIL_HOST`, `SMTP_PORT→EMAIL_PORT`, `SMTP_USER→EMAIL_HOST_USER`, `SMTP_PASS→EMAIL_HOST_PASSWORD`, `CONTACT_FROM→DEFAULT_FROM_EMAIL`, `CONTACT_TO→SUPPORT_EMAIL`). Nodemailer `secure` translated to mutually exclusive `EMAIL_USE_SSL`/`EMAIL_USE_TLS`.
+- `apps/billing/public_views.py`: source detection (`landing-contact` vs telephony calculator), readable subject + body (Name/Phone/Email/Message instead of JSON dump), recipient `SUPPORT_EMAIL or DEFAULT_FROM_EMAIL`, logging on enqueue with warning if recipient is unset.
+- `apps/notifications/tasks.py`: `send_email_async` logs `delivered=<N>` and catches narrow `(smtplib.SMTPException, OSError)` with traceback.
+- env files: `.env` switched to smtp backend; `.env.example` and `.env.prod.example` enriched with `SMTP_*`/`CONTACT_*` blocks.
+- Tests: `apps/billing/tests/test_pricing_calculator.py` — +2 cases with mocked `send_email_async.delay`.
+
+**Validation:** `manage.py check` 0 issues; ruff (F/E/B/BLE/I) clean on affected files; **134/134** backend tests. Live probe: POST form → HTTP 200, celery `delivered=1` (Beget accepted via SSL/465).
+
+**Hotfix (2026-06-21):** eliminated silent fallback to `console.EmailBackend` when `SMTP_HOST` is configured — `settings.py` now auto-selects SMTP unless `EMAIL_BACKEND` is explicitly set, and `manage.py check` emits `notifications.W001` if `console` is used with a real SMTP host.
+
+---
+
 ## [0.8.1] — 2026-06-20
 
 ### Landing PageSpeed hardening — user-visible

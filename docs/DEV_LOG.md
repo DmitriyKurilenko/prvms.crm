@@ -1,5 +1,46 @@
 # Dev Log
 
+## 2026-06-21 — Hotfix: письма с лендинга уходят в console-бэкенд
+
+### Контекст:
+Пользователь сообщил, что заявки из формы «Написать нам» не приходят на почту. Лог Celery показывал печать письма воркером (`Content-Type...`, `From...`, тело, разделитель) и `delivered=1` — классический признак `django.core.mail.backends.console.EmailBackend`. При этом в репозиторийном `.env` уже стоял `EMAIL_BACKEND=smtp`, а в `.env.example` по умолчанию был `console`, что при копировании примера и заполнении только SMTP-блока давал молчаливую потерю писем.
+
+### Что сделано:
+- **`config/settings.py`:** добавлена автодеривация `EMAIL_BACKEND`: если `EMAIL_BACKEND` не задан явно и `SMTP_HOST` заполнен внешним хостом, используется SMTP-бэкенд; в противном случае — console (dev). Это убирает «забыли переключить backend» как класс причины.
+- **`apps/notifications/checks.py` + `apps/notifications/apps.py`:** Django system check `notifications.W001` предупреждает в `manage.py check`, когда активен console-бэкенд при настроенном SMTP-хосте.
+- **`.env.example`:** закомментирован жёсткий `EMAIL_BACKEND=console`; добавлен комментарий об автовыборе backend в `settings.py`.
+- **Обновлена документация:** `docs/DECISIONS.md` (DEC-045) и `docs/KNOWN_ISSUES.md`.
+
+### Файлы:
+`config/settings.py`, `apps/notifications/checks.py`, `apps/notifications/apps.py`, `.env.example`, `docs/{DECISIONS,KNOWN_ISSUES,DEV_LOG}.md`.
+
+### Валидация:
+`docker compose down && up -d --build`; `manage.py check` — 0 errors, предупреждение `notifications.W001` появляется только при принудительном `EMAIL_BACKEND=console` + `SMTP_HOST=smtp.beget.com`; ruff (F/E/B/BLE/I) — чисто; backend-тесты — 134/134.
+
+### Риски:
+Пересоздание контейнеров (`--build`) обязательно, потому что Docker Compose читает `env_file` только при создании контейнера. Простой `docker compose up -d` без `--force-recreate` не подхватит изменение `EMAIL_BACKEND`.
+
+## 2026-06-21 — Приём формы обратной связи лендинга по почте (DEC-045)
+
+### Контекст:
+Форма «Написать нам» на лендинге POST-ит на `/api/public/pricing/telephony-request/`. Обработчик сохранял заявку в БД и ставил письмо в очередь, но письмо не доходило: активен `console`-бэкенд, в `settings.py` не проброшены SMTP-параметры, отсутствовала env-переменная адреса-получателя. Креды хостинга заданы в nodemailer-стиле (`SMTP_*`/`CONTACT_*`), а не в Django-именах `EMAIL_*`.
+
+### Что сделано:
+- **`config/settings.py`:** env хостинга смаплены на Django-контракт почты (`SMTP_HOST/PORT/USER/PASS`→`EMAIL_HOST/PORT/HOST_USER/HOST_PASSWORD`, `CONTACT_FROM`→`DEFAULT_FROM_EMAIL`, `CONTACT_TO`→новая `SUPPORT_EMAIL`). Семантика `SMTP_SECURE` приведена к взаимоисключающим `EMAIL_USE_SSL`/`EMAIL_USE_TLS` по контракту `django/core/mail/backends/smtp.py` (оба `True` → `ValueError`). Добавлен `EMAIL_TIMEOUT`.
+- **`apps/billing/public_views.py`:** различение источника (`source == 'landing-contact'` против калькулятора телефонии) — корректная тема и человекочитаемое тело (Имя/Телефон/Email/Сообщение вместо JSON-дампа); получатель `SUPPORT_EMAIL or DEFAULT_FROM_EMAIL`; логирование постановки и предупреждение при незаданном получателе.
+- **`apps/notifications/tasks.py`:** `send_email_async` логирует `delivered=<N>` либо ловит узкие `(smtplib.SMTPException, OSError)`, пишет traceback и пробрасывает (не глушит, BLE-гейт соблюдён).
+- **env-файлы:** `.env` переключён на smtp-бэкенд; `.env.example` дополнен документированным блоком `SMTP_*`/`CONTACT_*`; `.env.prod.example` переключён на smtp-бэкенд (блок SMTP там уже был).
+- **Тесты:** `apps/billing/tests/test_pricing_calculator.py` — +2 кейса с моком `send_email_async.delay` (получатель=`SUPPORT_EMAIL`, тема с именем, тело с телефоном и сообщением; ветка «получатель не задан → письмо не ставится»).
+
+### Файлы:
+`config/settings.py`, `apps/billing/public_views.py`, `apps/notifications/tasks.py`, `apps/billing/tests/test_pricing_calculator.py`, `.env`, `.env.example`, `.env.prod.example`, `docs/{DECISIONS,TASK_STATE,DEV_LOG,RELEASE_NOTES}.md`.
+
+### Валидация:
+`docker compose down && up -d --build`; `manage.py check` — 0 issues; ruff (0.15.18, F/E/B/BLE/I) по затронутым файлам — чисто; полный backend-набор 134/134. Живой зонд против запущенного стека (бэкенд `smtp` + боевые креды Beget): POST формы → HTTP 200, web логирует постановку, celery — `send_email_async delivered=1` на `hello@prvms.ru` (граница: SMTP-сервер Beget принял сообщение по SSL/465).
+
+### Риски:
+Фактический приход письма в ящик (уровень «сквозь») из среды разработки не наблюдаем — подтверждает получатель. Доставка зависит от валидности боевых SMTP-кред и политик Beget (SPF/спам); From-адрес (`CONTACT_FROM`) должен совпадать с аутентифицированным `SMTP_USER`, иначе Beget может отклонить отправку.
+
 ## 2026-06-20 — Сквозной рефакторинг проекта (Блоки 0–5, DEC-044), версия 0.8.1
 
 ### Контекст:

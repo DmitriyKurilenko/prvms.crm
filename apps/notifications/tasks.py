@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import logging
+import smtplib
+
 from celery import shared_task
 from django.core.mail import send_mail
 from django_tenants.utils import schema_context, tenant_context
@@ -8,6 +11,8 @@ from apps.tenants.models import Tenant
 from apps.users.models import User
 
 from .services import send_notification_email, send_telegram_notification
+
+logger = logging.getLogger(__name__)
 
 
 @shared_task
@@ -30,4 +35,9 @@ def send_telegram_notification_task(tenant_id: int, user_id: int, event: str, co
 
 @shared_task
 def send_email_async(subject: str, message: str, from_email: str | None, recipient_list: list[str]):
-    send_mail(subject, message, from_email, recipient_list)
+    try:
+        sent = send_mail(subject, message, from_email, recipient_list)
+    except (smtplib.SMTPException, OSError):
+        logger.exception('send_email_async failed: subject=%r to=%s', subject, recipient_list)
+        raise
+    logger.info('send_email_async delivered=%s subject=%r to=%s', sent, subject, recipient_list)
