@@ -5,8 +5,7 @@
       <p>Создайте компанию и аккаунт владельца. Пробный период — 7 дней на любом тарифе.</p>
 
       <form class="form" @submit.prevent="submit">
-        <PInputText v-model="orgName" placeholder="Название организации" @update:model-value="syncSlug" />
-        <PInputText v-model="orgSlug" placeholder="Слаг организации (например, acme)" />
+        <PInputText v-model="orgName" placeholder="Название организации" />
         <PInputText v-model="username" placeholder="Имя пользователя owner" />
         <PInputText v-model="email" placeholder="Email owner" />
         <PPassword v-model="password" placeholder="Пароль" :feedback="false" toggle-mask />
@@ -66,7 +65,6 @@ const route = useRoute()
 const auth = useAuthStore()
 
 const orgName = ref('')
-const orgSlug = ref('')
 const username = ref('')
 const email = ref('')
 const password = ref('')
@@ -105,24 +103,10 @@ onMounted(async () => {
   }
 })
 
-function slugify(value: string): string {
-  return value
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '')
-}
-
-function syncSlug(value: string): void {
-  if (!orgSlug.value) {
-    orgSlug.value = slugify(value)
-  }
-}
-
 const submit = async () => {
   error.value = ''
 
-  if (!orgName.value || !orgSlug.value || !username.value || !email.value || !password.value) {
+  if (!orgName.value || !username.value || !email.value || !password.value) {
     error.value = 'Заполните все обязательные поля.'
     return
   }
@@ -140,7 +124,6 @@ const submit = async () => {
   try {
     const payload: any = {
       org_name: orgName.value.trim(),
-      org_slug: slugify(orgSlug.value),
       username: username.value.trim(),
       email: email.value.trim().toLowerCase(),
       password: password.value,

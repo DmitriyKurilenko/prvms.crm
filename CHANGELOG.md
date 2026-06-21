@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.9.0] — 2026-06-21
+
+### Changed — Auto-generate organization slug during registration (DEC-046)
+
+**The registration form no longer asks users to fill in the organization slug.** The slug is now generated automatically by the CRM from the organization name.
+
+- `apps/tenants/services.py`: added `generate_tenant_slug(name)` helper with Russian-Cyrillic transliteration, `slugify`, fallback to `org`, and uniqueness resolution via numeric suffix while respecting `SlugField(max_length=50)`.
+- `apps/users/auth_api.py`: removed `org_slug` from `RegisterIn`; `register()` now calls `generate_tenant_slug(payload.org_name)` and uses the result for `Tenant.slug`, `Tenant.schema_name`, and `Domain.domain`.
+- `frontend/src/views/RegisterView.vue`: removed the slug input field, `orgSlug` ref, `syncSlug()`, and local `slugify()`.
+- `frontend/src/api/auth.ts`: removed `org_slug` from `RegisterPayload`.
+- Tests:
+  - `apps/users/tests/test_auth_api.py` — updated registration test to stop sending `org_slug`; added tests for slug generation from name, Cyrillic transliteration, and collision handling.
+  - `apps/billing/tests/test_pricing_calculator.py` — free-custom registration no longer sends `org_slug`; created tenant is looked up via response `tenant_slug`.
+- Docs: `docs/DECISIONS.md` (DEC-046), `docs/TASK_STATE.md`, `docs/DEV_LOG.md`, `docs/RELEASE_NOTES.md`.
+
+**Validation:** `docker compose down && docker compose up -d --build`; `manage.py check` 0 issues; `makemigrations --check --dry-run` no changes; ruff (F/E/B/BLE/I) clean; backend tests **54/54** for affected apps (`apps.users`, `apps.tenants`, `apps.billing`), including **9/9** auth API tests and **13/13** pricing calculator tests; frontend `typecheck` EXIT=0, `build` EXIT=0, `vitest` **11/11**; manual `POST /api/auth/register` without `org_slug` returns 201 with generated `tenant_slug`.
+
+---
+
 ## [0.8.3] — 2026-06-21
 
 ### Fixed — Production SMTP egress for Celery

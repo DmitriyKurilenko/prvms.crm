@@ -29,7 +29,6 @@ export interface RegisterPayload {
   password: string
   username: string
   org_name: string
-  org_slug: string
   plan_slug?: string
   quote_id?: string
 }

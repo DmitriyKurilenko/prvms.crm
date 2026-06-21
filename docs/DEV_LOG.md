@@ -1,5 +1,30 @@
 # Dev Log
 
+## 2026-06-21 — 0.9.0: Автогенерация slug организации при регистрации (DEC-046)
+
+### Контекст:
+В форме регистрации организации присутствовало служебное поле «Слаг организации». Пользователь не должен его видеть и заполнять: slug — технический идентификатор (URL, schema_name, домен), он должен быть уникальным, валидным для `SlugField` и безопасным для django-tenants. Ручной ввод добавлял лишний шаг и приводил к ошибкам.
+
+### Что сделано:
+- **`apps/tenants/services.py`:** добавлен доменный хелпер `generate_tenant_slug(name)` с транслитерацией русского алфавита, `slugify`, fallback'ом на `org` и гарантией уникальности через суффикс `-N` с учётом `max_length=50`.
+- **`apps/users/auth_api.py`:** удалён `org_slug` из `RegisterIn`; endpoint `register()` генерирует slug через `generate_tenant_slug(payload.org_name)` и использует его для `Tenant.slug`, `Tenant.schema_name`, `Domain.domain`.
+- **`frontend/src/views/RegisterView.vue`:** убрано поле ввода «Слаг организации», функция `syncSlug()` и локальная `slugify()`; валидация и payload больше не ссылаются на `org_slug`.
+- **`frontend/src/api/auth.ts`:** убран `org_slug` из интерфейса `RegisterPayload`.
+- **Тесты:**
+  - `apps/users/tests/test_auth_api.py` — обновлён регистрационный тест без `org_slug`; добавлены `test_register_generates_slug_from_org_name`, `test_register_generates_slug_for_cyrillic_name`, `test_register_generates_unique_slug_on_collision`.
+  - `apps/billing/tests/test_pricing_calculator.py` — регистрация с `free-custom` quote больше не передаёт `org_slug`, созданный тенант ищется по `tenant_slug` из ответа.
+
+### Файлы:
+`apps/tenants/services.py`, `apps/users/auth_api.py`, `apps/users/tests/test_auth_api.py`, `apps/billing/tests/test_pricing_calculator.py`, `frontend/src/views/RegisterView.vue`, `frontend/src/api/auth.ts`, `docs/{DECISIONS,RELEASE_NOTES,TASK_STATE,DEV_LOG}.md`.
+
+### Валидация:
+`docker compose down && docker compose up -d --build` — стек поднят. `manage.py check` — 0 issues. `ruff==0.15.18` (F/E/B/BLE/I) по затронутым файлам — чисто. Backend: `apps.users.tests.test_auth_api` — 9/9 OK, `apps.billing.tests.test_pricing_calculator` — 13/13 OK. Frontend: `typecheck` EXIT=0, `build` успешно (624 модуля), `vitest` 11/11. Ручная проверка: `POST /api/auth/register` без `org_slug` → HTTP 201, `tenant_slug: "manual-test-org"`; `GET /register` → 200; в собранном бандле отсутствуют `org_slug` и старый placeholder.
+
+### Риски:
+- Транслитерация ограничена русским алфавитом; названия на других нелатинских скриптах упадут в fallback `org-<N>`.
+- В пользовательской справке (`docs/user-guide/05-registration.md`) slug всё ещё упоминается как техническая деталь — не критично, но при полном редизайне документации стоит убрать.
+- Обновление `RegisterIn` ломает старые клиенты, которые передают `org_slug`; одновременно обновлён frontend, внешних потребителей API нет.
+
 ## 2026-06-21 — 0.8.3: Hotfix: Celery не может достучаться до SMTP-хоста в production
 
 ### Контекст:

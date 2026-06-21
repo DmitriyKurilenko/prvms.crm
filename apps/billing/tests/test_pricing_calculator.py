@@ -231,7 +231,6 @@ class QuoteRegistrationTest(TestCase):
             monthly_total=4500,
         )
 
-        org_slug = 'test-quote-reg'
         resp = self.client.post(
             '/api/auth/register',
             data=json.dumps({
@@ -239,15 +238,15 @@ class QuoteRegistrationTest(TestCase):
                 'password': 'TestPass123',
                 'username': 'quoteuser',
                 'org_name': 'Quote Org',
-                'org_slug': org_slug,
                 'plan_slug': 'free-custom',
                 'quote_id': str(quote.id),
             }),
             content_type='application/json',
         )
         self.assertEqual(resp.status_code, 201)
+        created_slug = resp.json()['tenant_slug']
         with schema_context('public'):
-            tenant = Tenant.objects.get(slug=org_slug)
+            tenant = Tenant.objects.get(slug=created_slug)
             self.assertEqual(tenant.plan.slug, 'free-custom')
             self.assertEqual(tenant.custom_limits.get('max_managers'), 3)
             self.assertEqual(tenant.custom_limits.get('monthly_total'), 4500)
@@ -271,7 +270,6 @@ class QuoteRegistrationTest(TestCase):
                 'password': 'TestPass123',
                 'username': 'expireduser',
                 'org_name': 'Expired Org',
-                'org_slug': 'expired-quote',
                 'plan_slug': 'free-custom',
                 'quote_id': str(quote.id),
             }),

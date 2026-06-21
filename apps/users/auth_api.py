@@ -19,7 +19,7 @@ from apps.billing.models import Plan, PricingQuote
 from apps.core.access import get_crm_permissions, require_membership
 from apps.core.tenant import get_request_tenant
 from apps.tenants.models import Domain, Tenant
-from apps.tenants.services import provision_tenant
+from apps.tenants.services import generate_tenant_slug, provision_tenant
 
 from .models import Membership, User
 
@@ -47,7 +47,6 @@ class RegisterIn(Schema):
     password: str
     username: str
     org_name: str
-    org_slug: str
     plan_slug: str = 'solo'
     quote_id: str | None = None
 
@@ -109,8 +108,6 @@ def register(request, payload: RegisterIn):
     with schema_context('public'):
         if User.objects.filter(email=payload.email).exists():
             return 400, {'detail': 'Email already registered'}
-        if Tenant.objects.filter(slug=payload.org_slug).exists():
-            return 400, {'detail': 'Organization slug already taken'}
 
         plan = Plan.objects.filter(slug=payload.plan_slug, is_active=True).first()
         if not plan:
@@ -142,17 +139,18 @@ def register(request, payload: RegisterIn):
                 username=payload.username,
                 password=payload.password,
             )
+            slug = generate_tenant_slug(payload.org_name)
             tenant = Tenant.objects.create(
                 name=payload.org_name,
-                slug=payload.org_slug,
-                schema_name=payload.org_slug,
+                slug=slug,
+                schema_name=slug,
                 plan=plan,
                 trial_expires_at=timezone.now() + timedelta(days=7),
                 is_paid=False,
                 custom_limits=custom_limits,
             )
             Domain.objects.create(
-                domain=f'{payload.org_slug}.localhost',
+                domain=f'{slug}.localhost',
                 tenant=tenant,
                 is_primary=True,
             )

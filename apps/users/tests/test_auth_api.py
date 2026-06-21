@@ -92,7 +92,6 @@ class AuthAPITest(TenantAPITestCase):
                     'password': 'OwnerPass123',
                     'username': username,
                     'org_name': f'Org {org_slug}',
-                    'org_slug': org_slug,
                     'plan_slug': 'komanda',
                 }
             ),
@@ -101,11 +100,12 @@ class AuthAPITest(TenantAPITestCase):
         )
         self.assertEqual(response.status_code, 201)
         payload = response.json()
-        self.assertEqual(payload['tenant_slug'], org_slug)
+        expected_slug = f'org-{org_slug}'
+        self.assertEqual(payload['tenant_slug'], expected_slug)
 
         try:
             with schema_context('public'):
-                created_tenant = Tenant.objects.get(slug=org_slug)
+                created_tenant = Tenant.objects.get(slug=payload['tenant_slug'])
                 created_tenant_id = created_tenant.id
                 membership = Membership.objects.get(tenant=created_tenant, user__email=email, is_active=True)
                 self.assertEqual(membership.role, 'owner')
@@ -113,14 +113,82 @@ class AuthAPITest(TenantAPITestCase):
             me_response = self.client.get(
                 '/api/auth/me',
                 HTTP_HOST='localhost',
-                HTTP_X_TENANT_SLUG=org_slug,
+                HTTP_X_TENANT_SLUG=payload['tenant_slug'],
                 HTTP_AUTHORIZATION=f"Bearer {payload['access_token']}",
             )
             self.assertEqual(me_response.status_code, 200)
-            self.assertEqual(me_response.json()['tenant_slug'], org_slug)
+            self.assertEqual(me_response.json()['tenant_slug'], payload['tenant_slug'])
         finally:
             if created_tenant_id:
                 with schema_context('public'):
                     tenant = Tenant.objects.filter(id=created_tenant_id).first()
                     if tenant:
                         tenant.delete(force_drop=True)
+
+    def test_register_generates_slug_from_org_name(self):
+        response = self.client.post(
+            '/api/auth/register',
+            data=json.dumps({
+                'email': 'slug-test@example.com',
+                'password': 'OwnerPass123',
+                'username': 'slugtest',
+                'org_name': 'Acme Corporation',
+                'plan_slug': 'komanda',
+            }),
+            content_type='application/json',
+            HTTP_HOST=self.get_test_tenant_domain(),
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()['tenant_slug'], 'acme-corporation')
+        with schema_context('public'):
+            tenant = Tenant.objects.get(slug='acme-corporation')
+            tenant.delete(force_drop=True)
+
+    def test_register_generates_slug_for_cyrillic_name(self):
+        response = self.client.post(
+            '/api/auth/register',
+            data=json.dumps({
+                'email': 'cyrillic@example.com',
+                'password': 'OwnerPass123',
+                'username': 'cyruser',
+                'org_name': 'ООО Рога и Копыта',
+                'plan_slug': 'komanda',
+            }),
+            content_type='application/json',
+            HTTP_HOST=self.get_test_tenant_domain(),
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()['tenant_slug'], 'ooo-roga-i-kopyta')
+        with schema_context('public'):
+            tenant = Tenant.objects.get(slug='ooo-roga-i-kopyta')
+            tenant.delete(force_drop=True)
+
+    def test_register_generates_unique_slug_on_collision(self):
+        with schema_context('public'):
+            existing = Tenant.objects.create(
+                name='Existing',
+                slug='acme',
+                schema_name='acme',
+                plan=self.tenant.plan,
+            )
+        try:
+            response = self.client.post(
+                '/api/auth/register',
+                data=json.dumps({
+                    'email': 'collision@example.com',
+                    'password': 'OwnerPass123',
+                    'username': 'collisionuser',
+                    'org_name': 'Acme',
+                    'plan_slug': 'komanda',
+                }),
+                content_type='application/json',
+                HTTP_HOST=self.get_test_tenant_domain(),
+            )
+            self.assertEqual(response.status_code, 201)
+            self.assertEqual(response.json()['tenant_slug'], 'acme-1')
+            with schema_context('public'):
+                tenant = Tenant.objects.get(slug='acme-1')
+                tenant.delete(force_drop=True)
+        finally:
+            with schema_context('public'):
+                existing.delete(force_drop=True)
