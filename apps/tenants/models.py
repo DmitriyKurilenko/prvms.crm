@@ -109,3 +109,18 @@ class SigningTokenLookup(models.Model):
 
     def __str__(self):
         return f'{self.token} -> {self.tenant_id}'
+
+
+class WebFormLookup(models.Model):
+    """Shared lookup: публичный токен веб-формы -> tenant schema (резолв O(1))."""
+
+    token = models.UUIDField(unique=True, db_index=True)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='webform_tokens')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.token} -> {self.tenant_id}'

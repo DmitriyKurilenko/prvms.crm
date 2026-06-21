@@ -7,6 +7,7 @@ from apps.ai_assistant.public_views import hermes_webhook
 from apps.billing.public_views import pricing_calculator_quote, pricing_telephony_request
 from apps.billing.webhook_views import yookassa_webhook
 from apps.channels.public_views import channel_webhook
+from apps.crm.public_views import webform_schema, webform_submit
 from apps.documents.public_views import (
     sign_download_pdf,
     sign_esign_agreement,
@@ -49,6 +50,8 @@ urlpatterns = [
     path('billing/yookassa/webhook/', yookassa_webhook),
     path('api/public/pricing/quote/', pricing_calculator_quote),
     path('api/public/pricing/telephony-request/', pricing_telephony_request),
+    path('api/public/webform/<uuid:token>/', webform_submit),
+    path('api/public/webform/<uuid:token>/schema/', webform_schema),
     path('notifications/telegram/bot-webhook/', TelegramBotWebhookView.as_view()),
     path('ai/hermes-webhook/', hermes_webhook),
 ]

@@ -274,3 +274,64 @@ export const addDealItem = (
 
 export const deleteDealItem = (dealId: number, itemId: number) =>
   api<{ detail: string; deal_amount: number }>(`/crm/deals/${dealId}/items/${itemId}/`, { method: 'DELETE' })
+
+/* ---------- Web forms ---------- */
+export interface CrmWebFormField {
+  key: string
+  label: string
+  type: string
+  required: boolean
+  options?: string[]
+}
+
+export interface CrmWebForm {
+  id: number
+  name: string
+  public_token: string
+  fields_schema: CrmWebFormField[]
+  pipeline_id: number
+  stage_id: number
+  source: string
+  auto_distribute: boolean
+  success_message: string
+  allowed_origins: string[]
+  is_active: boolean
+  submissions_count: number
+  created_at: string
+  embed_snippet: string
+}
+
+export const listWebForms = () => api<CrmWebForm[]>('/crm/webforms/')
+
+export const createWebForm = (data: Record<string, unknown>) =>
+  api<CrmWebForm>('/crm/webforms/', { method: 'POST', body: data })
+
+export const patchWebForm = (id: number, data: Record<string, unknown>) =>
+  api('/crm/webforms/' + id + '/', { method: 'PATCH', body: data })
+
+export const deleteWebForm = (id: number) =>
+  api<{ detail: string }>('/crm/webforms/' + id + '/', { method: 'DELETE' })
+
+/* ---------- Tags & segments ---------- */
+export interface CrmTag {
+  id: number
+  name: string
+  color: string
+}
+
+export const listTags = () => api<CrmTag[]>('/crm/tags/')
+
+export const createTag = (data: { name: string; color?: string }) =>
+  api<{ id: number }>('/crm/tags/', { method: 'POST', body: data })
+
+export const patchTag = (id: number, data: Partial<CrmTag>) =>
+  api('/crm/tags/' + id + '/', { method: 'PATCH', body: data })
+
+export const deleteTag = (id: number) =>
+  api<{ detail: string }>('/crm/tags/' + id + '/', { method: 'DELETE' })
+
+export const setDealTags = (dealId: number, tagIds: number[]) =>
+  api(`/crm/deals/${dealId}/tags/`, { method: 'PATCH', body: { tag_ids: tagIds } })
+
+export const setContactTags = (contactId: number, tagIds: number[]) =>
+  api(`/crm/contacts/${contactId}/tags/`, { method: 'PATCH', body: { tag_ids: tagIds } })

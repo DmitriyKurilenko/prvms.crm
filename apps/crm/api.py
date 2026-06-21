@@ -19,6 +19,8 @@ from . import (  # noqa: F401
     pipelines_api,
     products_api,
     stats_api,
+    tags_api,
+    webforms_api,
 )
 from ._api_common import crm_router
 

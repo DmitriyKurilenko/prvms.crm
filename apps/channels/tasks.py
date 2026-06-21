@@ -241,6 +241,42 @@ def route_incoming_message(tenant_id: int, channel_id: int, payload: dict):
 
 
 @shared_task
+def poll_email_channels():
+    """Beat: опрашивает все email-каналы во всех тенантах и подаёт новые письма
+    в общий конвейер `route_incoming_message`. Дедуп по `Message-ID`.
+
+    Стык [граница]: реальный IMAP-сервер (изолирован в `email_poller`).
+    """
+    from .email_poller import fetch_new_messages
+
+    with schema_context('public'):
+        tenants = list(Tenant.objects.filter(is_active=True))
+
+    dispatched = 0
+    for tenant in tenants:
+        with tenant_context(tenant):
+            channels = MessengerChannel.objects.filter(channel_type='email', is_active=True)
+            if not channels:
+                continue
+            for channel in channels:
+                try:
+                    messages = fetch_new_messages(channel.credentials or {})
+                except Exception as exc:  # noqa: BLE001 — граница IMAP: фиксируем, не глотаем
+                    channel.status = 'error'
+                    channel.status_detail = str(exc)[:500]
+                    channel.save(update_fields=['status', 'status_detail'])
+                    logger.exception('email poll failed for channel %s', channel.id)
+                    continue
+                for msg in messages:
+                    msgid = str(msg.get('message_id') or '')
+                    if msgid and MessageLog.objects.filter(external_message_id=msgid).exists():
+                        continue  # дедуп по Message-ID
+                    route_incoming_message.delay(tenant.id, channel.id, msg)
+                    dispatched += 1
+    return {'dispatched': dispatched}
+
+
+@shared_task
 def route_outgoing_message(tenant_id: int, channel_id: int, chat_session_id: int, payload: dict):
     with schema_context('public'):
         tenant = Tenant.objects.get(id=tenant_id)

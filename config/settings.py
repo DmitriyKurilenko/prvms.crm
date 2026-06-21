@@ -197,6 +197,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'apps.crm.tasks.check_overdue_tasks',
         'schedule': timedelta(hours=1),
     },
+    'poll-email-channels-every-3-min': {
+        'task': 'apps.channels.tasks.poll_email_channels',
+        'schedule': timedelta(minutes=3),
+    },
 }
 
 # ---------- Caches ----------

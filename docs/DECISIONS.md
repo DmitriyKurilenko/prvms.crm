@@ -1,5 +1,52 @@
 # Архитектурные решения
 
+## DEC-051: Теги и сегменты для контактов и сделок (2026-06-21, P1 Фаза 7)
+**Контекст:** Не было способа помечать и группировать контакты/сделки для фильтрации и будущих рассылок (P2). Теги — фундамент сегментации.
+**Решение:**
+- Модель `Tag` (tenant-схема, `apps/crm/models.py`): `name` (уникальный), `color`, M2M к `Contact` и `Deal` с `related_name='tags'`. Модель `Segment` — именованный сохранённый фильтр (`entity` + `filters` JSON) как основа для аудиторий рассылок.
+- CRUD и назначение — ninja `apps/crm/tags_api.py`: `tags/` CRUD, `segments/` CRUD, `contacts/{id}/tags/` и `deals/{id}/tags/` (PATCH `tag_ids`). Гейт существующей сущностью прав `contacts`/`deals` — отдельная RBAC-сущность не вводится (теги — метаданные контактов/сделок).
+- Фильтрация списков: `list_contacts`/`list_deals` приняли параметр `tag_id` (`.filter(tags__id=...)`).
+- Frontend: страница «Теги» (`TagsView.vue`, создание/список/удаление с цветом), пункт меню, типы/функции в `api/crm.ts` (включая `setDealTags`/`setContactTags`).
+**Инварианты:**
+- Имя тега уникально в пределах тенанта (`UniqueConstraint`).
+- Сегмент хранит только конфигурацию фильтра, без персональных данных.
+**Альтернативы:**
+- Отдельная сущность прав `tags` — отклонено: теги логически принадлежат контактам/сделкам, дублировать RBAC-матрицу избыточно.
+**Граница достоверности:** backend-тесты (`test_tags`: назначение и фильтрация по тегу для контактов и сделок, уникальность имени, хранение фильтра сегмента) + браузерный e2e `tags.spec.ts` (`5 passed`): создание тега в ЛК и появление в списке. UI назначения тегов в карточке контакта/сделки и UI сегментов в первой версии не сделаны (бэкенд готов) — см. KNOWN_ISSUES.
+
+## DEC-050: Веб-формы захвата лидов + встраиваемый виджет (2026-06-21, P1 Фаза 4)
+**Контекст:** На лендинге платформы форма обратной связи была, но тенант не мог создать собственную форму для своего сайта; лиды с сайта вводились вручную. Внешние CRM (amoCRM, Битрикс24) такое умеют.
+**Решение:**
+- Модель `WebForm` (tenant-схема, `apps/crm/models.py`): `public_token` (UUID), `fields_schema` (JSON-описание полей), pipeline/stage, `source`, `auto_distribute`, `success_message`, `allowed_origins`, `submissions_count`. Резолв тенанта по публичному токену — shared-lookup `WebFormLookup` (public-схема, `apps/tenants/models.py`), создаётся/удаляется в одной транзакции с формой.
+- Публичный приём (`apps/crm/public_views.py`, подключён в `config/urls.py`): `POST /api/public/webform/<uuid:token>/` и `GET …/schema/`. Паттерн `@csrf_exempt` + honeypot (`website`) + rate-limit по IP (как `billing/public_views`); CORS открывается под `allowed_origins` формы; `OPTIONS` preflight обрабатывается.
+- Приём лида (`apps/crm/services/webform_intake.py`) переиспользует CRM-конвейер: создаёт `Contact` (стандартные поля в колонки, прочее в `custom_fields`) и `Deal` в воронке/стадии формы, при `auto_distribute` вызывает `try_distribute('new_lead', …)`, шлёт `notify('new_deal_created')`.
+- Внутренний CRUD — ninja `apps/crm/webforms_api.py`; новая сущность прав `webforms` (`CRM_PERMISSION_ENTITIES`/`DEFAULT_ROLE_PERMISSIONS` + `RolePermission.ENTITY_CHOICES`, строки создаются лениво). Каталог-подобный scope-независимый доступ (форма — общеорганизационный ресурс).
+- Встраиваемый виджет — статический `frontend/public/widget/crm-webform.js`: читает `data-token`/`data-base`, тянет описание формы, рендерит поля + honeypot, отправляет заявку. Конструктор форм в ЛК — `frontend/src/views/WebFormsView.vue` (поля, воронка/стадия, сообщение, код для вставки).
+**Инварианты:**
+- `WebFormLookup.token == WebForm.public_token`; активность синхронизируется в обоих при `is_active`-изменении.
+- Публичный endpoint не требует авторизации; защита — honeypot + rate-limit + (для виджета) CORS по `allowed_origins`.
+**Альтернативы:**
+- Капча вместо honeypot — отклонено для первой версии (honeypot + rate-limit достаточно для базовой защиты); капча — отдельная задача.
+- Отдельная vite library-сборка виджета — отклонено: статический самодостаточный скрипт проще и не требует билд-пайплайна.
+**Граница достоверности — закрыта фактически:** (1) живой `POST /api/public/webform/<token>/` → `HTTP 200`, в `company-1` создались контакт (имя/телефон + custom-поле) и сделка, `submissions_count=1`; (2) браузерный e2e `webforms.spec.ts` (`4 passed`): создание формы в ЛК и показ кода для вставки. Встраивание виджета на сторонний сайт сквозным результатом не проверялось — публичный endpoint, который он вызывает, подтверждён зондом.
+
+## DEC-049: Двусторонний email-канал (IMAP/SMTP) поверх конвейера сообщений (2026-06-21, P0 Фаза 3)
+**Контекст:** Каналы поддерживали только мессенджеры (Telegram/WhatsApp/MAX/ВК); email использовался лишь на исходящие (SMTP уведомлений и формы лендинга, DEC-045). Входящей почты, привязанной к контакту и сделке, не было — переписка по email велась вне CRM, разрывая таймлайн.
+**Решение:**
+- Новый тип канала `email` в `CHANNEL_TYPE_CHOICES` (`apps/channels/models.py`, миграция `0003_alter_messengerchannel_channel_type`). Учётные данные (IMAP/SMTP-хост/порт/SSL, логин, пароль, папка) хранятся в существующем `EncryptedJSONField`; webhook не нужен — канал опрашивается.
+- **Приём:** `apps/channels/email_poller.py` изолирует stdlib `imaplib` (RFC 3501): читает `UNSEEN`, парсит `From/Subject/text`, возвращает нормализованные письма. Beat-задача `poll_email_channels` (`apps/channels/tasks.py`, расписание каждые 3 минуты в `config/settings.py`) обходит тенантов, дедуплицирует по `Message-ID` и подаёт письма в существующий `route_incoming_message` — далее создаётся `MessageLog`, при `auto_create_lead` сделка, и срабатывает WS-доставка (DEC-019).
+- **Отправка:** ветка `email` в `send_outgoing` → `_send_email` (`apps/channels/providers.py`) через per-channel SMTP (`EmailMessage` + `get_connection`), с узким перехватом `SMTPException/OSError` и логированием.
+- **Нормализация:** ветка `email` в `normalize_incoming_payload` отображает письмо на стандартный диалог (`chat_id = from_email`, текст = «Тема + тело»).
+- **Frontend:** в форму канала (`ChannelsTab.vue`/`ChannelsView.vue`) добавлены тип «Электронная почта» и поля IMAP/SMTP с валидацией; переписка отображается в существующем `ChatsView` (конвейер канал-агностичен).
+**Инварианты:**
+- `fetch(RFC822)` помечает письмо флагом `\Seen`, что вместе с дедупом по `Message-ID` исключает повторную обработку.
+- Email учитывается как `inbound_channel` в лимитах тарифов v2 (DEC-041) — отдельная фича не вводится.
+**Альтернативы:**
+- OAuth для Gmail/Yandex — отложено: первая версия работает по логину/паролю (IMAP/SMTP), OAuth — отдельная задача.
+- Хранить HTML-письма и вложения полноценно — отложено: первая версия сохраняет текст письма (`text/plain`), вложения и HTML — следующий шаг (KNOWN_ISSUES).
+**Разбор письма:** `email_poller.parse_email(raw)` — чистая функция: тело из `text/plain`, при отсутствии — из `text/html` с удалением разметки (`HTMLParser`); вложения собираются как метаданные (`{filename, content_type}`) и пробрасываются в `MessageLog.attachments`. Покрыто юнит-тестами (`test_email_channel`: HTML-fallback, метаданные вложений).
+**Граница достоверности — закрыта фактически:** (1) сквозной SMTP/IMAP round-trip на боевом ящике `hello@prvms.ru` (Beget) с кредами из `.env` подтвердил оба стыка: `send_outgoing` → SMTP `delivered=True` (465 SSL); `fetch_new_messages` → IMAP `new=1`, письмо принято с маркером в теле (993 SSL). (2) Браузерный e2e `email-channel.spec.ts` (`3 passed`): создание канала через форму Настройки→Мессенджеры и появление в списке. Контур самодиагностируем через логгер `channels.email`.
+
 ## DEC-048: Локальные гейты валидации — ruff и Playwright e2e (2026-06-21)
 **Контекст:** Статанализ ruff (DEC-044) и план Playwright-e2e (KNOWN_ISSUES #3) существовали только в CI/намерениях: в runtime-образе `web` нет ruff, а браузера для сквозной проверки SPA в среде не было. Из-за этого валидация на уровне «сквозь» систематически пропускалась.
 **Решение:**

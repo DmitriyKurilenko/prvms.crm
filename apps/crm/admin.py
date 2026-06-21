@@ -9,8 +9,30 @@ from .models import (
     Pipeline,
     Product,
     ProductCategory,
+    Segment,
     Stage,
+    Tag,
+    WebForm,
 )
+
+
+@admin.register(WebForm)
+class WebFormAdmin(admin.ModelAdmin):
+    list_display = ('name', 'pipeline', 'stage', 'is_active', 'submissions_count', 'created_at')
+    list_filter = ('is_active',)
+    search_fields = ('name',)
+
+
+@admin.register(Tag)
+class TagAdmin(admin.ModelAdmin):
+    list_display = ('name', 'color', 'created_at')
+    search_fields = ('name',)
+
+
+@admin.register(Segment)
+class SegmentAdmin(admin.ModelAdmin):
+    list_display = ('name', 'entity', 'created_at')
+    list_filter = ('entity',)
 
 
 @admin.register(Contact)

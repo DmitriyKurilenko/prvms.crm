@@ -48,6 +48,7 @@ class RolePermission(models.Model):
         ('contacts', 'Contacts'),
         ('companies', 'Companies'),
         ('products', 'Products'),
+        ('webforms', 'Web forms'),
     ]
     SCOPE_CHOICES = [
         ('all', 'All records'),

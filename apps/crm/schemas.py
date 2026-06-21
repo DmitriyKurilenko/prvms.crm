@@ -203,3 +203,65 @@ class DealItemPatchIn(Schema):
     discount_percent: float | None = None
     vat_rate: float | None = None
     sort_order: int | None = None
+
+
+# --- Web forms --------------------------------------------------------------
+
+class WebFormFieldIn(Schema):
+    key: str
+    label: str
+    type: str = 'text'        # text | email | phone | textarea | select
+    required: bool = False
+    options: list[str] = []
+
+
+class WebFormIn(Schema):
+    name: str
+    fields_schema: list[WebFormFieldIn] = []
+    pipeline_id: int
+    stage_id: int
+    source: str = 'webform'
+    auto_distribute: bool = True
+    success_message: str = 'Спасибо! Мы свяжемся с вами.'
+    allowed_origins: list[str] = []
+    is_active: bool = True
+
+
+class WebFormPatchIn(Schema):
+    name: str | None = None
+    fields_schema: list[WebFormFieldIn] | None = None
+    pipeline_id: int | None = None
+    stage_id: int | None = None
+    source: str | None = None
+    auto_distribute: bool | None = None
+    success_message: str | None = None
+    allowed_origins: list[str] | None = None
+    is_active: bool | None = None
+
+
+# --- Tags & segments --------------------------------------------------------
+
+class TagIn(Schema):
+    name: str
+    color: str = '#6366F1'
+
+
+class TagPatchIn(Schema):
+    name: str | None = None
+    color: str | None = None
+
+
+class TagAssignIn(Schema):
+    tag_ids: list[int] = []
+
+
+class SegmentIn(Schema):
+    name: str
+    entity: str = 'contacts'
+    filters: dict = {}
+
+
+class SegmentPatchIn(Schema):
+    name: str | None = None
+    entity: str | None = None
+    filters: dict | None = None

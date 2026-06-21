@@ -214,6 +214,7 @@ const entityLabels: Record<string, string> = {
   contacts: 'Контакты',
   companies: 'Компании',
   products: 'Товары',
+  webforms: 'Веб-формы',
 }
 
 const scopeLabels: Record<string, string> = {
@@ -322,7 +323,7 @@ const loadRolePermissions = async () => {
       entities: string[]
       scopes: string[]
     }>('/users/role-permissions/')
-    const entities = response.entities?.length ? response.entities : ['deals', 'contacts', 'companies', 'products']
+    const entities = response.entities?.length ? response.entities : ['deals', 'contacts', 'companies', 'products', 'webforms']
     scopeValues.value = response.scopes?.length ? response.scopes : ['all', 'team', 'own']
 
     const rows: Array<{

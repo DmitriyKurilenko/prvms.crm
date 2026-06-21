@@ -17,7 +17,7 @@ export interface AuditListResponse {
   total: number
   items: AuditEvent[]
 }
-export type CrmPermissionEntity = 'deals' | 'contacts' | 'companies' | 'products'
+export type CrmPermissionEntity = 'deals' | 'contacts' | 'companies' | 'products' | 'webforms'
 export type CrmPermissionScope = 'all' | 'team' | 'own'
 export type IntegrationType = 'amocrm' | 'bitrix24'
 export type IntegrationMode = 'webhook' | 'oauth' | 'marketplace'

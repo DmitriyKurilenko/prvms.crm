@@ -30,6 +30,7 @@ def list_deals(
     pipeline_id: int | None = None,
     stage_id: int | None = None,
     responsible_id: int | None = None,
+    tag_id: int | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
 ):
@@ -46,6 +47,8 @@ def list_deals(
         qs = qs.filter(stage_id=stage_id)
     if responsible_id:
         qs = qs.filter(responsible_id=responsible_id)
+    if tag_id:
+        qs = qs.filter(tags__id=tag_id)
     if date_from:
         qs = qs.filter(updated_at__date__gte=date_from)
     if date_to:

@@ -6,7 +6,7 @@ from django_tenants.utils import schema_context
 
 from .models import Membership, RolePermission
 
-CRM_PERMISSION_ENTITIES: tuple[str, ...] = ('deals', 'contacts', 'companies', 'products')
+CRM_PERMISSION_ENTITIES: tuple[str, ...] = ('deals', 'contacts', 'companies', 'products', 'webforms')
 CRM_PERMISSION_SCOPES: tuple[str, ...] = ('all', 'team', 'own')
 CRM_PERMISSION_ACTION_FIELDS: dict[str, str] = {
     'view': 'can_view',
@@ -21,24 +21,28 @@ DEFAULT_ROLE_PERMISSIONS: dict[str, dict[str, dict[str, object]]] = {
         'contacts': {'can_view': True, 'can_create': True, 'can_update': True, 'can_delete': True, 'scope': 'all'},
         'companies': {'can_view': True, 'can_create': True, 'can_update': True, 'can_delete': True, 'scope': 'all'},
         'products': {'can_view': True, 'can_create': True, 'can_update': True, 'can_delete': True, 'scope': 'all'},
+        'webforms': {'can_view': True, 'can_create': True, 'can_update': True, 'can_delete': True, 'scope': 'all'},
     },
     'admin': {
         'deals': {'can_view': True, 'can_create': True, 'can_update': True, 'can_delete': True, 'scope': 'all'},
         'contacts': {'can_view': True, 'can_create': True, 'can_update': True, 'can_delete': True, 'scope': 'all'},
         'companies': {'can_view': True, 'can_create': True, 'can_update': True, 'can_delete': True, 'scope': 'all'},
         'products': {'can_view': True, 'can_create': True, 'can_update': True, 'can_delete': True, 'scope': 'all'},
+        'webforms': {'can_view': True, 'can_create': True, 'can_update': True, 'can_delete': True, 'scope': 'all'},
     },
     'manager': {
         'deals': {'can_view': True, 'can_create': True, 'can_update': True, 'can_delete': False, 'scope': 'all'},
         'contacts': {'can_view': True, 'can_create': True, 'can_update': True, 'can_delete': False, 'scope': 'all'},
         'companies': {'can_view': True, 'can_create': True, 'can_update': True, 'can_delete': False, 'scope': 'all'},
         'products': {'can_view': True, 'can_create': True, 'can_update': True, 'can_delete': False, 'scope': 'all'},
+        'webforms': {'can_view': True, 'can_create': True, 'can_update': True, 'can_delete': False, 'scope': 'all'},
     },
     'viewer': {
         'deals': {'can_view': True, 'can_create': False, 'can_update': False, 'can_delete': False, 'scope': 'all'},
         'contacts': {'can_view': True, 'can_create': False, 'can_update': False, 'can_delete': False, 'scope': 'all'},
         'companies': {'can_view': True, 'can_create': False, 'can_update': False, 'can_delete': False, 'scope': 'all'},
         'products': {'can_view': True, 'can_create': False, 'can_update': False, 'can_delete': False, 'scope': 'all'},
+        'webforms': {'can_view': True, 'can_create': False, 'can_update': False, 'can_delete': False, 'scope': 'all'},
     },
 }
 

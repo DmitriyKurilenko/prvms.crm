@@ -1,5 +1,84 @@
 # Dev Log
 
+## 2026-06-21 — 0.13.0: Подготовка коммита и синхронизация релизных файлов
+
+### Что сделано:
+- Проверен состав рабочей сессии через `git status`: в коммит входят двусторонний email-канал (DEC-049), веб-формы захвата лидов + виджет (DEC-050), теги/сегменты (DEC-051) и релизная документация.
+- Bump определён как **minor**: изменения добавляют новую пользовательскую функциональность и обратно-совместимые API.
+- `VERSION` уже содержит финальную SemVer-версию `0.13.0` без `-dev`.
+- `CHANGELOG.md` дополнен верхней секцией `0.13.0` с описанием email-канала, веб-форм, тегов/сегментов и миграций.
+
+### Файлы релизной подготовки:
+`VERSION`, `CHANGELOG.md`, `docs/TASK_STATE.md`, `docs/DEV_LOG.md`, `docs/DECISIONS.md`, `docs/KNOWN_ISSUES.md`, `docs/RELEASE_NOTES.md`.
+
+### Валидация:
+- Согласованность релизных файлов: `VERSION`, верхняя секция `CHANGELOG.md`, `docs/TASK_STATE.md`, `docs/DEV_LOG.md` и `docs/RELEASE_NOTES.md` ссылаются на `0.13.0`.
+- Полный Docker baseline в рамках подготовки коммита повторно не запускался; функциональная валидация зафиксирована в записях 0.11.0, 0.12.0 и 0.13.0 ниже.
+
+### Риски:
+- Остаточные ограничения остаются в `docs/KNOWN_ISSUES.md`: email-вложения/HTML/OAuth (#28), расширения веб-форм и внешняя проверка виджета (#29), UI назначения тегов и сегментов (#30).
+
+## 2026-06-21 — 0.13.0: Теги и сегменты (P1 Фаза 7, DEC-051)
+
+### Что сделано:
+- **Backend:** модели `Tag` (M2M к Contact/Deal, `related_name='tags'`) и `Segment` (`apps/crm/models.py`, миграция `crm/0008_segment_tag`); CRUD и назначение `apps/crm/tags_api.py` (`tags/`, `segments/`, `contacts/{id}/tags/`, `deals/{id}/tags/`); параметр `tag_id` в `list_contacts`/`list_deals`. Гейт правом `contacts`/`deals`.
+- **Frontend:** страница «Теги» (`TagsView.vue`), пункт меню, маршрут, типы/функции в `api/crm.ts` (`listTags`/`createTag`/`deleteTag`/`setDealTags`/`setContactTags`).
+
+### Файлы:
+`apps/crm/models.py`, `apps/crm/schemas.py`, `apps/crm/tags_api.py`, `apps/crm/api.py`, `apps/crm/admin.py`, `apps/crm/contacts_api.py`, `apps/crm/deals_api.py`, `apps/crm/tests/test_tags.py`, миграция `crm/0008_segment_tag`, `frontend/src/views/TagsView.vue`, `frontend/src/api/crm.ts`, `frontend/src/router/index.ts`, `frontend/src/layout/AppMenu.vue`, `frontend/e2e/tags.spec.ts`.
+
+### Валидация:
+- `[локально]` Миграция `crm/0008` без дрейфа, `manage.py check` 0 issues, `Ran 4 tests … OK` (`test_tags`), ruff «All checks passed!».
+- `[локально]` Frontend `vue-tsc` без ошибок, `vite build` 633 модуля.
+- `[сквозь]` Playwright `tags.spec.ts` (`5 passed` вместе с каталогом/позициями/email/веб-формами): реальный браузер создаёт тег и видит его в списке.
+
+### Риски (KNOWN_ISSUES):
+- UI назначения тегов в карточке контакта/сделки и UI работы с сегментами в первой версии не сделаны (бэкенд-эндпоинты готовы и покрыты тестами).
+
+## 2026-06-21 — 0.12.0: Веб-формы захвата лидов + виджет (P1 Фаза 4, DEC-050)
+
+### Что сделано:
+- **Backend:** модель `WebForm` (`apps/crm/models.py`, миграция `crm/0007`), shared-lookup `WebFormLookup` (`apps/tenants/models.py`, `tenants/0007`); публичные `webform_submit`/`webform_schema` (`apps/crm/public_views.py`, маршруты в `config/urls.py`) с honeypot/rate-limit/CORS; сервис `webform_intake.py` (Contact+Deal+distribute+notify); CRUD `webforms_api.py`; сущность прав `webforms` (`apps/users/permissions.py` + `users/0005`).
+- **Frontend:** конструктор `WebFormsView.vue` (поля/воронка/стадия/сообщение + код для вставки), маршрут, пункт меню «Веб-формы», типы/функции в `api/crm.ts`, `webforms` в нормализаторе прав и матрице ролей.
+- **Виджет:** статический `frontend/public/widget/crm-webform.js` (тянет схему, рендерит поля + honeypot, шлёт заявку).
+
+### Файлы:
+`apps/crm/models.py`, `apps/crm/schemas.py`, `apps/crm/webforms_api.py`, `apps/crm/public_views.py`, `apps/crm/services/webform_intake.py`, `apps/crm/api.py`, `apps/crm/admin.py`, `apps/crm/tests/test_webforms.py`, `apps/tenants/models.py`, `apps/users/permissions.py`, `apps/users/models.py`, миграции `crm/0007`+`tenants/0007`+`users/0005`, `config/urls.py`, `frontend/src/views/WebFormsView.vue`, `frontend/src/api/crm.ts`, `frontend/src/router/index.ts`, `frontend/src/layout/AppMenu.vue`, `frontend/src/types.ts`, `frontend/src/utils/crmPermissions.ts`, `frontend/src/views/TeamView.vue`, `frontend/public/widget/crm-webform.js`, `frontend/e2e/webforms.spec.ts`.
+
+### Валидация:
+- `[локально]` Миграции `crm/0007`+`tenants/0007`+`users/0005` без дрейфа, `manage.py check` 0 issues, `Ran 7 tests … OK` (`test_webforms` + RBAC-регрессия), ruff «All checks passed!».
+- `[локально]` Frontend `vue-tsc` без ошибок, `vite build` 630 модулей.
+- `[сквозь]` Живой `POST /api/public/webform/<token>/` → `HTTP 200`; в `company-1` создались контакт (имя «Пробный Лид», телефон, custom-поле «с сайта») и сделка, `submissions_count=1`.
+- `[сквозь]` Playwright `webforms.spec.ts` (`4 passed` вместе с каталогом/позициями/email): реальный браузер создаёт форму в ЛК и получает код для вставки.
+
+### Риски (KNOWN_ISSUES):
+- Встраивание виджета на сторонний сайт сквозным результатом не проверялось (публичный endpoint подтверждён зондом); CORS открывается по `allowed_origins`.
+- Защита формы — honeypot + rate-limit; капча не добавлена.
+
+## 2026-06-21 — 0.11.0: Двусторонний email-канал (IMAP/SMTP, P0 Фаза 3, DEC-049)
+
+### Что сделано:
+- **Модель:** тип канала `email` (`apps/channels/models.py`) + миграция `0003_alter_messengerchannel_channel_type` (метка приложения — `messenger_channels`).
+- **Приём:** `apps/channels/email_poller.py` (изоляция `imaplib`, RFC 3501) + beat-задача `poll_email_channels` (`apps/channels/tasks.py`, каждые 3 мин в `config/settings.py`); дедуп по `Message-ID`, подача в общий `route_incoming_message`.
+- **Отправка/нормализация:** ветки `email` в `send_outgoing`→`_send_email` (per-channel SMTP, узкий `except SMTPException/OSError`) и `normalize_incoming_payload` (`apps/channels/providers.py`).
+- **Frontend:** тип «Электронная почта» и поля IMAP/SMTP в `ChannelsTab.vue`/`ChannelsView.vue` (тип `ChannelCredentials` расширен, валидация обязательных полей).
+
+### Файлы:
+`apps/channels/models.py`, `apps/channels/email_poller.py`, `apps/channels/providers.py`, `apps/channels/tasks.py`, `apps/channels/tests/test_email_channel.py`, `apps/channels/migrations/0003_*`, `config/settings.py`, `frontend/src/components/ChannelsTab.vue`, `frontend/src/views/ChannelsView.vue`, `frontend/e2e/email-channel.spec.ts`.
+
+### Разбор письма (HTML/вложения):
+`email_poller.parse_email(raw)` — чистая функция: тело из `text/plain`, при отсутствии — из `text/html` с удалением разметки (`HTMLParser`, отбрасывает `script/style`); вложения собираются как метаданные (`{filename, content_type}`). Ветка `email` в `normalize_incoming_payload` пробрасывает `attachments` в `MessageLog`.
+
+### Валидация:
+- `[локально]` Миграция `0003` без дрейфа, `manage.py check` 0 issues, `Ran 10 tests … OK` (`test_email_channel`: нормализация, приём, дедуп, отправка/ошибка SMTP, HTML-fallback, метаданные вложений) + регрессия `test_bridge`, ruff «All checks passed!».
+- `[локально]` Frontend `vue-tsc` без ошибок, `vite build` 627 модулей.
+- `[сквозь]` Playwright `email-channel.spec.ts` (`3 passed` вместе с каталогом и позициями): реальный браузер создаёт email-канал через форму Настройки→Мессенджеры (тип «Электронная почта», IMAP/SMTP) → канал появляется в списке.
+- `[граница→сквозь]` Реальный round-trip на боевом ящике `hello@prvms.ru` (Beget), креды из `.env`: `send_outgoing` → SMTP `delivered=True` (465 SSL); `fetch_new_messages` → IMAP `new=1`, письмо принято с маркером в теле (993 SSL). Стыки IMAP и SMTP подтверждены сквозным результатом.
+
+### Риски (оставшиеся, см. KNOWN_ISSUES #28):
+- HTML конвертируется в текст (без инлайн-рендера); содержимое вложений не хранится (только метаданные).
+- OAuth для Gmail/Yandex не реализован — работа по логину/паролю IMAP/SMTP.
+
 ## 2026-06-21 — 0.10.0: Гейты валидации: ruff локально + Playwright e2e (DEC-048)
 
 ### Контекст:

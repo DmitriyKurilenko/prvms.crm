@@ -39,7 +39,41 @@
               <PInputText v-model="form.credentials.bot_token" placeholder="AAHdqTcvCH1vGWJx..." style="width: 100%" />
             </div>
           </template>
-          <div style="min-width: 200px">
+          <template v-if="form.channel_type === 'email'">
+            <div style="min-width: 220px; flex: 1">
+              <label class="field-label">IMAP-хост</label>
+              <PInputText v-model="form.credentials.imap_host" placeholder="imap.example.com" style="width: 100%" />
+            </div>
+            <div style="min-width: 100px">
+              <label class="field-label">IMAP-порт</label>
+              <PInputText v-model.number="form.credentials.imap_port" type="number" style="width: 100%" />
+            </div>
+            <div style="min-width: 220px; flex: 1">
+              <label class="field-label">SMTP-хост</label>
+              <PInputText v-model="form.credentials.smtp_host" placeholder="smtp.example.com" style="width: 100%" />
+            </div>
+            <div style="min-width: 100px">
+              <label class="field-label">SMTP-порт</label>
+              <PInputText v-model.number="form.credentials.smtp_port" type="number" style="width: 100%" />
+            </div>
+            <div style="min-width: 220px; flex: 1">
+              <label class="field-label">Логин (email)</label>
+              <PInputText v-model="form.credentials.username" placeholder="sales@example.com" style="width: 100%" />
+            </div>
+            <div style="min-width: 180px">
+              <label class="field-label">Пароль</label>
+              <PInputText v-model="form.credentials.password" type="password" placeholder="••••••" style="width: 100%" />
+            </div>
+            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer">
+              <input type="checkbox" v-model="form.credentials.imap_ssl" />
+              <span class="field-label" style="margin: 0">IMAP SSL</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer">
+              <input type="checkbox" v-model="form.credentials.smtp_ssl" />
+              <span class="field-label" style="margin: 0">SMTP SSL</span>
+            </label>
+          </template>
+          <div v-if="form.channel_type !== 'email'" style="min-width: 200px">
             <label class="field-label">Webhook Token (опц.)</label>
             <PInputText v-model="form.credentials.webhook_token" placeholder="Секрет для верификации" style="width: 100%" />
           </div>
@@ -122,10 +156,28 @@
  * reference — v-model mutates the same proxy `submitChannel`/`startEdit`
  * read. All CRUD logic stays in the parent and is invoked via emits.
  */
+export interface ChannelCredentials {
+  bot_token: string
+  send_url: string
+  auth_token: string
+  webhook_token: string
+  // email-канал (IMAP/SMTP)
+  imap_host: string
+  imap_port: number
+  imap_ssl: boolean
+  smtp_host: string
+  smtp_port: number
+  smtp_ssl: boolean
+  username: string
+  password: string
+  poll_folder: string
+  from_name: string
+}
+
 export interface ChannelForm {
   name: string
   channel_type: string
-  credentials: { bot_token: string; send_url: string; auth_token: string; webhook_token: string }
+  credentials: ChannelCredentials
   auto_create_lead: boolean
   welcome_message: string
   is_active: boolean

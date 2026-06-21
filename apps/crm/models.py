@@ -1,3 +1,4 @@
+import uuid
 from decimal import Decimal
 
 from django.db import models
@@ -330,3 +331,57 @@ class DealItem(models.Model):
 
     def __str__(self):
         return f'{self.name_snapshot} ×{self.quantity}'
+
+
+class WebForm(models.Model):
+    """Конструируемая форма захвата лида для встраивания на сайт клиента."""
+
+    name = models.CharField(max_length=200)
+    public_token = models.UUIDField(default=uuid.uuid4, unique=True, db_index=True)
+    fields_schema = models.JSONField(default=list)  # [{key, label, type, required, options}]
+    pipeline = models.ForeignKey(Pipeline, on_delete=models.PROTECT, related_name='webforms')
+    stage = models.ForeignKey(Stage, on_delete=models.PROTECT, related_name='webforms')
+    source = models.CharField(max_length=50, default='webform')
+    auto_distribute = models.BooleanField(default=True)
+    success_message = models.CharField(max_length=300, default='Спасибо! Мы свяжемся с вами.')
+    allowed_origins = models.JSONField(default=list)  # ['https://client.ru'] для CORS-ограничения
+    is_active = models.BooleanField(default=True)
+    submissions_count = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.name
+
+
+class Tag(models.Model):
+    """Тег для контактов и сделок (сегментация)."""
+    name = models.CharField(max_length=80)
+    color = models.CharField(max_length=7, default='#6366F1')
+    contacts = models.ManyToManyField(Contact, blank=True, related_name='tags')
+    deals = models.ManyToManyField(Deal, blank=True, related_name='tags')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['name']
+        constraints = [models.UniqueConstraint(fields=['name'], name='uniq_tag_name')]
+
+    def __str__(self):
+        return self.name
+
+
+class Segment(models.Model):
+    """Именованный сохранённый фильтр (для списков и будущих рассылок)."""
+    ENTITY_CHOICES = [('contacts', 'Контакты'), ('deals', 'Сделки')]
+    name = models.CharField(max_length=120)
+    entity = models.CharField(max_length=20, choices=ENTITY_CHOICES, default='contacts')
+    filters = models.JSONField(default=dict)  # {tag_ids: [...], source: '...', stage_id: ...}
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name

@@ -341,6 +341,23 @@ def normalize_incoming_payload(channel_type: str, payload: dict) -> dict | None:
             'attachments': message.get('attachments') or [],
         }
 
+    if channel_type == 'email':
+        # Payload формирует email_poller.fetch_new_messages: письмо → нормализованный диалог.
+        from_email = str(payload.get('from_email') or '')
+        if not from_email:
+            return None
+        subject = str(payload.get('subject') or '')
+        body = str(payload.get('text') or '')
+        text = f'{subject}\n\n{body}'.strip() if subject else body
+        return {
+            'chat_id': from_email,
+            'username': str(payload.get('from_name') or from_email),
+            'phone': '',
+            'text': text,
+            'message_id': str(payload.get('message_id') or ''),
+            'attachments': payload.get('attachments') or [],
+        }
+
     return {
         'chat_id': str(payload.get('chat_id') or payload.get('from') or 'unknown'),
         'username': payload.get('username') or '',
@@ -422,6 +439,46 @@ def send_outgoing(channel: MessengerChannel, external_chat_id: str, text: str, a
             except requests.RequestException as exc:
                 return False, str(exc)[:500]
 
+        if channel.channel_type == 'email':
+            return _send_email(credentials, external_chat_id, text)
+
         return False, f'Unsupported channel type: {channel.channel_type}'
     except requests.RequestException as exc:
+        return False, str(exc)[:500]
+
+
+def _send_email(credentials: dict, to_email: str, text: str) -> tuple[bool, str]:
+    """Отправка ответа письмом через per-channel SMTP. Стык [граница]: реальный SMTP."""
+    import smtplib
+
+    from django.core.mail import EmailMessage, get_connection
+
+    host = credentials.get('smtp_host', '')
+    if not host or not to_email:
+        return False, 'SMTP host or recipient is missing'
+    use_ssl = bool(credentials.get('smtp_ssl', True))
+    from_name = str(credentials.get('from_name') or '')
+    username = credentials.get('username', '')
+    from_email = f'{from_name} <{username}>' if from_name else username
+    try:
+        connection = get_connection(
+            backend='django.core.mail.backends.smtp.EmailBackend',
+            host=host,
+            port=int(credentials.get('smtp_port', 465)),
+            username=username,
+            password=credentials.get('password', ''),
+            use_ssl=use_ssl,
+            use_tls=not use_ssl,
+        )
+        message = EmailMessage(
+            subject=str(credentials.get('reply_subject') or 'Ответ на ваше обращение'),
+            body=text,
+            from_email=from_email,
+            to=[to_email],
+            connection=connection,
+        )
+        sent = message.send()
+        return (bool(sent), '') if sent else (False, 'SMTP returned 0 sent')
+    except (smtplib.SMTPException, OSError) as exc:  # noqa: BLE001 — граница SMTP
+        logger.exception('email send failed to %s', to_email)
         return False, str(exc)[:500]

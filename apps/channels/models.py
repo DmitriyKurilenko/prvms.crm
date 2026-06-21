@@ -11,6 +11,7 @@ class MessengerChannel(models.Model):
         ('whatsapp', 'WhatsApp (через провайдера)'),
         ('max', 'MAX'),
         ('vk', 'ВКонтакте'),
+        ('email', 'Электронная почта'),
     ]
     STATUS_CHOICES = [
         ('active', 'Активен'),

@@ -74,7 +74,12 @@ const editingId = ref<number | null>(null)
 const defaultForm = () => ({
   name: '',
   channel_type: 'telegram',
-  credentials: { bot_token: '', send_url: '', auth_token: '', webhook_token: '' },
+  credentials: {
+    bot_token: '', send_url: '', auth_token: '', webhook_token: '',
+    imap_host: '', imap_port: 993, imap_ssl: true,
+    smtp_host: '', smtp_port: 465, smtp_ssl: true,
+    username: '', password: '', poll_folder: 'INBOX', from_name: '',
+  },
   auto_create_lead: true,
   welcome_message: '',
   is_active: true,
@@ -88,6 +93,7 @@ const typeOptions = [
   { value: 'whatsapp_business', label: 'WhatsApp Business API' },
   { value: 'max', label: 'MAX' },
   { value: 'vk', label: 'ВКонтакте' },
+  { value: 'email', label: 'Электронная почта' },
 ]
 const typeLabel = (v: string) => typeOptions.find(o => o.value === v)?.label ?? v
 
@@ -135,6 +141,13 @@ const submitChannel = async () => {
   if (form.channel_type === 'max' && !form.credentials.bot_token?.trim()) {
     toast.add({ severity: 'warn', summary: 'Укажите Bot Token', detail: 'Для MAX необходимо указать Bot Token.', life: 5000 })
     return
+  }
+  if (form.channel_type === 'email') {
+    const c = form.credentials
+    if (!c.imap_host?.trim() || !c.smtp_host?.trim() || !c.username?.trim() || !c.password?.trim()) {
+      toast.add({ severity: 'warn', summary: 'Заполните настройки почты', detail: 'Укажите IMAP-хост, SMTP-хост, логин и пароль.', life: 5000 })
+      return
+    }
   }
 
   const body = {

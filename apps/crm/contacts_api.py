@@ -21,12 +21,14 @@ from .schemas import ContactIn, ContactPatchIn
 
 
 @crm_router.get('/contacts/')
-def list_contacts(request, q: str | None = None):
+def list_contacts(request, q: str | None = None, tag_id: int | None = None):
     require_crm_permission(request, 'contacts', 'view')
     _ensure_builtin(request)
     qs = filter_crm_queryset_by_scope(request, Contact.objects.all(), 'contacts').order_by('-created_at')
     if q:
         qs = qs.filter(Q(first_name__icontains=q) | Q(last_name__icontains=q) | Q(phone__icontains=q))
+    if tag_id:
+        qs = qs.filter(tags__id=tag_id)
     return [
         {
             'id': c.id,

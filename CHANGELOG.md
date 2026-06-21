@@ -1,5 +1,39 @@
 # Changelog
 
+## [0.13.0] — 2026-06-21
+
+### Added — Email channel, web forms, tags and segments (DEC-049, DEC-050, DEC-051)
+
+**This release adds three user-facing CRM capabilities on top of the 0.10.0 catalog release.** It introduces two-way email as a communication channel, tenant-managed web lead forms with an embeddable widget, and the first version of tags/segments for contacts and deals.
+
+- Email channel:
+  - Added `email` as a messenger channel type with IMAP polling, SMTP sending, message deduplication by `Message-ID`, and normalized delivery into the existing chat/message pipeline.
+  - Added email parsing with text fallback from HTML and attachment metadata extraction.
+  - Added frontend IMAP/SMTP fields to the channel form and Playwright coverage for creating an email channel.
+- Web forms:
+  - Added tenant-scoped `WebForm` plus public `WebFormLookup` so public tokens can resolve the correct tenant.
+  - Added public schema/submit endpoints with honeypot, rate limiting, CORS handling, and intake logic that creates a contact and deal.
+  - Added the "Веб-формы" builder in the SPA, the `webforms` permission entity, and the static embeddable widget at `frontend/public/widget/crm-webform.js`.
+- Tags and segments:
+  - Added `Tag` and `Segment` models, CRUD APIs, tag assignment endpoints for contacts/deals, and `tag_id` filtering in contact/deal lists.
+  - Added the "Теги" SPA section and menu entry.
+  - Tags reuse existing `contacts`/`deals` permissions instead of introducing a separate RBAC entity.
+- Migrations:
+  - `apps/channels/migrations/0003_alter_messengerchannel_channel_type.py`
+  - `apps/crm/migrations/0007_webform.py`
+  - `apps/crm/migrations/0008_segment_tag.py`
+  - `apps/tenants/migrations/0007_webformlookup.py`
+  - `apps/users/migrations/0005_alter_rolepermission_entity.py`
+
+### Documentation
+
+- Added `DEC-049`, `DEC-050`, and `DEC-051`.
+- Updated `docs/TASK_STATE.md`, `docs/DEV_LOG.md`, `docs/KNOWN_ISSUES.md`, and `docs/RELEASE_NOTES.md`.
+
+**Validation:** migrations checked without drift; `manage.py check` 0 issues; targeted backend tests for email channels, web forms, tags, and RBAC passed; `docker compose run --rm lint` passed; frontend typecheck/build passed; Playwright e2e passed for `email-channel.spec.ts`, `webforms.spec.ts`, and `tags.spec.ts`; live SMTP/IMAP round-trip and public webform POST were confirmed.
+
+---
+
 ## [0.10.0] — 2026-06-21
 
 ### Added — Product catalog and deal line items (DEC-047)
