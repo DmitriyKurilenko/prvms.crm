@@ -67,6 +67,12 @@
     - **Файлы:** `config/settings.py`, `apps/notifications/checks.py`, `apps/notifications/apps.py`, `.env.example`
     - **Действие для продолжения:** пересоздать контейнеры (`docker compose down && up -d --build`) и убедиться, что в рабочем `.env` нет явного `EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend`.
 
+27. ~~После перехода на SMTP Celery не может резолвить/достучаться до `smtp.beget.com`: `socket.gaierror: [Errno -3] Temporary failure in name resolution`.~~
+    - **Истинная причина:** в `docker-compose.prod.yml` сеть `backend` имеет `internal: true`, что блокирует исходящий трафик из контейнеров. `celery` был подключён только к `backend`, поэтому не мог установить TCP-соединение с внешним SMTP-сервером.
+    - **Исправление:** `celery` в `docker-compose.prod.yml` подключён также к внешней сети `traefik` (исходящий интернет); `send_email_async` получила `autoretry_for=(smtplib.SMTPException, OSError)` с экспоненциальным бэкоффом (`max_retries=3`) для переживания кратковременных сетевых сбоев.
+    - **Файлы:** `docker-compose.prod.yml`, `apps/notifications/tasks.py`
+    - **Действие для продолжения:** пересобрать и пересоздать production-стек (`./deploy.sh` или `docker compose -f docker-compose.prod.yml down && up -d --build`); убедиться, что хостовый файрвол не блокирует исходящий 465/587.
+
 ## Открытые
 
 22. **Канал ВКонтакте — ограничения первой версии.**

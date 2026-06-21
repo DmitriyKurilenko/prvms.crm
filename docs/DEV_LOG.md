@@ -1,5 +1,24 @@
 # Dev Log
 
+## 2026-06-21 — 0.8.3: Hotfix: Celery не может достучаться до SMTP-хоста в production
+
+### Контекст:
+После переключения на SMTP-бэкенд в production-логе появилась ошибка `socket.gaierror: [Errno -3] Temporary failure in name resolution` при попытке Celery открыть соединение с `smtp.beget.com`. В dev-стеке DNS работал, а в prod — нет. Причина в том, что в `docker-compose.prod.yml` сеть `backend` помечена `internal: true`, которая блокирует любой исходящий трафик из контейнеров. `celery` был подключён только к `backend`, поэтому не мог ни резолвить, ни достучаться до внешнего SMTP-сервера.
+
+### Что сделано:
+- **`docker-compose.prod.yml`:** сервис `celery` теперь подключён также к внешней сети `traefik` (той же, что и `web`), через которую возможен выход в интернет для SMTP. Входящие соединения к celery по-прежнему не принимаются — у него нет Traefik-лейблов.
+- **`apps/notifications/tasks.py`:** у задачи `send_email_async` включён `autoretry_for=(smtplib.SMTPException, OSError)` с экспоненциальным бэкоффом и `max_retries=3`, чтобы переживать кратковременные сетевые сбои.
+- Обновлена документация: `docs/KNOWN_ISSUES.md`.
+
+### Файлы:
+`docker-compose.prod.yml`, `apps/notifications/tasks.py`, `docs/KNOWN_ISSUES.md`, `docs/DEV_LOG.md`.
+
+### Валидация:
+`docker compose -f docker-compose.prod.yml config` — без ошибок; `manage.py check` — 0 issues; ruff (F/E/B/BLE/I) — чисто; backend-тесты — 134/134.
+
+### Риски:
+Подключение celery к `traefik` открывает только исходящий доступ; inbound-маршрутизация по-прежнему управляется лейблами Traefik. Если серверный файрвол блокирует исходящий 465/587, потребуется открыть порт на хосте, а не в Docker.
+
 ## 2026-06-21 — Hotfix: письма с лендинга уходят в console-бэкенд
 
 ### Контекст:

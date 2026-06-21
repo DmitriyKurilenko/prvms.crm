@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.8.3] — 2026-06-21
+
+### Fixed — Production SMTP egress for Celery
+
+After switching to the SMTP backend, Celery workers in the production stack failed to resolve/connect to the external SMTP host (`smtp.beget.com`) with `socket.gaierror: [Errno -3] Temporary failure in name resolution`.
+
+- `docker-compose.prod.yml`: attached the `celery` service to the external `traefik` network in addition to the internal `backend` network. The `backend` network has `internal: true`, which blocks outbound traffic; `traefik` provides the required internet egress for SMTP. No Traefik labels are added to `celery`, so it remains unreachable from the outside.
+- `apps/notifications/tasks.py`: added `autoretry_for=(smtplib.SMTPException, OSError)`, exponential backoff, and `max_retries=3` to `send_email_async` for resilience against transient network failures.
+- Docs: updated `docs/DECISIONS.md`, `docs/DEV_LOG.md`, `docs/KNOWN_ISSUES.md`.
+
+**Validation:** `docker compose -f docker-compose.prod.yml config` passes; `manage.py check` 0 issues; ruff (F/E/B/BLE/I) clean; **134/134** backend tests.
+
+---
+
 ## [0.8.2] — 2026-06-21
 
 ### Fixed — Landing contact form email delivery (DEC-045)

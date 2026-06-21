@@ -33,7 +33,11 @@ def send_telegram_notification_task(tenant_id: int, user_id: int, event: str, co
         send_telegram_notification(tenant, user, event, context)
 
 
-@shared_task
+@shared_task(
+    autoretry_for=(smtplib.SMTPException, OSError),
+    retry_backoff=True,
+    retry_kwargs={'max_retries': 3},
+)
 def send_email_async(subject: str, message: str, from_email: str | None, recipient_list: list[str]):
     try:
         sent = send_mail(subject, message, from_email, recipient_list)

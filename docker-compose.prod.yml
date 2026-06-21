@@ -119,7 +119,11 @@ services:
     volumes:
       - ./logs:/app/logs
     networks:
+      # backend — для БД/Redis; traefik — для исходящего интернета (SMTP).
+      # internal: true у backend блокирует внешние соединения, поэтому celery
+      # выходит наружу через ту же сеть, куда подключён web/Traefik.
       - backend
+      - traefik
     depends_on:
       db:
         condition: service_healthy
