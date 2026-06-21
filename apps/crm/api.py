@@ -14,8 +14,10 @@ from . import (  # noqa: F401
     activities_api,
     companies_api,
     contacts_api,
+    deal_items_api,
     deals_api,
     pipelines_api,
+    products_api,
     stats_api,
 )
 from ._api_common import crm_router

@@ -120,9 +120,10 @@
     - **Контекст:** Исходящий набирается в браузере через SDK; `click-to-call` создаёт `CallRecord` с локальным `call_sid` (`cti-…`), который не совпадает с `call_sid` Exolve. Поэтому метрики длительности/записи для исходящих из браузера пока не привязываются автоматически к этой записи журнала.
     - **План закрытия:** получать реальный `call_sid`/идентификатор сессии из SDK и сопоставлять с Call Events, либо журналировать исходящие исключительно по Call Events.
 
-3. Покрытие автотестами пока базовое (smoke/integration): отсутствуют end-to-end UI сценарии и нагрузочные тесты.
-   - Файлы: `apps/*/tests/*`, `frontend/src/**/*.test.ts`
-   - План закрытия: добавить Playwright e2e (auth/tenant switch/core CRM flows) и отдельный performance-профиль для API/WebSocket/Celery
+3. Покрытие e2e — частичное; нагрузочных тестов нет.
+   - **Сделано (DEC-048):** Playwright-каркас + самодостаточный прогон (`docker compose run --rm e2e` сам поднимает `web`+`seed`); сквозные сценарии `catalog.spec.ts` и `deal-items.spec.ts` проходят `2 passed` в реальном headless-Chromium (вход, создание товара, создание сделки, добавление позиции, проверка инварианта суммы).
+   - **Осталось:** e2e на tenant switch, документы/подписание, чаты/мессенджеры, телефонию; отдельный performance-профиль для API/WebSocket/Celery.
+   - Файлы: `apps/*/tests/*`, `frontend/src/**/*.test.ts`, `frontend/e2e/*`
 
 11. ~~CI отсутствует — нет автоматического прогона `manage.py check`/тестов/typecheck/vitest при PR.~~ **Закрыто (констатация: было неактуально):** CI существует в `.github/workflows/ci.yml` — backend (`check` + migrations guard + tests на Python 3.13 + Postgres), frontend (typecheck + vitest + build на Node 24), deploy на push в main. **2026-06-20 (DEC-044):** добавлена отдельная lint-job (ruff F/E/B/BLE/I), от которой зависит деплой.
 

@@ -1,5 +1,58 @@
 # Dev Log
 
+## 2026-06-21 — 0.10.0: Гейты валидации: ruff локально + Playwright e2e (DEC-048)
+
+### Контекст:
+ruff (DEC-044) и e2e (KNOWN_ISSUES #3) не были запускаемы локально: в runtime-образе `web` нет ruff, браузера для сквозной проверки не было. Цель — сделать оба гейта воспроизводимыми, чтобы валидация уровня «сквозь» перестала пропускаться.
+
+### Что сделано:
+- **`Dockerfile.dev` + сервис `lint`** (`docker-compose.yml`, профиль `tools`): ruff из `requirements-dev.txt`, запуск `docker compose run --rm lint`. Прод-образ не затронут.
+- **Playwright**: `@playwright/test@1.61.0` + `playwright.config.ts` + общий `frontend/e2e/helpers.ts` + спеки `catalog.spec.ts` и `deal-items.spec.ts` + скрипт `test:e2e`; сервис `e2e` (`docker-compose.yml`, профиль `tools`) на `mcr.microsoft.com/playwright:v1.61.0-jammy`.
+- **Самодостаточный прогон**: добавлен сервис `seed` (профиль `tools`), от которого `e2e` зависит (`service_completed_successfully`); `docker compose run --rm e2e` сам поднимает `web`+`seed`. Ручной сидинг больше не нужен.
+- **Same-origin e2e**: `preview.proxy` в `frontend/vite.config.ts` проксирует `/api`/`/ws` на `web:8000`; SPA собирается с `VITE_API_URL=/api`. Сервис `e2e` задаёт `E2E_API_PROXY`/`E2E_BASE_URL`.
+- **`.gitignore`**: добавлены `frontend/test-results`, `playwright-report`, `blob-report`, `.playwright`.
+
+### Файлы:
+`Dockerfile.dev`, `docker-compose.yml`, `.gitignore`, `AGENTS.md`, `frontend/package.json`, `frontend/vite.config.ts`, `frontend/playwright.config.ts`, `frontend/e2e/{helpers,catalog,deal-items}.{ts,spec.ts}`, `docs/specs/PROMPT_add_ruff_playwright.md`.
+
+### Валидация:
+- `[сквозь]` `docker compose run --rm lint` → `ruff check .` → «All checks passed!».
+- `[сквозь]` `docker compose run --rm e2e` (самодостаточно) → Playwright `2 passed`: `catalog.spec.ts` (вход → пропуск онбординга → «Товары» → создание товара → виден в списке) и `deal-items.spec.ts` (товар + сделка → вкладка «Позиции» → добавление позиции → пересчёт суммы и инвариант «сумма производна»). Этим закрыты `[сквозь]`-пробелы каталога и позиций сделки из Фазы 1.
+- `AGENTS.md` Validation Baseline дополнен обязательными шагами `lint` (при правках `.py`) и `e2e` (при правках UI).
+
+### Риски:
+- Покрыты каталог, позиции сделки и вход; потоки tenant-switch, документы/подписание, чаты и нагрузочные тесты ещё не написаны (KNOWN_ISSUES #3).
+- e2e создаёт данные через реальный UI, поэтому товары/сделки накапливаются между прогонами; для smoke это приемлемо (имена таймстемпированы).
+
+## 2026-06-21 — 0.10.0: Товарный каталог и позиции сделки (P0, Фаза 1, DEC-047)
+
+### Контекст:
+Сделка несла только скалярное `Deal.amount`; документооборот умел генерировать счёт/оферту, но без табличной части. Фаза 1 дорожной карты P0 (`docs/specs/P0_IMPLEMENTATION_GUIDE.md`) соединяет CRM и Документы товарным слоем.
+
+### Что сделано:
+- **`apps/crm/models.py`:** модели `Product`, `ProductCategory`, `DealItem`. У позиции наименование/цена/НДС — снимок на момент добавления; `line_subtotal`/`line_vat`/`line_total` — свойства модели; FK `DealItem.product` = `PROTECT`.
+- **`apps/crm/services/pricing.py`:** `recalc_deal_amount` (Σ `line_total` → `Deal.amount`, единое округление `ROUND_HALF_UP`; при отсутствии позиций сумма не трогается) и `serialize_deal_items`.
+- **`apps/crm/products_api.py` / `apps/crm/deal_items_api.py`:** CRUD каталога (scope-независимый, удаление → архивация при наличии связей) и позиции сделки с автопересчётом; подключены в shim `apps/crm/api.py`.
+- **`apps/crm/deals_api.py`:** в `patch_deal` ручное изменение `amount` игнорируется при наличии позиций.
+- **`apps/documents/mapping.py`:** контекст документа дополнен `items`/`subtotal`/`vat`/`total`/`has_items` (lazy-импорт без цикла `documents`↔`crm`).
+- **Права:** сущность `products` добавлена в `apps/users/permissions.py` (`CRM_PERMISSION_ENTITIES`, `DEFAULT_ROLE_PERMISSIONS`) и `users.RolePermission.ENTITY_CHOICES`; строки создаются лениво (`ensure_role_permissions`), миграция данных не нужна.
+- **Frontend:** раздел «Товары» (`ProductsView.vue` + маршрут + пункт меню), вкладка «Позиции» в `DealDetailView.vue` (сумма блокируется при наличии позиций), типы/функции в `api/crm.ts`, `products` в нормализаторе прав и матрице ролей (`TeamView.vue`).
+- Каталог гейтован существующей фичей `crm_builtin` (без отдельной фичи/лимита) — обоснование в DEC-047.
+
+### Файлы:
+- Backend: `apps/crm/models.py`, `apps/crm/schemas.py`, `apps/crm/services/pricing.py`, `apps/crm/products_api.py`, `apps/crm/deal_items_api.py`, `apps/crm/deals_api.py`, `apps/crm/api.py`, `apps/crm/admin.py`, `apps/crm/tests/test_catalog.py`, `apps/documents/mapping.py`, `apps/users/models.py`, `apps/users/permissions.py`, миграции `apps/crm/migrations/0006_*`, `apps/users/migrations/0004_*`.
+- Frontend: `src/types.ts`, `src/utils/crmPermissions.ts`, `src/api/crm.ts`, `src/views/ProductsView.vue`, `src/views/DealDetailView.vue`, `src/views/TeamView.vue`, `src/router/index.ts`, `src/layout/AppMenu.vue`.
+
+### Валидация:
+- `[локально]` Миграции `crm/0006`+`users/0004` без дрейфа (`makemigrations --check`), `manage.py check` 0 issues, `Ran 33 tests … OK` (целевые `test_catalog` + RBAC `test_permissions_api`/`apps.users.tests`).
+- `[локально]` Frontend: `vue-tsc --noEmit` без ошибок, `vite build` 627 модулей за ~4s, vitest 11/11.
+- `[сквозь после DEC-048]` `docker compose run --rm lint` → `ruff check .` → «All checks passed!».
+- `[сквозь после DEC-048]` `docker compose run --rm e2e` → Playwright `2 passed`: каталог и позиции сделки проверены в реальном headless-Chromium.
+
+### Риски:
+- Сквозной браузерный QA ограничен двумя smoke-сценариями Playwright (каталог и позиции сделки); ручной визуальный прогон всех экранов в браузере не выполнялся.
+- Системные шаблоны счёта в `apps/documents/seed.py` пока не переведены на цикл `{% for item in items %}`; контекст `items` уже доступен, обновление табличной части шаблона — отдельный шаг.
+
 ## 2026-06-21 — 0.9.0: Автогенерация slug организации при регистрации (DEC-046)
 
 ### Контекст:

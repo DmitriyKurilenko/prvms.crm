@@ -137,7 +137,58 @@ services:
       - GATEWAY_ALLOW_ALL_USERS=true
     restart: unless-stopped
 
+  # --- Dev-tools (профиль "tools": не поднимаются обычным `up`) ---
+
+  lint:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    working_dir: /app
+    volumes:
+      - .:/app
+    command: ruff check .
+    profiles: ["tools"]
+
+  # Одноразовый сид детерминированных данных для e2e (идемпотентен, требует DEBUG).
+  seed:
+    build: .
+    command: python manage.py seed_demo_users --count 1
+    volumes:
+      - .:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    env_file:
+      - .env
+    profiles: ["tools"]
+
+  e2e:
+    image: mcr.microsoft.com/playwright:v1.61.0-jammy
+    working_dir: /srv/app
+    command: sh -c "npm install --no-audit --no-fund && npx playwright test"
+    volumes:
+      - ./frontend:/srv/app
+      - e2e_node_modules:/srv/app/node_modules
+    environment:
+      # Same-origin: SPA зовёт относительный /api, а vite preview проксирует его
+      # на web:8000 внутри compose-сети. Так нет CORS и проблем с SameSite-cookie.
+      - VITE_API_URL=/api
+      - E2E_API_PROXY=http://web:8000
+      - E2E_BASE_URL=http://127.0.0.1:4173
+      - CI=1
+    depends_on:
+      # `docker compose run --rm e2e` сам поднимает web и прогоняет seed —
+      # предусловие данных не требует ручных шагов.
+      web:
+        condition: service_started
+      seed:
+        condition: service_completed_successfully
+    profiles: ["tools"]
+
 volumes:
   pgdata:
   frontend_node_modules:
   hermes_profiles:
+  e2e_node_modules:

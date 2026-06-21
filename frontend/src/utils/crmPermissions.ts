@@ -41,7 +41,8 @@ export function normalizeCrmPermissions(input: unknown): CrmPermissionMap {
   return {
     deals: normalizeEntityPermission(raw.deals),
     contacts: normalizeEntityPermission(raw.contacts),
-    companies: normalizeEntityPermission(raw.companies)
+    companies: normalizeEntityPermission(raw.companies),
+    products: normalizeEntityPermission(raw.products)
   }
 }
 

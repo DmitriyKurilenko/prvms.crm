@@ -157,3 +157,49 @@ class ActivityPatchIn(Schema):
     body: str | None = None
     status: str | None = None
     due_date: str | None = None
+
+
+# --- Catalog (products) -----------------------------------------------------
+
+class ProductIn(Schema):
+    name: str
+    sku: str = ''
+    category_id: int | None = None
+    unit: str = 'pcs'
+    price: float = 0
+    currency: str = 'RUB'
+    vat_rate: float = 20
+    description: str = ''
+    is_active: bool = True
+    custom_fields: dict = {}
+
+
+class ProductPatchIn(Schema):
+    name: str | None = None
+    sku: str | None = None
+    category_id: int | None = None
+    unit: str | None = None
+    price: float | None = None
+    currency: str | None = None
+    vat_rate: float | None = None
+    description: str | None = None
+    is_active: bool | None = None
+    custom_fields: dict | None = None
+
+
+# --- Deal items -------------------------------------------------------------
+
+class DealItemIn(Schema):
+    product_id: int
+    quantity: float = 1
+    price: float | None = None          # None → текущая цена товара (снимок)
+    discount_percent: float = 0
+    vat_rate: float | None = None       # None → ставка из товара
+
+
+class DealItemPatchIn(Schema):
+    quantity: float | None = None
+    price: float | None = None
+    discount_percent: float | None = None
+    vat_rate: float | None = None
+    sort_order: int | None = None

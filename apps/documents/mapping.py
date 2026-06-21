@@ -19,6 +19,11 @@ def _extract_data_from_deal(deal) -> dict:
         'company_name': deal.company.name if deal.company else '',
         'created_at': deal.created_at.isoformat(),
     }
+    # Табличная часть документа из позиций сделки (счёт/КП/акт). Lazy-импорт,
+    # чтобы не создавать цикл documents↔crm на уровне модулей.
+    from apps.crm.services.pricing import serialize_deal_items
+
+    data.update(serialize_deal_items(deal))  # items[], subtotal, vat, total, has_items
     data.update(deal.custom_fields or {})
     return data
 

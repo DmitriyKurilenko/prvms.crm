@@ -32,10 +32,13 @@ If instructions conflict — STOP and ask user.
 1. docker compose down
 2. docker compose up -d --build
 3. docker compose run --rm web python manage.py check
-4. Targeted tests for changed modules
-5. Manual HTTP check for affected pages
+4. docker compose run --rm lint  — ruff (статанализ, профиль `tools`). Обязателен при любых изменениях `.py`.
+5. Targeted tests for changed modules (backend; для фронта — `docker compose exec frontend npm run typecheck && npm run build && npm run test`)
+6. docker compose run --rm e2e  — Playwright e2e (профиль `tools`, сам поднимает `web`+`seed`). Обязателен при изменениях UI/SPA.
+7. Manual HTTP check for affected pages
 
 If any step fails — fix and rerun. Partial validation ≠ done.
+Шаги 4 и 6 — не опциональны: ruff и e2e заменяют «зелёные тесты» как критерий «работает».
 
 ## Decision Rules (Self-Limitation)
 1. Если выполнение одной задачи занимает больше 2 итераций — остановись и спроси.

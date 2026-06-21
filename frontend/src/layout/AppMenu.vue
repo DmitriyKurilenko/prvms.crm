@@ -66,6 +66,7 @@ const groups = computed(() => [
     { to: '/app',          label: 'Дашборд',       icon: 'pi pi-home',          feature: null },
     { to: '/app/contacts', label: 'Контакты',      icon: 'pi pi-users',         feature: 'crm_builtin' },
     { to: '/app/companies',label: 'Компании',      icon: 'pi pi-building',      feature: 'crm_builtin' },
+    { to: '/app/products', label: 'Товары',        icon: 'pi pi-box',           feature: 'crm_builtin' },
     { to: '/app/deals',    label: 'Сделки',        icon: 'pi pi-chart-bar',     feature: 'crm_builtin' },
     { to: '/app/tasks',    label: 'Задачи',        icon: 'pi pi-check-square',  feature: 'crm_builtin' },
   ]),

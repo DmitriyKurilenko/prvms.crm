@@ -1,5 +1,45 @@
 # Changelog
 
+## [0.10.0] — 2026-06-21
+
+### Added — Product catalog and deal line items (DEC-047)
+
+**The built-in CRM now has a product catalog and deal line items.** Deals can be calculated from selected products/services instead of only a manually entered amount.
+
+- Backend:
+  - `apps/crm/models.py`: added `Product`, `ProductCategory`, and `DealItem`; deal items keep name, price, and VAT snapshots at the time they are added.
+  - `apps/crm/services/pricing.py`: centralized deal amount recalculation with `ROUND_HALF_UP` rounding.
+  - `apps/crm/products_api.py` and `apps/crm/deal_items_api.py`: catalog CRUD and deal item APIs.
+  - `apps/crm/deals_api.py`: manual `amount` updates are ignored while a deal has line items.
+  - `apps/documents/mapping.py`: document context now includes `items`, `subtotal`, `vat`, `total`, and `has_items`.
+  - `apps/users/permissions.py` and `apps/users/models.py`: added the `products` CRM permission entity.
+- Frontend:
+  - Added the "Товары" section and route.
+  - Added the "Позиции" tab to the deal detail page.
+  - The deal amount field is locked when line items are present because the amount is derived from the item totals.
+  - Added product permissions to the role permissions matrix.
+- Migrations:
+  - `apps/crm/migrations/0006_*`
+  - `apps/users/migrations/0004_*`
+
+### Added — Local validation gates (DEC-048)
+
+- `Dockerfile.dev` and `docker-compose.yml`: added a `lint` service under the `tools` profile for local `ruff check .`.
+- `frontend/playwright.config.ts`, `frontend/e2e/*`, and package scripts: added Playwright e2e coverage for product catalog and deal line items.
+- `docker-compose.yml`: added `seed` and `e2e` services under the `tools` profile; `docker compose run --rm e2e` is self-contained and starts the backend plus seed step.
+- `.gitignore`: ignored Playwright reports and test artifacts.
+- `AGENTS.md`: validation baseline now requires ruff for Python changes and e2e for UI/SPA changes.
+
+### Documentation
+
+- Added `DEC-047` and `DEC-048`.
+- Updated `docs/TASK_STATE.md`, `docs/DEV_LOG.md`, `docs/KNOWN_ISSUES.md`, and `docs/RELEASE_NOTES.md`.
+- Added implementation/spec documents under `docs/specs/`.
+
+**Validation:** migration drift check for `crm/0006` and `users/0004`; `manage.py check` 0 issues; **33/33** targeted backend tests for catalog/RBAC; frontend `typecheck` clean; `vite build` successful; vitest **11/11**; `docker compose run --rm lint` clean; `docker compose run --rm e2e` Playwright **2/2** passed.
+
+---
+
 ## [0.9.0] — 2026-06-21
 
 ### Changed — Auto-generate organization slug during registration (DEC-046)

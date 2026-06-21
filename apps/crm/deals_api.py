@@ -200,6 +200,10 @@ def patch_deal(request, deal_id: int, payload: DealPatchIn):
     if not changes:
         return {'detail': 'ok'}
 
+    # При наличии позиций сумма сделки производная (Σ позиций), ручной ввод игнорируем.
+    if 'amount' in changes and deal.items.exists():
+        changes.pop('amount')
+
     if 'responsible_id' in changes:
         changes['responsible_id'] = normalize_crm_responsible_for_write(
             request,

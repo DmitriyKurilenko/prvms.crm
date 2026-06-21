@@ -12,6 +12,7 @@ import AuditView from '@/views/AuditView.vue'
 import IntegrationsView from '@/views/IntegrationsView.vue'
 import ContactsView from '@/views/ContactsView.vue'
 import CompaniesView from '@/views/CompaniesView.vue'
+import ProductsView from '@/views/ProductsView.vue'
 import DealsView from '@/views/DealsView.vue'
 import DealDetailView from '@/views/DealDetailView.vue'
 import PipelinesView from '@/views/PipelinesView.vue'
@@ -112,6 +113,12 @@ const routes: RouteRecordRaw[] = [
         name: 'companies',
         component: CompaniesView,
         meta: { roles: ['owner', 'admin', 'manager', 'viewer'], feature: 'crm_builtin', title: 'Компании' }
+      },
+      {
+        path: 'products',
+        name: 'products',
+        component: ProductsView,
+        meta: { roles: ['owner', 'admin', 'manager', 'viewer'], feature: 'crm_builtin', title: 'Товары' }
       },
       {
         path: 'pipelines',

@@ -1,0 +1,14 @@
+# Dev-only image for static analysis (ruff). НЕ используется в production.
+# Держит dev-инструменты отдельно от прод-образа (см. requirements-dev.txt).
+FROM python:3.13-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+COPY requirements-dev.txt .
+RUN pip install --no-cache-dir -r requirements-dev.txt
+
+# Код монтируется томом во время прогона; ruff читает конфиг из pyproject.toml.
+CMD ["ruff", "check", "."]

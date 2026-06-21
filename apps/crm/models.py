@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.db import models
 
 
@@ -239,3 +241,92 @@ class Activity(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class ProductCategory(models.Model):
+    """Категория номенклатуры (дерево)."""
+    name = models.CharField(max_length=200)
+    parent = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, null=True, blank=True, related_name='children',
+    )
+    sort_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['sort_order', 'name']
+        verbose_name_plural = 'product categories'
+
+    def __str__(self):
+        return self.name
+
+
+class Product(models.Model):
+    """Позиция каталога (товар или услуга)."""
+    UNIT_CHOICES = [
+        ('pcs', 'шт'),
+        ('hour', 'час'),
+        ('service', 'усл'),
+        ('kg', 'кг'),
+        ('month', 'мес'),
+        ('license', 'лиц'),
+    ]
+    name = models.CharField(max_length=300)
+    sku = models.CharField(max_length=100, blank=True, db_index=True)
+    category = models.ForeignKey(
+        ProductCategory,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='products',
+    )
+    unit = models.CharField(max_length=20, choices=UNIT_CHOICES, default='pcs')
+    price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    currency = models.CharField(max_length=3, default='RUB')
+    vat_rate = models.DecimalField(max_digits=5, decimal_places=2, default=20)
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    custom_fields = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['sku']),
+            models.Index(fields=['is_active', 'name']),
+        ]
+
+    def __str__(self):
+        return self.name
+
+
+class DealItem(models.Model):
+    """Позиция сделки. Цена/НДС/наименование — снимок на момент добавления."""
+    deal = models.ForeignKey(Deal, on_delete=models.CASCADE, related_name='items')
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='deal_items')
+    name_snapshot = models.CharField(max_length=300)
+    quantity = models.DecimalField(max_digits=12, decimal_places=3, default=1)
+    price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    discount_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    vat_rate = models.DecimalField(max_digits=5, decimal_places=2, default=20)
+    sort_order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['sort_order', 'id']
+
+    @property
+    def line_subtotal(self) -> Decimal:
+        """Сумма строки без НДС, с учётом скидки."""
+        gross = self.price * self.quantity
+        return gross * (Decimal('1') - self.discount_percent / Decimal('100'))
+
+    @property
+    def line_vat(self) -> Decimal:
+        return self.line_subtotal * self.vat_rate / Decimal('100')
+
+    @property
+    def line_total(self) -> Decimal:
+        return self.line_subtotal + self.line_vat
+
+    def __str__(self):
+        return f'{self.name_snapshot} ×{self.quantity}'

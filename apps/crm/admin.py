@@ -1,6 +1,16 @@
 from django.contrib import admin
 
-from .models import Activity, Company, Contact, Deal, Pipeline, Stage
+from .models import (
+    Activity,
+    Company,
+    Contact,
+    Deal,
+    DealItem,
+    Pipeline,
+    Product,
+    ProductCategory,
+    Stage,
+)
 
 
 @admin.register(Contact)
@@ -38,3 +48,21 @@ class DealAdmin(admin.ModelAdmin):
 class ActivityAdmin(admin.ModelAdmin):
     list_display = ('title', 'activity_type', 'deal', 'contact', 'status', 'created_at')
     list_filter = ('activity_type', 'status')
+
+
+@admin.register(ProductCategory)
+class ProductCategoryAdmin(admin.ModelAdmin):
+    list_display = ('name', 'parent', 'sort_order')
+
+
+@admin.register(Product)
+class ProductAdmin(admin.ModelAdmin):
+    list_display = ('name', 'sku', 'unit', 'price', 'vat_rate', 'is_active', 'created_at')
+    list_filter = ('is_active', 'unit')
+    search_fields = ('name', 'sku')
+
+
+@admin.register(DealItem)
+class DealItemAdmin(admin.ModelAdmin):
+    list_display = ('name_snapshot', 'deal', 'quantity', 'price', 'vat_rate')
+    search_fields = ('name_snapshot',)

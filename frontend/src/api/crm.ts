@@ -215,3 +215,62 @@ export const managerStats = () =>
 /* ---------- Tasks ---------- */
 export const myTasks = (status?: string) =>
   api<Array<{ id: number; activity_type: string; deal_id: number | null; contact_id: number | null; responsible_id: number | null; title: string; body: string; status: string; due_date: string | null; created_at: string }>>(`/crm/activities/tasks/${status ? `?status=${status}` : ''}`)
+
+/* ---------- Products (catalog) ---------- */
+export interface CrmProduct {
+  id: number
+  name: string
+  sku: string
+  category_id: number | null
+  unit: string
+  price: number
+  currency: string
+  vat_rate: number
+  description: string
+  is_active: boolean
+  created_at: string
+}
+
+export interface CrmDealItem {
+  id: number
+  product_id: number
+  name: string
+  quantity: number
+  price: number
+  discount_percent: number
+  vat_rate: number
+  line_subtotal: number
+  line_vat: number
+  line_total: number
+}
+
+export interface CrmDealItems {
+  items: CrmDealItem[]
+  subtotal: number
+  vat: number
+  total: number
+  has_items: boolean
+}
+
+export const listProducts = (q?: string) =>
+  api<CrmProduct[]>(`/crm/products/${q ? `?q=${encodeURIComponent(q)}` : ''}`)
+
+export const createProduct = (data: Partial<CrmProduct>) =>
+  api<{ id: number }>('/crm/products/', { method: 'POST', body: data })
+
+export const patchProduct = (id: number, data: Partial<CrmProduct>) =>
+  api('/crm/products/' + id + '/', { method: 'PATCH', body: data })
+
+export const deleteProduct = (id: number) =>
+  api<{ detail: string }>('/crm/products/' + id + '/', { method: 'DELETE' })
+
+export const listDealItems = (dealId: number) =>
+  api<CrmDealItems>(`/crm/deals/${dealId}/items/`)
+
+export const addDealItem = (
+  dealId: number,
+  data: { product_id: number; quantity: number; price?: number; discount_percent?: number; vat_rate?: number },
+) => api<{ item_id: number; deal_amount: number }>(`/crm/deals/${dealId}/items/`, { method: 'POST', body: data })
+
+export const deleteDealItem = (dealId: number, itemId: number) =>
+  api<{ detail: string; deal_amount: number }>(`/crm/deals/${dealId}/items/${itemId}/`, { method: 'DELETE' })

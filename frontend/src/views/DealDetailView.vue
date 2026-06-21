@@ -33,7 +33,8 @@
               <div class="form-row-2">
                 <div>
                   <label class="field-label">Сумма</label>
-                  <PInputText v-model.number="edit.amount" type="number" class="w-full" :disabled="!canUpdateDeal" />
+                  <PInputText v-model.number="edit.amount" type="number" class="w-full" :disabled="!canUpdateDeal || dealItems.has_items" />
+                  <small v-if="dealItems.has_items" class="amount-hint">Сумма рассчитана по позициям</small>
                 </div>
                 <div>
                   <label class="field-label">Валюта</label>
@@ -113,6 +114,56 @@
                 <PSelect v-model="newActivityType" :options="activityTypeOptions" optionLabel="label" optionValue="value" placeholder="Тип" style="width: 150px" :disabled="!canUpdateDeal" />
                 <PInputText v-model="newNote" placeholder="Заметка..." style="flex: 1" :disabled="!canUpdateDeal" />
                 <PButton v-if="canUpdateDeal" label="Добавить" size="small" @click="addNote" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Items tab -->
+          <div v-if="activeTab === 'items'" class="tab-pane animate-fade">
+            <div class="items-section">
+              <div v-if="canUpdateDeal" class="add-item-row">
+                <PSelect
+                  v-model="newItem.product_id"
+                  :options="productOptions"
+                  optionLabel="label"
+                  optionValue="value"
+                  placeholder="Выберите товар"
+                  filter
+                  filterPlaceholder="Поиск…"
+                  class="flex-1"
+                />
+                <PInputNumber v-model="newItem.quantity" :min="0" :minFractionDigits="0" :maxFractionDigits="3" placeholder="Кол-во" style="width: 120px" />
+                <PButton label="Добавить" icon="pi pi-plus" size="small" :disabled="!newItem.product_id" @click="addItem" />
+              </div>
+
+              <PDataTable v-responsive-table :value="dealItems.items" size="small" stripedRows class="items-table">
+                <PColumn field="name" header="Наименование" />
+                <PColumn header="Кол-во">
+                  <template #body="{ data }">{{ data.quantity }}</template>
+                </PColumn>
+                <PColumn header="Цена">
+                  <template #body="{ data }">{{ formatMoney(data.price) }}</template>
+                </PColumn>
+                <PColumn header="НДС">
+                  <template #body="{ data }">{{ data.vat_rate }}%</template>
+                </PColumn>
+                <PColumn header="Сумма">
+                  <template #body="{ data }">{{ formatMoney(data.line_total) }}</template>
+                </PColumn>
+                <PColumn header="" style="width: 60px">
+                  <template #body="{ data }">
+                    <PButton v-if="canUpdateDeal" icon="pi pi-trash" text size="small" severity="danger" @click="removeItem(data.id)" />
+                  </template>
+                </PColumn>
+                <template #empty>
+                  <div class="empty-state">Нет позиций</div>
+                </template>
+              </PDataTable>
+
+              <div v-if="dealItems.has_items" class="items-totals">
+                <div><span>Без НДС:</span> <strong>{{ formatMoney(dealItems.subtotal) }} {{ deal.currency }}</strong></div>
+                <div><span>НДС:</span> <strong>{{ formatMoney(dealItems.vat) }} {{ deal.currency }}</strong></div>
+                <div class="grand"><span>Итого:</span> <strong>{{ formatMoney(dealItems.total) }} {{ deal.currency }}</strong></div>
               </div>
             </div>
           </div>
@@ -200,6 +251,15 @@ const contacts = ref<crmApi.CrmContact[]>([])
 const companies = ref<crmApi.CrmCompany[]>([])
 const managers = ref<{ id: number; name: string }[]>([])
 
+/* --- Deal items (catalog) --- */
+const products = ref<crmApi.CrmProduct[]>([])
+const dealItems = reactive<crmApi.CrmDealItems>({ items: [], subtotal: 0, vat: 0, total: 0, has_items: false })
+const newItem = reactive({ product_id: null as number | null, quantity: 1 })
+const productOptions = computed(() =>
+  products.value.filter(p => p.is_active).map(p => ({ label: `${p.name} — ${p.price} ${p.currency}`, value: p.id })),
+)
+const formatMoney = (v: number) => Number(v).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
 const dealContactPhone = computed(() => contacts.value.find(c => c.id === deal.value?.contact_id)?.phone || '')
 const callContact = () => {
   if (dealContactPhone.value) phone.call(dealContactPhone.value, { dealId: deal.value?.id, contactId: deal.value?.contact_id ?? undefined })
@@ -215,6 +275,7 @@ const stageLabel = computed(() => {
 
 const tabs = [
   { id: 'info', label: 'Инфо' },
+  { id: 'items', label: 'Позиции' },
   { id: 'activity', label: 'Активность' },
   { id: 'chat', label: 'Чат' },
 ]
@@ -245,12 +306,43 @@ const loadDeal = async () => {
   }
 }
 
+const loadItems = async () => {
+  const id = dealId.value
+  if (!id) return
+  const res = await call(() => crmApi.listDealItems(id), 'Не удалось загрузить позиции.')
+  if (res === undefined) return
+  Object.assign(dealItems, res)
+}
+
+const addItem = async () => {
+  if (!canUpdateDeal.value || !deal.value || !newItem.product_id) return
+  const res = await call(
+    () => crmApi.addDealItem(deal.value!.id, { product_id: newItem.product_id!, quantity: Number(newItem.quantity) || 1 }),
+    'Не удалось добавить позицию.',
+  )
+  if (res === undefined) return
+  newItem.product_id = null
+  newItem.quantity = 1
+  await loadItems()
+  edit.amount = dealItems.total
+}
+
+const removeItem = async (itemId: number) => {
+  if (!canUpdateDeal.value || !deal.value) return
+  const res = await call(() => crmApi.deleteDealItem(deal.value!.id, itemId), 'Не удалось удалить позицию.')
+  if (res === undefined) return
+  await loadItems()
+  if (dealItems.has_items) edit.amount = dealItems.total
+}
+
 onMounted(async () => {
   await Promise.all([
     loadDeal(),
+    loadItems(),
     crmApi.listContacts().then(r => (contacts.value = r)),
     crmApi.listCompanies().then(r => (companies.value = r)),
     crmApi.listManagers().then(r => (managers.value = r)),
+    crmApi.listProducts().then(r => (products.value = r)),
   ])
   connectChatWs()
 })
@@ -559,4 +651,12 @@ const documentStatusLabel = (s: string) => ({ draft: 'Черновик', sent: '
 .tl-date { font-size: 12px; color: var(--text-muted); }
 .add-activity-row { display: flex; gap: 6px; }
 .empty-state { color: var(--text-muted); padding: 24px; text-align: center; }
+
+.items-section { display: flex; flex-direction: column; gap: 12px; }
+.add-item-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.items-table { margin-top: 4px; }
+.items-totals { display: flex; flex-direction: column; gap: 4px; align-items: flex-end; padding-top: 8px; border-top: 1px solid var(--line); }
+.items-totals span { color: var(--text-muted); margin-right: 8px; }
+.items-totals .grand { font-size: 15px; }
+.amount-hint { color: var(--text-muted); font-size: 12px; }
 </style>
