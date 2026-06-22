@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.14.0] — 2026-06-22
+
+### Added — Automation builder and SLA-style time rules (DEC-052)
+
+**The built-in CRM now supports configurable automation rules.** Owners and admins can create "if → then" rules that react to deal events or inactivity and run actions automatically.
+
+- Backend:
+  - `apps/crm/models.py`: added `AutomationRule` and `AutomationRunLog`.
+  - `apps/crm/services/auto_actions.py`: extracted reusable `execute_action(action, deal)` and added event rule evaluation while keeping `process_stage_change` as the compatibility wrapper.
+  - `apps/crm/deals_api.py`: evaluates `new_deal` and `stage_changed` rules from deal creation and stage movement endpoints.
+  - `apps/crm/tasks.py` and `config/settings.py`: added the periodic `evaluate_time_rules` task for `no_activity` rules.
+  - `apps/crm/automation_api.py`: added CRUD endpoints for automation rules, restricted to owner/admin roles.
+  - `apps/crm/admin.py`, `apps/crm/api.py`, and `apps/crm/schemas.py`: registered automation models, routes, and schemas.
+- Frontend:
+  - Added the "Автоматизации" section, route, menu entry, and API client methods.
+  - Added `frontend/src/views/AutomationView.vue` for the first rule builder UI.
+  - Added Playwright coverage for creating an automation rule in the SPA.
+- Migrations:
+  - `apps/crm/migrations/0009_automationrule_automationrunlog.py`
+
+### Documentation
+
+- Added `DEC-052`.
+- Updated `docs/TASK_STATE.md`, `docs/DEV_LOG.md`, `docs/KNOWN_ISSUES.md`, and `docs/RELEASE_NOTES.md`.
+
+**Validation:** `crm/0009` migration checked without drift; `manage.py check` 0 issues; targeted backend tests passed for automation plus auto-action regression; `docker compose run --rm lint` passed; frontend typecheck/build passed; Playwright `automation.spec.ts` passed.
+
+---
+
 ## [0.13.0] — 2026-06-21
 
 ### Added — Email channel, web forms, tags and segments (DEC-049, DEC-050, DEC-051)

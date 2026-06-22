@@ -1,5 +1,19 @@
 # Архитектурные решения
 
+## DEC-052: Конструктор автоматизаций + SLA-триггеры (2026-06-22, P1 Фаза 5)
+**Контекст:** Автоматизация ограничивалась полем `Stage.auto_action` (одно действие на стадию) без триггеров по времени/бездействию. Нужны настраиваемые правила «если → то», в т.ч. «нет активности N дней → задача».
+**Решение:**
+- Модели `AutomationRule` (`trigger`, `conditions` JSON, `action` JSON, `is_active`, `priority`) и `AutomationRunLog` (`unique(rule, deal)` — идемпотентность time-based правил), миграция `crm/0009`.
+- **Переиспользуемый исполнитель:** из `process_stage_change` вынесена `execute_action(action, deal)` (`apps/crm/services/auto_actions.py`) с типами `create_task`/`send_notification`/`create_document`/`change_stage`/`assign`; `process_stage_change` стал обёрткой над ней (поведение сохранено — регресс-тест `test_auto_actions` зелёный).
+- **Событийные триггеры:** `evaluate_event_rules(event, deal)` вызывается из `deals_api.create_deal` (`new_deal`) и `move_deal` (`stage_changed`). Рекурсии нет: события возбуждаются только из API-эндпоинтов, не из `execute_action`.
+- **Time-based:** beat-задача `apps/crm/tasks.py::evaluate_time_rules` (`no_activity`, каждые 15 мин в `CELERY_BEAT_SCHEDULE`) обходит тенантов, находит open-сделки без активности дольше N дней, исключает уже сработавшие (`AutomationRunLog`), исполняет действие и логирует прогон.
+- **API/Frontend:** CRUD `apps/crm/automation_api.py` (гейт `require_roles(['owner','admin'])`, валидация триггеров/действий); страница `AutomationView.vue` (конструктор «если → то»).
+**Инварианты:**
+- Защита от зацикливания: `change_stage`/`assign` в действии не возбуждают повторную событийную оценку; time-based правило срабатывает по сделке один раз (`AutomationRunLog`).
+**Альтернативы:**
+- Полноценный визуальный граф-билдер — отклонено для первой версии: достаточно линейного «триггер + условия + действие».
+**Граница достоверности:** backend-тесты (`test_automation`: событие→задача, условие по воронке, идемпотентность time-rule; регрессия `test_auto_actions`) + e2e `automation.spec.ts` (`6 passed`): создание правила в ЛК и появление в списке. Триггер `sla_breach` и UI действий `change_stage/assign/create_document` в первой версии не выведены (бэкенд-исполнитель готов) — см. KNOWN_ISSUES.
+
 ## DEC-051: Теги и сегменты для контактов и сделок (2026-06-21, P1 Фаза 7)
 **Контекст:** Не было способа помечать и группировать контакты/сделки для фильтрации и будущих рассылок (P2). Теги — фундамент сегментации.
 **Решение:**

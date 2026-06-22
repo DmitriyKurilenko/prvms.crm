@@ -1,5 +1,40 @@
 # Dev Log
 
+## 2026-06-22 — 0.14.0: Подготовка коммита и синхронизация релизных файлов
+
+### Что сделано:
+- Проверен состав рабочей сессии через `git status`: в коммит входят конструктор автоматизаций + SLA-style time rules (DEC-052), миграция `crm/0009`, backend/frontend/e2e-тесты и релизная документация.
+- Bump определён как **minor**: изменения добавляют новую пользовательскую функциональность и обратно-совместимые API.
+- `VERSION` содержит финальную SemVer-версию `0.14.0` без `-dev`.
+- `CHANGELOG.md` дополнен верхней секцией `0.14.0` с описанием автоматизаций, миграции и валидации.
+
+### Файлы релизной подготовки:
+`VERSION`, `CHANGELOG.md`, `docs/TASK_STATE.md`, `docs/DEV_LOG.md`, `docs/DECISIONS.md`, `docs/KNOWN_ISSUES.md`, `docs/RELEASE_NOTES.md`.
+
+### Валидация:
+- Согласованность релизных файлов: `VERSION`, верхняя секция `CHANGELOG.md`, `docs/TASK_STATE.md`, `docs/DEV_LOG.md` и `docs/RELEASE_NOTES.md` ссылаются на `0.14.0`.
+- Полный Docker baseline в рамках подготовки коммита повторно не запускался; функциональная валидация зафиксирована в записи 0.14.0 ниже.
+
+### Риски:
+- Остаточные ограничения остаются в `docs/KNOWN_ISSUES.md`: нет отдельного `sla_breach`, UI конструктора пока не выводит действия `change_stage`/`assign`/`create_document` (#31).
+
+## 2026-06-22 — 0.14.0: Конструктор автоматизаций + SLA (P1 Фаза 5, DEC-052)
+
+### Что сделано:
+- **Backend:** модели `AutomationRule`/`AutomationRunLog` (`crm/0009`); рефактор `auto_actions.py` — общий `execute_action` + `evaluate_event_rules` (`process_stage_change` стал обёрткой); событийные вызовы в `deals_api.create_deal`/`move_deal`; beat `evaluate_time_rules` (`no_activity`, 15 мин) в `crm/tasks.py` + `config/settings.py`; CRUD `automation_api.py`.
+- **Frontend:** страница `AutomationView.vue` (конструктор правил), пункт меню «Автоматизации», маршрут, API-клиент.
+
+### Файлы:
+`apps/crm/models.py`, `apps/crm/schemas.py`, `apps/crm/automation_api.py`, `apps/crm/api.py`, `apps/crm/admin.py`, `apps/crm/deals_api.py`, `apps/crm/services/auto_actions.py`, `apps/crm/tasks.py`, `apps/crm/tests/test_automation.py`, миграция `crm/0009`, `config/settings.py`, `frontend/src/views/AutomationView.vue`, `frontend/src/api/crm.ts`, `frontend/src/router/index.ts`, `frontend/src/layout/AppMenu.vue`, `frontend/e2e/automation.spec.ts`.
+
+### Валидация:
+- `[локально]` Миграция `crm/0009` без дрейфа, `manage.py check` 0 issues, `Ran 5 tests … OK` (`test_automation` + регрессия `test_auto_actions`), ruff «All checks passed!».
+- `[локально]` Frontend `vue-tsc` без ошибок, `vite build` 636 модулей.
+- `[сквозь]` Playwright `automation.spec.ts` (`6 passed` вместе с остальными): реальный браузер создаёт правило «создана сделка → создать задачу» и видит его в списке.
+
+### Риски (KNOWN_ISSUES):
+- Триггер `sla_breach` и UI действий `change_stage/assign/create_document` в конструкторе не выведены (бэкенд-исполнитель готов и покрыт тестами).
+
 ## 2026-06-21 — 0.13.0: Подготовка коммита и синхронизация релизных файлов
 
 ### Что сделано:

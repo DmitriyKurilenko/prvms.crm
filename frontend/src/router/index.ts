@@ -15,6 +15,7 @@ import CompaniesView from '@/views/CompaniesView.vue'
 import ProductsView from '@/views/ProductsView.vue'
 import WebFormsView from '@/views/WebFormsView.vue'
 import TagsView from '@/views/TagsView.vue'
+import AutomationView from '@/views/AutomationView.vue'
 import DealsView from '@/views/DealsView.vue'
 import DealDetailView from '@/views/DealDetailView.vue'
 import PipelinesView from '@/views/PipelinesView.vue'
@@ -133,6 +134,12 @@ const routes: RouteRecordRaw[] = [
         name: 'tags',
         component: TagsView,
         meta: { roles: ['owner', 'admin', 'manager', 'viewer'], feature: 'crm_builtin', title: 'Теги' }
+      },
+      {
+        path: 'automation',
+        name: 'automation',
+        component: AutomationView,
+        meta: { roles: ['owner', 'admin'], feature: 'crm_builtin', title: 'Автоматизации' }
       },
       {
         path: 'pipelines',

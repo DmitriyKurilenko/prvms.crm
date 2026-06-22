@@ -70,6 +70,7 @@ const groups = computed(() => [
     { to: '/app/webforms', label: 'Веб-формы',     icon: 'pi pi-id-card',       feature: 'crm_builtin' },
     { to: '/app/deals',    label: 'Сделки',        icon: 'pi pi-chart-bar',     feature: 'crm_builtin' },
     { to: '/app/tags',     label: 'Теги',          icon: 'pi pi-tags',          feature: 'crm_builtin' },
+    { to: '/app/automation', label: 'Автоматизации', icon: 'pi pi-bolt',        feature: 'crm_builtin' },
     { to: '/app/tasks',    label: 'Задачи',        icon: 'pi pi-check-square',  feature: 'crm_builtin' },
   ]),
   withLock([

@@ -385,3 +385,37 @@ class Segment(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class AutomationRule(models.Model):
+    """Правило автоматизации «если (триггер + условия) → то (действие)»."""
+    TRIGGERS = [
+        ('new_deal', 'Создана сделка'),
+        ('stage_changed', 'Смена стадии'),
+        ('no_activity', 'Нет активности N дней'),
+    ]
+    name = models.CharField(max_length=200)
+    trigger = models.CharField(max_length=20, choices=TRIGGERS)
+    conditions = models.JSONField(default=dict)  # {pipeline_id, stage_id, days}
+    action = models.JSONField(default=dict)      # {type, title, days_offset, event, stage_id, responsible_id}
+    is_active = models.BooleanField(default=True)
+    priority = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-priority', 'id']
+
+    def __str__(self):
+        return self.name
+
+
+class AutomationRunLog(models.Model):
+    """Гарантия идемпотентности time-based правил: одно правило срабатывает
+    по одной сделке не более одного раза."""
+    rule = models.ForeignKey(AutomationRule, on_delete=models.CASCADE, related_name='runs')
+    deal = models.ForeignKey(Deal, on_delete=models.CASCADE, related_name='automation_runs')
+    fired_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['rule', 'deal']
+        indexes = [models.Index(fields=['rule', 'deal'])]

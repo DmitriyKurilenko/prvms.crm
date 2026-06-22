@@ -265,3 +265,23 @@ class SegmentPatchIn(Schema):
     name: str | None = None
     entity: str | None = None
     filters: dict | None = None
+
+
+# --- Automation rules -------------------------------------------------------
+
+class AutomationRuleIn(Schema):
+    name: str
+    trigger: str            # new_deal | stage_changed | no_activity
+    conditions: dict = {}
+    action: dict = {}       # {type, title, days_offset, event, stage_id, responsible_id}
+    is_active: bool = True
+    priority: int = 0
+
+
+class AutomationRulePatchIn(Schema):
+    name: str | None = None
+    trigger: str | None = None
+    conditions: dict | None = None
+    action: dict | None = None
+    is_active: bool | None = None
+    priority: int | None = None

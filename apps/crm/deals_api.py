@@ -21,7 +21,7 @@ from ._api_common import (
 )
 from .models import Activity, Company, Contact, Deal, Stage
 from .schemas import DealIn, DealMoveIn, DealPatchIn
-from .services.auto_actions import process_stage_change
+from .services.auto_actions import evaluate_event_rules, process_stage_change
 
 
 @crm_router.get('/deals/')
@@ -135,6 +135,8 @@ def create_deal(request, payload: DealIn):
     log_event(request, action='create', instance=deal)
     tenant = get_request_tenant(request)
     notify(tenant, 'new_deal_created', {'deal_id': deal.id, 'link': '/crm'})
+    deal.refresh_from_db()
+    evaluate_event_rules('new_deal', deal)
     return {'id': deal.id}
 
 
@@ -305,6 +307,7 @@ def move_deal(request, deal_id: int, payload: DealMoveIn):
     log_event(request, action='update', instance=deal,
               changes={'Стадия': {'before': old_stage.name, 'after': new_stage.name}})
     process_stage_change(deal, old_stage, new_stage)
+    evaluate_event_rules('stage_changed', deal)
     tenant = get_request_tenant(request)
     notify(tenant, 'deal_stage_changed', {'deal_id': deal.id, 'link': '/crm'})
     return {'detail': 'ok'}

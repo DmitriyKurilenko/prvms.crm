@@ -201,6 +201,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'apps.channels.tasks.poll_email_channels',
         'schedule': timedelta(minutes=3),
     },
+    'evaluate-automation-time-rules-every-15-min': {
+        'task': 'apps.crm.tasks.evaluate_time_rules',
+        'schedule': timedelta(minutes=15),
+    },
 }
 
 # ---------- Caches ----------

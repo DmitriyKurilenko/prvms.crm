@@ -2,6 +2,7 @@ from django.contrib import admin
 
 from .models import (
     Activity,
+    AutomationRule,
     Company,
     Contact,
     Deal,
@@ -14,6 +15,12 @@ from .models import (
     Tag,
     WebForm,
 )
+
+
+@admin.register(AutomationRule)
+class AutomationRuleAdmin(admin.ModelAdmin):
+    list_display = ('name', 'trigger', 'is_active', 'priority', 'created_at')
+    list_filter = ('trigger', 'is_active')
 
 
 @admin.register(WebForm)

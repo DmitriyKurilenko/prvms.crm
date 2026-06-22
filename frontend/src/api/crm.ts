@@ -335,3 +335,26 @@ export const setDealTags = (dealId: number, tagIds: number[]) =>
 
 export const setContactTags = (contactId: number, tagIds: number[]) =>
   api(`/crm/contacts/${contactId}/tags/`, { method: 'PATCH', body: { tag_ids: tagIds } })
+
+/* ---------- Automation rules ---------- */
+export interface CrmAutomationRule {
+  id: number
+  name: string
+  trigger: string
+  conditions: Record<string, unknown>
+  action: Record<string, unknown>
+  is_active: boolean
+  priority: number
+  created_at: string
+}
+
+export const listAutomationRules = () => api<CrmAutomationRule[]>('/crm/automation/rules/')
+
+export const createAutomationRule = (data: Record<string, unknown>) =>
+  api<{ id: number }>('/crm/automation/rules/', { method: 'POST', body: data })
+
+export const patchAutomationRule = (id: number, data: Record<string, unknown>) =>
+  api('/crm/automation/rules/' + id + '/', { method: 'PATCH', body: data })
+
+export const deleteAutomationRule = (id: number) =>
+  api<{ detail: string }>('/crm/automation/rules/' + id + '/', { method: 'DELETE' })

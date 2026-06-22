@@ -24,6 +24,35 @@ def process_stage_auto_action(tenant_id: int, deal_id: int, old_stage_id: int, n
 
 
 @shared_task
+def evaluate_time_rules():
+    """Time-based автоматизация: «нет активности N дней». Идемпотентна через
+    AutomationRunLog (unique rule+deal)."""
+    from datetime import timedelta
+
+    from .models import AutomationRule, AutomationRunLog
+    from .services.auto_actions import _match_conditions, execute_action
+
+    with schema_context('public'):
+        tenants = list(Tenant.objects.filter(is_active=True))
+    fired = 0
+    for tenant in tenants:
+        with tenant_context(tenant):
+            rules = AutomationRule.objects.filter(trigger='no_activity', is_active=True)
+            for rule in rules:
+                days = int((rule.conditions or {}).get('days', 3))
+                threshold = timezone.now() - timedelta(days=days)
+                deals = Deal.objects.filter(stage__stage_type='open').exclude(automation_runs__rule=rule)
+                for deal in deals:
+                    last = Activity.objects.filter(deal=deal).order_by('-created_at').first()
+                    last_at = last.created_at if last else deal.created_at
+                    if last_at < threshold and _match_conditions(rule.conditions or {}, deal):
+                        execute_action(rule.action or {}, deal)
+                        AutomationRunLog.objects.get_or_create(rule=rule, deal=deal)
+                        fired += 1
+    return {'fired': fired}
+
+
+@shared_task
 def check_overdue_tasks():
     with schema_context('public'):
         tenants = list(Tenant.objects.filter(is_active=True))
