@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.16.0] — 2026-06-22
+
+### Added — Calendar, reminders and recurring tasks (DEC-054)
+
+**The built-in CRM now has a calendar with task reminders and recurrence.** Tasks appear in month/week/day views, can be created from the calendar, repeat on a schedule (RRULE), and notify the responsible user ahead of the due time.
+
+- Backend:
+  - `apps/crm/models.py`: added `recurrence_rule` (RRULE), `remind_at`, `reminder_sent_at` to `Activity` (migration `crm/0011`).
+  - `apps/crm/services/recurrence.py`: `next_occurrence` via `python-dateutil` (contract verified against the installed package).
+  - `apps/crm/activities_api.py`: spawns the next occurrence when a recurring task is completed; added the `activities/calendar/` range endpoint.
+  - `apps/notifications/models.py` and `services.py`: added the `task_reminder` event and the user-targeted `notify_user` helper.
+  - `apps/crm/tasks.py` and `config/settings.py`: added the periodic `send_task_reminders` task (idempotent via `reminder_sent_at`).
+  - `apps/notifications/migrations/0003` (alter choices) and `0004` (idempotent backfill of `task_reminder` preferences for existing tenants).
+  - `requirements.txt`: pinned `python-dateutil==2.9.0.post0`.
+- Frontend:
+  - `frontend/src/views/CalendarView.vue`: FullCalendar 6.1.21 (chosen over the EOL/untyped vue-cal) with month/week/day views, a task dialog with recurrence presets + raw RRULE, reminder offset, and a complete action.
+  - `frontend/src/api/crm.ts`, `frontend/src/router/index.ts`, `frontend/src/layout/AppMenu.vue`: calendar API, route, and menu item.
+- Tests: `apps/crm/tests/test_calendar_reminders.py` (9), `frontend/e2e/calendar.spec.ts`.
+
 ## [0.15.0] — 2026-06-22
 
 ### Added — Import/export and duplicate detection/merge for contacts and companies (DEC-053)

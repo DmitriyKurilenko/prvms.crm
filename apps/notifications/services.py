@@ -58,6 +58,31 @@ def notify(tenant, event: str, context: dict, instance=None):
                 send_telegram_notification(tenant, user, event, context)
 
 
+def notify_user(tenant, user, event: str, context: dict):
+    """Адресное уведомление конкретного пользователя (например, ответственного за
+    задачу), минуя ролевую рассылку `notify()`. Каналы берутся из настроек события."""
+    if user is None:
+        return
+    seed_default_preferences()
+    prefs = NotificationPreference.objects.filter(event=event, is_enabled=True)
+    for pref in prefs:
+        if pref.channel == 'in_app':
+            notification = Notification.objects.create(
+                user=user,
+                event=event,
+                title=render_title(event, context),
+                body=render_body(event, context),
+                link=context.get('link', ''),
+                channel='in_app',
+            )
+            _push_realtime_notification(notification)
+        elif pref.channel == 'email':
+            from .tasks import send_notification_email_task
+            send_notification_email_task.delay(tenant.id, user.id, event, context)
+        elif pref.channel == 'telegram':
+            send_telegram_notification(tenant, user, event, context)
+
+
 def get_users_by_roles(tenant, roles: list[str]):
     with schema_context('public'):
         user_ids = Membership.objects.filter(
@@ -81,6 +106,7 @@ def render_title(event: str, context: dict) -> str:
         'signing_expired': 'Срок подписания истёк',
         'deal_stage_changed': 'Сделка перемещена',
         'task_overdue': 'Есть просроченная задача',
+        'task_reminder': 'Напоминание о задаче',
         'new_deal_created': 'Создана новая сделка',
     }
     return titles.get(event, event)

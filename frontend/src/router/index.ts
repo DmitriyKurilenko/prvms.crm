@@ -17,6 +17,7 @@ import WebFormsView from '@/views/WebFormsView.vue'
 import TagsView from '@/views/TagsView.vue'
 import AutomationView from '@/views/AutomationView.vue'
 import DataToolsView from '@/views/DataToolsView.vue'
+import CalendarView from '@/views/CalendarView.vue'
 import DealsView from '@/views/DealsView.vue'
 import DealDetailView from '@/views/DealDetailView.vue'
 import PipelinesView from '@/views/PipelinesView.vue'
@@ -147,6 +148,12 @@ const routes: RouteRecordRaw[] = [
         name: 'data-tools',
         component: DataToolsView,
         meta: { roles: ['owner', 'admin', 'manager', 'viewer'], feature: 'crm_builtin', title: 'Импорт и экспорт' }
+      },
+      {
+        path: 'calendar',
+        name: 'calendar',
+        component: CalendarView,
+        meta: { roles: ['owner', 'admin', 'manager', 'viewer'], feature: 'crm_builtin', title: 'Календарь' }
       },
       {
         path: 'pipelines',

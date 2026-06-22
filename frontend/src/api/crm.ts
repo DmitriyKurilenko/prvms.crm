@@ -216,6 +216,26 @@ export const managerStats = () =>
 export const myTasks = (status?: string) =>
   api<Array<{ id: number; activity_type: string; deal_id: number | null; contact_id: number | null; responsible_id: number | null; title: string; body: string; status: string; due_date: string | null; created_at: string }>>(`/crm/activities/tasks/${status ? `?status=${status}` : ''}`)
 
+/* ---------- Calendar (Фаза 9) ---------- */
+export interface CrmCalendarTask {
+  id: number
+  activity_type: string
+  deal_id: number | null
+  contact_id: number | null
+  responsible_id: number | null
+  title: string
+  body: string
+  status: string
+  due_date: string | null
+  recurrence_rule: string
+  remind_at: string | null
+  reminder_sent_at: string | null
+  created_at: string
+}
+
+export const calendarActivities = (dateFrom: string, dateTo: string) =>
+  api<CrmCalendarTask[]>(`/crm/activities/calendar/?date_from=${dateFrom}&date_to=${dateTo}`)
+
 /* ---------- Products (catalog) ---------- */
 export interface CrmProduct {
   id: number

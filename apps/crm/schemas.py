@@ -146,6 +146,8 @@ class ActivityIn(Schema):
     body: str = ''
     status: str = 'done'
     due_date: str | None = None
+    recurrence_rule: str = ''          # RRULE без префикса, '' = не повторяется
+    remind_at: str | None = None
 
 
 class ActivityPatchIn(Schema):
@@ -157,6 +159,8 @@ class ActivityPatchIn(Schema):
     body: str | None = None
     status: str | None = None
     due_date: str | None = None
+    recurrence_rule: str | None = None
+    remind_at: str | None = None
 
 
 # --- Catalog (products) -----------------------------------------------------

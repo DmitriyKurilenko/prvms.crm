@@ -205,6 +205,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'apps.crm.tasks.evaluate_time_rules',
         'schedule': timedelta(minutes=15),
     },
+    'send-task-reminders-every-5-min': {
+        'task': 'apps.crm.tasks.send_task_reminders',
+        'schedule': timedelta(minutes=5),
+    },
 }
 
 # ---------- Caches ----------

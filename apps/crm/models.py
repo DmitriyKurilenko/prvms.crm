@@ -206,6 +206,19 @@ class Activity(models.Model):
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='done')
     due_date = models.DateTimeField(null=True, blank=True)
 
+    # Повторяемость и напоминание (Фаза 9). `recurrence_rule` — RRULE по RFC 5545
+    # без префикса (например, 'FREQ=WEEKLY;BYDAY=TU'); пусто = не повторяется.
+    # Окончание серии несёт сама RRULE (UNTIL/COUNT), отдельного поля нет.
+    recurrence_rule = models.CharField(max_length=300, blank=True)
+    remind_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text='Когда отправить напоминание ответственному (Celery-beat)',
+    )
+    reminder_sent_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text='Защита от повторной отправки напоминания',
+    )
+
     related_call = models.ForeignKey(
         'telephony.CallRecord',
         on_delete=models.SET_NULL,
@@ -237,6 +250,7 @@ class Activity(models.Model):
             models.Index(fields=['deal', '-created_at']),
             models.Index(fields=['contact', '-created_at']),
             models.Index(fields=['responsible', 'status', '-due_date']),
+            models.Index(fields=['status', 'remind_at']),
         ]
         verbose_name_plural = 'activities'
 

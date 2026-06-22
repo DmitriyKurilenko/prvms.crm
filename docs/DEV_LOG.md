@@ -1,5 +1,26 @@
 # Dev Log
 
+## 2026-06-22 — 0.16.0: Календарь, напоминания и повторяющиеся задачи (Фаза 9, DEC-054)
+
+### Что сделано:
+- **Backend.** В `Activity` добавлены `recurrence_rule` (RRULE), `remind_at`, `reminder_sent_at` (миграция `crm/0011` + индекс `status,remind_at`). Сервис `apps/crm/services/recurrence.py::next_occurrence` через `python-dateutil` (контракт `rrulestr(..., dtstart)`/`.after(...)` сверён с установленной версией 2.9.0 до кода). Спавн следующего экземпляра при закрытии повторяющейся задачи — в `patch_activity` (`apps/crm/activities_api.py`), там же endpoint `GET /crm/activities/calendar/`. Новое событие `task_reminder` (`apps/notifications/models.py`), адресный помощник `notify_user` и рендер заголовка (`apps/notifications/services.py`). Beat-задача `send_task_reminders` (`apps/crm/tasks.py`, каждые 5 минут, регистрация в `config/settings.py`). Миграции `notifications/0003` (alter choices) и `notifications/0004` (идемпотентный бэкафилл настроек `task_reminder` существующим тенантам). Зависимость `python-dateutil==2.9.0.post0` закреплена в `requirements.txt`.
+- **Найденный и закрытый дефект (поймал живой зонд).** Напоминание через worker ставило `reminder_sent_at`, но in-app `Notification` не создавалось: `seed_default_preferences()` срабатывает один раз на схему и не дозаполняет новые события, поэтому у тенанта `org-solo` (засеян раньше) не было настройки `task_reminder`. Закрыто data-миграцией `notifications/0004`; повторный зонд дал `notif delta 1`.
+- **Frontend — FullCalendar вместо vue-cal.** vue-cal 4.10 оказалась EOL и без типов (API только на внешнем сайте) — отклонена. Взят `@fullcalendar/vue3` 6.1.21 + core/daygrid/timegrid/interaction (типизирован, поддерживается; контракт сверён по README и `index.d.ts`). Новый `frontend/src/views/CalendarView.vue` (режимы месяц/неделя/день, диалог задачи с пресетами RRULE + сырым правилом, смещением напоминания, отметкой «выполнено»), тип/функция `calendarActivities` в `frontend/src/api/crm.ts`, маршрут `/app/calendar`, пункт меню «Календарь». Задача из календаря назначается на текущего пользователя (дефект «не попадала в выборку» пойман и закрыт, подтверждён e2e).
+- **Тесты.** `apps/crm/tests/test_calendar_reminders.py` — 9 тестов (RRULE-сервис, спавн повторения через API, календарный endpoint, напоминание один раз/идемпотентность/будущее). E2e `frontend/e2e/calendar.spec.ts`.
+
+### Файлы:
+`requirements.txt`, `config/settings.py`, `apps/crm/models.py`, `apps/crm/migrations/0011_*.py`, `apps/crm/services/recurrence.py`, `apps/crm/tasks.py`, `apps/crm/activities_api.py`, `apps/crm/schemas.py`, `apps/crm/_api_common.py`, `apps/crm/tests/test_calendar_reminders.py`, `apps/notifications/models.py`, `apps/notifications/services.py`, `apps/notifications/migrations/0003_*.py`, `apps/notifications/migrations/0004_backfill_task_reminder_prefs.py`, `frontend/src/api/crm.ts`, `frontend/src/views/CalendarView.vue`, `frontend/src/router/index.ts`, `frontend/src/layout/AppMenu.vue`, `frontend/e2e/calendar.spec.ts`, `frontend/package.json`, релизные файлы.
+
+### Валидация:
+- `[локально]` `makemigrations --check` — без дрейфа; `manage.py check` — 0 issues; `docker compose run --rm lint` — чисто.
+- `[локально]` Backend `test_calendar_reminders` — **9/9 OK**; регрессия `apps.crm apps.notifications` — **50/50 OK**.
+- `[локально]` Frontend: typecheck EXIT=0 (FullCalendar типы резолвятся), build EXIT=0, vitest **11/11** (Playwright-спеки vitest не исполняет — baseline без изменений).
+- `[сквозь]` E2e `calendar.spec.ts` — **1 passed**: FullCalendar отрисован, задача создаётся из диалога и появляется в сетке месяца (responsible по умолчанию = пользователь).
+- `[сквозь]` Живой зонд через реальный Celery-worker (тенант `org-solo`): `send_task_reminders.delay` → in-app `Notification` ответственному (`delta=1` после бэкафилла, заголовок «Напоминание о задаче»), `next_occurrence` для `FREQ=WEEKLY` даёт +7 дней. Зондовые данные удалены.
+
+### Риски:
+- Календарь показывает только задачи текущего пользователя; письмо-напоминание зависит от боевого SMTP; bundle вырос за счёт FullCalendar. Зафиксировано в KNOWN_ISSUES #33.
+
 ## 2026-06-22 — 0.15.0: Импорт/экспорт + дедуп/слияние контактов и компаний (Фаза 6, DEC-053)
 
 ### Что сделано:

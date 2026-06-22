@@ -19,6 +19,7 @@ class NotificationEvent(models.TextChoices):
     SIGNING_EXPIRED = 'signing_expired', 'Срок подписания истёк'
     DEAL_STAGE_CHANGED = 'deal_stage_changed', 'Сделка перемещена'
     TASK_OVERDUE = 'task_overdue', 'Задача просрочена'
+    TASK_REMINDER = 'task_reminder', 'Напоминание о задаче'
     NEW_DEAL_CREATED = 'new_deal_created', 'Новая сделка создана'
 
 

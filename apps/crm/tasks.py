@@ -138,6 +138,36 @@ def _import_one(entity: str, model, fields: dict, custom: dict, job):
 
 
 @shared_task
+def send_task_reminders():
+    """Заблаговременные напоминания о задачах. Идемпотентна через `reminder_sent_at`:
+    одно напоминание на задачу. Адресат — ответственный за задачу (`notify_user`)."""
+    from apps.notifications.services import notify_user
+
+    with schema_context('public'):
+        tenants = list(Tenant.objects.filter(is_active=True))
+    sent = 0
+    now = timezone.now()
+    for tenant in tenants:
+        with tenant_context(tenant):
+            due = Activity.objects.filter(
+                activity_type='task',
+                status='planned',
+                remind_at__isnull=False,
+                remind_at__lte=now,
+                reminder_sent_at__isnull=True,
+            ).select_related('responsible')
+            for task in due:
+                if task.responsible_id:
+                    link = f'/app/deals/{task.deal_id}' if task.deal_id else '/app/calendar'
+                    notify_user(tenant, task.responsible, 'task_reminder',
+                                {'message': f'Напоминание о задаче: {task.title}', 'link': link})
+                task.reminder_sent_at = now
+                task.save(update_fields=['reminder_sent_at'])
+                sent += 1
+    return {'sent': sent}
+
+
+@shared_task
 def check_overdue_tasks():
     with schema_context('public'):
         tenants = list(Tenant.objects.filter(is_active=True))

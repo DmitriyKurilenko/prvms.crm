@@ -60,6 +60,9 @@ def _serialize_activities(qs):
             'body': a.body,
             'status': a.status,
             'due_date': a.due_date.isoformat() if a.due_date else None,
+            'recurrence_rule': a.recurrence_rule,
+            'remind_at': a.remind_at.isoformat() if a.remind_at else None,
+            'reminder_sent_at': a.reminder_sent_at.isoformat() if a.reminder_sent_at else None,
             'created_at': a.created_at.isoformat(),
         }
         for a in qs

@@ -72,6 +72,7 @@ const groups = computed(() => [
     { to: '/app/tags',     label: 'Теги',          icon: 'pi pi-tags',          feature: 'crm_builtin' },
     { to: '/app/automation', label: 'Автоматизации', icon: 'pi pi-bolt',        feature: 'crm_builtin' },
     { to: '/app/tasks',    label: 'Задачи',        icon: 'pi pi-check-square',  feature: 'crm_builtin' },
+    { to: '/app/calendar', label: 'Календарь',     icon: 'pi pi-calendar',      feature: 'crm_builtin' },
     { to: '/app/data-tools', label: 'Импорт/экспорт', icon: 'pi pi-database',   feature: 'crm_builtin' },
   ]),
   withLock([
