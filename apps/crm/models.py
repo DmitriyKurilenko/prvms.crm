@@ -419,3 +419,31 @@ class AutomationRunLog(models.Model):
     class Meta:
         unique_together = ['rule', 'deal']
         indexes = [models.Index(fields=['rule', 'deal'])]
+
+
+class ImportJob(models.Model):
+    """Задание импорта контактов/компаний из файла. Прогресс и построчные
+    ошибки обновляются Celery-задачей `import_records`, фронтенд поллит статус."""
+    STATUS_CHOICES = [
+        ('pending', 'В очереди'),
+        ('running', 'Выполняется'),
+        ('done', 'Завершён'),
+        ('failed', 'Ошибка'),
+    ]
+    ENTITY_CHOICES = [('contacts', 'Контакты'), ('companies', 'Компании')]
+
+    entity = models.CharField(max_length=20, choices=ENTITY_CHOICES)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
+    total = models.PositiveIntegerField(default=0)
+    processed = models.PositiveIntegerField(default=0)
+    created = models.PositiveIntegerField(default=0)
+    updated = models.PositiveIntegerField(default=0)
+    errors = models.JSONField(default=list)  # [{row: int, message: str}]
+    created_by = models.ForeignKey('users.User', on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'Import {self.entity} #{self.pk} ({self.status})'

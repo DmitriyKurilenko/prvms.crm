@@ -1,4 +1,4 @@
-import { api } from './http'
+import { api, getAccessToken, getTenantSlug } from './http'
 
 /* ---------- Types ---------- */
 export interface CrmContact {
@@ -358,3 +358,75 @@ export const patchAutomationRule = (id: number, data: Record<string, unknown>) =
 
 export const deleteAutomationRule = (id: number) =>
   api<{ detail: string }>('/crm/automation/rules/' + id + '/', { method: 'DELETE' })
+
+/* ---------- Import / export / merge ---------- */
+export type DataEntity = 'contacts' | 'companies'
+
+export interface CrmImportPreview {
+  headers: string[]
+  sample: Record<string, string>[]
+  total_rows: number
+  suggested_mapping: Record<string, string>
+  allowed_fields: string[]
+}
+
+export interface CrmImportJob {
+  id: number
+  entity: DataEntity
+  status: 'pending' | 'running' | 'done' | 'failed'
+  total: number
+  processed: number
+  created: number
+  updated: number
+  errors: { row: number; message: string }[]
+  created_at: string
+}
+
+export interface CrmDuplicateGroup {
+  key_type: string
+  key: string
+  items: { id: number; label: string }[]
+}
+
+export const importPreview = (entity: DataEntity, file: File) => {
+  const form = new FormData()
+  form.append('entity', entity)
+  form.append('file', file)
+  return api<CrmImportPreview>('/crm/import/preview/', { method: 'POST', body: form })
+}
+
+export const importRun = (entity: DataEntity, file: File, mapping: Record<string, string>) => {
+  const form = new FormData()
+  form.append('entity', entity)
+  form.append('mapping', JSON.stringify(mapping))
+  form.append('file', file)
+  return api<{ job_id: number; total: number }>('/crm/import/run/', { method: 'POST', body: form })
+}
+
+export const importJobStatus = (jobId: number) =>
+  api<CrmImportJob>('/crm/import/jobs/' + jobId + '/')
+
+export const listDuplicates = (entity: DataEntity) =>
+  api<CrmDuplicateGroup[]>('/crm/duplicates/' + entity + '/')
+
+export const mergeRecords = (entity: DataEntity, primaryId: number, mergedIds: number[]) =>
+  api('/crm/merge/' + entity + '/', { method: 'POST', body: { primary_id: primaryId, merged_ids: mergedIds } })
+
+/** Скачивание CSV-экспорта (HttpResponse-файл, паттерн AuditView). */
+export async function downloadExport(entity: DataEntity): Promise<void> {
+  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:18100/api'
+  const res = await fetch(`${apiUrl}/crm/export/${entity}/`, {
+    headers: {
+      Authorization: `Bearer ${getAccessToken()}`,
+      ...(getTenantSlug() ? { 'X-Tenant-Slug': getTenantSlug()! } : {}),
+    },
+    credentials: 'include',
+  })
+  if (!res.ok) throw new Error(`Export failed: ${res.status}`)
+  const blob = await res.blob()
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = `${entity}.csv`
+  a.click()
+  URL.revokeObjectURL(a.href)
+}

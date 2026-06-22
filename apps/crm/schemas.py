@@ -285,3 +285,10 @@ class AutomationRulePatchIn(Schema):
     action: dict | None = None
     is_active: bool | None = None
     priority: int | None = None
+
+
+# --- Import / merge ---------------------------------------------------------
+
+class MergeIn(Schema):
+    primary_id: int
+    merged_ids: list[int] = []

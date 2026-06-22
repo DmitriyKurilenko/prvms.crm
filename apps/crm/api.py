@@ -17,6 +17,7 @@ from . import (  # noqa: F401
     contacts_api,
     deal_items_api,
     deals_api,
+    import_api,
     pipelines_api,
     products_api,
     stats_api,

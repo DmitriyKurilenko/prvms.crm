@@ -53,6 +53,91 @@ def evaluate_time_rules():
 
 
 @shared_task
+def import_records(schema_name: str, job_id: int, entity: str, rows: list[dict], mapping: dict):
+    """Импорт контактов/компаний батчами с дедупом и построчным отчётом об ошибках.
+
+    `mapping`: {column_name -> model_field}. Колонки, отображённые на поле не из
+    набора `allowed_fields`, складываются в `custom_fields`. Дедуп: контакты — по
+    телефону, затем email; компании — по ИНН, затем названию.
+    """
+    from .models import Company, Contact, ImportJob
+    from .services.import_export import allowed_fields
+
+    allowed = set(allowed_fields(entity))
+    model = Contact if entity == 'contacts' else Company
+
+    with schema_context(schema_name):
+        job = ImportJob.objects.get(id=job_id)
+        job.status, job.total = 'running', len(rows)
+        job.save(update_fields=['status', 'total'])
+        for i, raw in enumerate(rows):
+            try:
+                fields: dict = {}
+                custom: dict = {}
+                for column, target in mapping.items():
+                    if not target:
+                        continue
+                    value = (raw.get(column) or '')
+                    if isinstance(value, str):
+                        value = value.strip()
+                    if target in allowed:
+                        fields[target] = value
+                    else:
+                        custom[target] = value
+                _import_one(entity, model, fields, custom, job)
+            except Exception as exc:  # noqa: BLE001 — построчная устойчивость импорта
+                job.errors.append({'row': i + 2, 'message': str(exc)})
+            job.processed = i + 1
+            if (i + 1) % 50 == 0:
+                job.save(update_fields=['processed', 'created', 'updated', 'errors'])
+        job.status = 'done'
+        job.save()
+        return {'created': job.created, 'updated': job.updated, 'errors': len(job.errors)}
+
+
+def _import_one(entity: str, model, fields: dict, custom: dict, job):
+    """Создаёт или обновляет одну запись с дедупом. Бросает ValueError на пустой строке."""
+    if entity == 'contacts':
+        phone = fields.get('phone', '')
+        email = fields.get('email', '')
+        if not (fields.get('first_name') or phone or email):
+            raise ValueError('Пустая строка: нет имени, телефона и email')
+        dup = None
+        if phone:
+            dup = model.objects.filter(phone=phone).first()
+        if dup is None and email:
+            dup = model.objects.filter(email=email).first()
+    else:  # companies
+        name = fields.get('name', '')
+        inn = fields.get('inn', '')
+        if not (name or inn):
+            raise ValueError('Пустая строка: нет названия и ИНН')
+        dup = None
+        if inn:
+            dup = model.objects.filter(inn=inn).first()
+        if dup is None and name:
+            dup = model.objects.filter(name=name).first()
+
+    if dup is not None:
+        changed = False
+        for key, value in fields.items():
+            if value and getattr(dup, key, None) != value:
+                setattr(dup, key, value)
+                changed = True
+        if custom:
+            merged = dict(dup.custom_fields or {})
+            merged.update(custom)
+            dup.custom_fields = merged
+            changed = True
+        if changed:
+            dup.save()
+        job.updated += 1
+    else:
+        model.objects.create(custom_fields=custom or {}, **fields)
+        job.created += 1
+
+
+@shared_task
 def check_overdue_tasks():
     with schema_context('public'):
         tenants = list(Tenant.objects.filter(is_active=True))

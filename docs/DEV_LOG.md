@@ -1,5 +1,26 @@
 # Dev Log
 
+## 2026-06-22 — 0.15.0: Импорт/экспорт + дедуп/слияние контактов и компаний (Фаза 6, DEC-053)
+
+### Что сделано:
+- **Backend.** Новая модель `ImportJob` (`apps/crm/migrations/0010_importjob.py`, без дрейфа). Сервис `apps/crm/services/import_export.py` — парсинг CSV (stdlib `csv`, `utf-8-sig`) и XLSX (`openpyxl==3.1.5`, контракт сверен с установленным пакетом до кода: `load_workbook(read_only=True, data_only=True)`, `iter_rows(values_only=True)`, `wb.close()`), CSV-экспорт с BOM для Excel. Сервис `apps/crm/services/merge.py` — поиск дублей и транзакционное слияние контактов (перенос `Deal.contact`/`Activity.contact`) и компаний (перенос `Contact.company`/`Deal.company`), дозаполнение пустых полей, удаление дублей. Celery-задача `import_records` (`apps/crm/tasks.py`) — батчи по 50, дедуп, построчный `errors[]`. Роутер `apps/crm/import_api.py` (preview/run/jobs/export/duplicates/merge), подключён в shim `apps/crm/api.py`; схема `MergeIn` в `schemas.py`. Зависимость `openpyxl==3.1.5` в `requirements.txt`.
+- **Права.** Переиспользованы RBAC-сущности `contacts`/`companies` (export→view+scope, import→create, merge→delete+scope) — без новой сущности и миграции `users`.
+- **Frontend.** Единый экран `frontend/src/views/DataToolsView.vue` (переключатель сущности + вкладки импорт/экспорт/дубли), функции/типы в `frontend/src/api/crm.ts` (включая blob-скачивание по паттерну `AuditView`), маршрут `/app/data-tools` и пункт меню «Импорт/экспорт».
+- **Тесты.** `apps/crm/tests/test_import_merge.py` — 12 тестов (CSV/XLSX-парсинг, авто-маппинг, BOM-экспорт, дедуп-импорт, слияние контактов/компаний, поиск дублей, API-экспорт). E2e `frontend/e2e/data-tools.spec.ts`.
+
+### Файлы:
+`requirements.txt`, `apps/crm/models.py`, `apps/crm/migrations/0010_importjob.py`, `apps/crm/services/import_export.py`, `apps/crm/services/merge.py`, `apps/crm/tasks.py`, `apps/crm/import_api.py`, `apps/crm/api.py`, `apps/crm/schemas.py`, `apps/crm/tests/test_import_merge.py`, `frontend/src/api/crm.ts`, `frontend/src/views/DataToolsView.vue`, `frontend/src/router/index.ts`, `frontend/src/layout/AppMenu.vue`, `frontend/e2e/data-tools.spec.ts`, релизные файлы.
+
+### Валидация:
+- `[локально]` `python manage.py makemigrations --check` — без дрейфа; `manage.py check` — 0 issues; `docker compose run --rm lint` — чисто.
+- `[локально]` Backend `test_import_merge` — **12/12 OK**; регрессия `apps.crm apps.audit apps.users` — **69/69 OK**.
+- `[локально]` Frontend: typecheck EXIT=0, build EXIT=0, vitest **11/11** (6 «failed» файлов — это Playwright e2e-спеки, vitest их не исполняет; baseline без изменений).
+- `[сквозь]` E2e `data-tools.spec.ts` — **1 passed**: реальное скачивание `contacts.csv` (download-событие) + живой запрос дублей через `/crm/duplicates/contacts/` в headless-Chromium.
+- `[сквозь]` Живой цикл импорта через реальный Celery-worker (тенант `org-solo`): `import_records.delay` → статус `done`, `created=1`, `updated=1` (дедуп схлопнул два одинаковых телефона), ошибка для пустой строки с номером 4, `custom_fields.note` записан. Зондовые данные удалены после проверки.
+
+### Риски:
+- Сделки не охвачены в v1; импорт ограничен 10 000 строк и передаёт строки в Celery аргументом (для очень крупных файлов нужен стораджи-стриминг); слияние необратимо. Зафиксировано в KNOWN_ISSUES #32.
+
 ## 2026-06-22 — 0.14.0: Подготовка коммита и синхронизация релизных файлов
 
 ### Что сделано:

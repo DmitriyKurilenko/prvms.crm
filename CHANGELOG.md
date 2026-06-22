@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.15.0] — 2026-06-22
+
+### Added — Import/export and duplicate detection/merge for contacts and companies (DEC-053)
+
+**The built-in CRM now imports and exports the client base and merges duplicates.** Owners/admins/managers can upload CSV or XLSX files, export to CSV, and find and merge duplicate contacts or companies. Scope is contacts and companies (deals deferred).
+
+- Backend:
+  - `apps/crm/models.py`: added `ImportJob` (migration `crm/0010`).
+  - `apps/crm/services/import_export.py`: CSV/XLSX parser (`openpyxl==3.1.5`, contract verified against the installed package) and BOM-prefixed CSV export.
+  - `apps/crm/services/merge.py`: duplicate search and transactional merge of contacts/companies, moving related deals/activities and filling empty fields.
+  - `apps/crm/tasks.py`: added the `import_records` Celery task (batches of 50, dedup by phone/email and INN/name, per-row error report).
+  - `apps/crm/import_api.py`: preview/run/jobs/export/duplicates/merge endpoints, reusing `contacts`/`companies` RBAC permissions and scope filtering.
+  - `apps/crm/api.py` and `apps/crm/schemas.py`: wired the router and added the `MergeIn` schema.
+  - `requirements.txt`: added `openpyxl==3.1.5`.
+- Frontend:
+  - `frontend/src/views/DataToolsView.vue`: import wizard, export, and duplicate merge in one screen.
+  - `frontend/src/api/crm.ts`, `frontend/src/router/index.ts`, `frontend/src/layout/AppMenu.vue`: API functions/types, route, and menu item.
+- Tests: `apps/crm/tests/test_import_merge.py` (12), `frontend/e2e/data-tools.spec.ts`.
+
 ## [0.14.0] — 2026-06-22
 
 ### Added — Automation builder and SLA-style time rules (DEC-052)
