@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.17.1] — 2026-06-23
+
+### Improved — User guide refresh
+
+**The in-app help content has been brought in line with the current CRM interface.** The user guide now follows the live sidebar order and covers the product areas added in recent releases.
+
+- Reworked `docs/user-guide/README.md` and the numbered guide structure to match the current app menu.
+- Split the old built-in CRM guide into separate articles for contacts, companies, products, web forms, deals, tags, automation, tasks, calendar, analytics, sales targets, data tools, pipelines and chats.
+- Updated guides for channels, documents/signing, telephony, integrations, team management, role permissions, distribution, audit, notifications, settings and subscription.
+- Rewrote telephony guidance for MTS Exolve instead of the old FreeSWITCH flow.
+- Added coverage for new user-facing sections: products, web forms, tags, automation, calendar, sales targets, import/export, chats and AI assistant.
+- Removed obsolete guide files from the previous numbering.
+
 ## [0.17.0] — 2026-06-23
 
 ### Added — Sales targets and funnel analytics (DEC-055)
