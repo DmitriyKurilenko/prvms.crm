@@ -435,6 +435,39 @@ class AutomationRunLog(models.Model):
         indexes = [models.Index(fields=['rule', 'deal'])]
 
 
+class SalesTarget(models.Model):
+    """План продаж менеджера на месяц (Фаза 10). Метрики — сумма выручки и/или
+    количество выигранных сделок; факт считается по сделкам в стадии `won` с
+    `closed_at` в пределах месяца."""
+    period_month = models.DateField(help_text='Первое число месяца плана')
+    responsible = models.ForeignKey(
+        'users.User',
+        on_delete=models.CASCADE,
+        related_name='sales_targets',
+    )
+    target_amount = models.DecimalField(
+        max_digits=14, decimal_places=2, null=True, blank=True,
+        help_text='Плановая сумма выручки за месяц (пусто = не задано)',
+    )
+    target_count = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text='Плановое число выигранных сделок за месяц (пусто = не задано)',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-period_month']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['period_month', 'responsible'],
+                name='uniq_sales_target_month_manager',
+            ),
+        ]
+
+    def __str__(self):
+        return f'Plan {self.responsible_id} {self.period_month:%Y-%m}'
+
+
 class ImportJob(models.Model):
     """Задание импорта контактов/компаний из файла. Прогресс и построчные
     ошибки обновляются Celery-задачей `import_records`, фронтенд поллит статус."""

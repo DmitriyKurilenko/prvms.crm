@@ -1,5 +1,45 @@
 # Dev Log
 
+## 2026-06-23 — 0.17.0: Подготовка коммита и синхронизация релизных файлов
+
+### Что сделано:
+- Проверен состав рабочей сессии через `git status`: в коммит входят планы продаж и аналитика воронки (DEC-055), миграция `crm/0012`, backend/frontend/e2e-тесты и релизная документация.
+- Bump определён как **minor**: изменения добавляют новую пользовательскую функциональность и обратно-совместимые API.
+- `VERSION` содержит финальную SemVer-версию `0.17.0` без `-dev`.
+- `CHANGELOG.md` содержит верхнюю секцию `0.17.0` с текущей датой `2026-06-23`.
+- `docs/RELEASE_NOTES.md` содержит пользовательское описание версии `0.17.0` с датой `23.06.2026`.
+
+### Файлы релизной подготовки:
+`VERSION`, `CHANGELOG.md`, `docs/TASK_STATE.md`, `docs/DEV_LOG.md`, `docs/DECISIONS.md`, `docs/KNOWN_ISSUES.md`, `docs/RELEASE_NOTES.md`.
+
+### Валидация:
+- Согласованность релизных файлов: `VERSION`, верхняя секция `CHANGELOG.md`, `docs/TASK_STATE.md`, `docs/DEV_LOG.md` и `docs/RELEASE_NOTES.md` ссылаются на `0.17.0`.
+- Полный Docker baseline в рамках подготовки коммита повторно не запускался; функциональная валидация зафиксирована в записи `2026-06-22 — 0.17.0` ниже.
+
+### Риски:
+- Остаточные ограничения остаются в `docs/KNOWN_ISSUES.md` #34: воронка отражает текущее распределение, `closed_at` заполняется только для будущих переходов, планы пока помесячные по менеджеру.
+
+## 2026-06-22 — 0.17.0: Планы продаж и аналитика воронки (Фаза 10, DEC-055)
+
+### Что сделано:
+- **Backend.** Модель `SalesTarget` (`apps/crm/models.py`, миграция `crm/0012`): план по менеджеру на месяц с метриками `target_amount`+`target_count`, уникальность (месяц, менеджер), upsert. В `move_deal` (`apps/crm/deals_api.py`) добавлено заполнение/сброс `closed_at` при переходах won/lost/open — инвариант периодной аналитики. Новый роутер `apps/crm/analytics_api.py`: `analytics/funnel/`, `analytics/loss-reasons/`, `analytics/forecast/`, CRUD `targets/` (owner/admin), `analytics/target-progress/`. Схемы `SalesTargetIn/SalesTargetPatchIn`, подключение в shim `apps/crm/api.py`.
+- **Найденная находка.** `move_deal` не выставлял `closed_at`, из-за чего «факт» за период было не на чем считать; введено заполнение поля. Конверсия строится на текущем распределении сделок (история `stage_change` хранит названия без `stage_id`).
+- **Frontend.** `StatsView` расширен секциями «Воронка и конверсия» (win-rate), «Прогноз закрытия», «Причины потерь». Новый `SalesTargetsView` (план по менеджеру на месяц + прогресс-бары факт/план). Типы/функции в `frontend/src/api/crm.ts`, маршруты `/app/sales-targets`, пункты меню «Аналитика» (всем) и «Планы продаж» (owner/admin через условие `isAdminOwner`).
+- **Тесты.** `apps/crm/tests/test_analytics_targets.py` — 7 тестов (`closed_at` на won/возврат, funnel+win-rate, причины потерь, forecast, upsert плана, target-progress, запрет менеджеру). E2e `frontend/e2e/sales-analytics.spec.ts`.
+
+### Файлы:
+`apps/crm/models.py`, `apps/crm/migrations/0012_salestarget.py`, `apps/crm/deals_api.py`, `apps/crm/analytics_api.py`, `apps/crm/api.py`, `apps/crm/schemas.py`, `apps/crm/tests/test_analytics_targets.py`, `frontend/src/api/crm.ts`, `frontend/src/views/StatsView.vue`, `frontend/src/views/SalesTargetsView.vue`, `frontend/src/router/index.ts`, `frontend/src/layout/AppMenu.vue`, `frontend/e2e/sales-analytics.spec.ts`, релизные файлы.
+
+### Валидация:
+- `[локально]` `makemigrations --check` — без дрейфа; `manage.py check` — 0 issues; `docker compose run --rm lint` — чисто.
+- `[локально]` Backend `test_analytics_targets` — **7/7 OK**; регрессия `apps.crm` — **54/54 OK**.
+- `[локально]` Frontend: typecheck EXIT=0, build EXIT=0, vitest **11/11** (Playwright-спеки vitest не исполняет).
+- `[сквозь]` E2e `sales-analytics.spec.ts` — **1 passed**: секции «Воронка и конверсия» и «Прогноз закрытия» рендерятся через живые endpoint-ы funnel/forecast; страница «Планы продаж» открывается.
+- `[граница]` Живой зонд на тенанте `org-solo`: при плане 1000 ₽ и одной выигранной сделке на 700 ₽ с `closed_at` в текущем месяце расчёт target-progress даёт `actual_amount=700`, `amount_pct=70.0`, `count 1/2`. Зондовые данные удалены.
+
+### Риски:
+- Воронка отражает текущее распределение, а не исторический проход; `closed_at` заполняется только для будущих переходов (исторические закрытые сделки без него). Зафиксировано в KNOWN_ISSUES #34.
+
 ## 2026-06-22 — 0.16.0: Календарь, напоминания и повторяющиеся задачи (Фаза 9, DEC-054)
 
 ### Что сделано:

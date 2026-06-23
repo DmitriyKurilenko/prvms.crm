@@ -22,6 +22,40 @@
           />
         </div>
 
+        <div v-if="funnelData" class="stats-section surface-card">
+          <h4>Воронка и конверсия</h4>
+          <div class="kpi-row">
+            <div class="kpi"><span class="kpi-label">Всего сделок</span><span class="kpi-value">{{ funnelData.summary.total }}</span></div>
+            <div class="kpi"><span class="kpi-label">Выиграно</span><span class="kpi-value won">{{ funnelData.summary.won }}</span></div>
+            <div class="kpi"><span class="kpi-label">Проиграно</span><span class="kpi-value lost">{{ funnelData.summary.lost }}</span></div>
+            <div class="kpi"><span class="kpi-label">В работе</span><span class="kpi-value">{{ funnelData.summary.open }}</span></div>
+            <div class="kpi"><span class="kpi-label">Конверсия</span><span class="kpi-value">{{ funnelData.summary.win_rate }}%</span></div>
+          </div>
+        </div>
+
+        <div v-if="forecastData" class="stats-section surface-card">
+          <h4>Прогноз закрытия</h4>
+          <div class="kpi-row">
+            <div class="kpi"><span class="kpi-label">Открытый пайплайн</span><span class="kpi-value">{{ forecastData.open_total_amount.toLocaleString() }} ₽</span></div>
+            <div class="kpi"><span class="kpi-label">Сделок в работе</span><span class="kpi-value">{{ forecastData.open_count }}</span></div>
+            <div class="kpi"><span class="kpi-label">Прогноз за период</span><span class="kpi-value">{{ forecastData.period_forecast_amount.toLocaleString() }} ₽</span></div>
+            <div class="kpi"><span class="kpi-label">Сделок к закрытию</span><span class="kpi-value">{{ forecastData.period_forecast_count }}</span></div>
+          </div>
+        </div>
+
+        <div v-if="lossReasonsData.length" class="stats-section surface-card">
+          <h4>Причины потерь</h4>
+          <PDataTable v-responsive-table :value="lossReasonsData" size="small" stripedRows>
+            <PColumn field="loss_reason" header="Причина" />
+            <PColumn field="count" header="Сделок" />
+            <PColumn field="amount" header="Сумма">
+              <template #body="{ data }">
+                {{ data.amount ? data.amount.toLocaleString() + ' ₽' : '—' }}
+              </template>
+            </PColumn>
+          </PDataTable>
+        </div>
+
         <div v-if="pipelineStatsData.length" class="stats-section surface-card">
           <h4>Конверсия по воронке</h4>
           <PDataTable v-responsive-table :value="pipelineStatsData" size="small" stripedRows>
@@ -74,7 +108,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import FeatureGate from '@/components/FeatureGate.vue'
 import * as crmApi from '@/api/crm'
-import type { CrmPipeline } from '@/api/crm'
+import type { CrmPipeline, FunnelData, ForecastData, LossReasonRow } from '@/api/crm'
 import { useAuthStore } from '@/stores/auth'
 import { createLogger } from '@/utils/logger'
 import { normalizeCrmPermissions } from '@/utils/crmPermissions'
@@ -90,6 +124,9 @@ const pipelineId = ref<number | null>(null)
 const pipelineStatsData = ref<Array<{ stage_name: string; total: number; amount: number }>>([])
 const managerStatsData = ref<Array<{ manager_name: string | null; total: number; amount: number }>>([])
 const pipelineTotal = computed(() => pipelineStatsData.value.reduce((sum, s) => sum + s.total, 0))
+const funnelData = ref<FunnelData | null>(null)
+const forecastData = ref<ForecastData | null>(null)
+const lossReasonsData = ref<LossReasonRow[]>([])
 
 async function loadPipelines() {
   if (!canUseStats.value) return
@@ -113,8 +150,11 @@ async function load() {
   try {
     if (pipelineId.value) {
       pipelineStatsData.value = await crmApi.pipelineStats(pipelineId.value)
+      funnelData.value = await crmApi.funnel(pipelineId.value)
     }
     managerStatsData.value = await crmApi.managerStats()
+    forecastData.value = await crmApi.forecast()
+    lossReasonsData.value = await crmApi.lossReasons()
   } catch (err) {
     log.error('Failed to load stats', err)
     toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось загрузить статистику', life: 5000 })
@@ -134,6 +174,12 @@ onMounted(async () => {
 .toolbar-select { min-width: 220px; }
 .stats-section { padding: 14px; margin-bottom: 14px; }
 .stats-section h4 { margin: 0 0 10px 0; font-weight: 600; }
+.kpi-row { display: flex; gap: 18px; flex-wrap: wrap; }
+.kpi { display: flex; flex-direction: column; gap: 2px; min-width: 120px; }
+.kpi-label { font-size: 12px; color: var(--p-text-muted-color); }
+.kpi-value { font-size: 20px; font-weight: 700; }
+.kpi-value.won { color: #16a34a; }
+.kpi-value.lost { color: #ef4444; }
 .empty-state { padding: 30px; text-align: center; color: var(--p-text-muted-color); }
 .locked-feature { padding: 24px; text-align: center; color: var(--p-text-muted-color); }
 </style>

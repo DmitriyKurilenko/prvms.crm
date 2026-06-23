@@ -48,6 +48,7 @@ const tenantStore = useTenantStore()
 const auth = useAuthStore()
 
 const planReady = computed(() => tenantStore.planLoaded)
+const isAdminOwner = computed(() => ['owner', 'admin'].includes(auth.user?.role ?? ''))
 
 interface NavItem { to: string; label: string; icon: string; feature?: string | null; locked?: boolean }
 
@@ -73,6 +74,8 @@ const groups = computed(() => [
     { to: '/app/automation', label: 'Автоматизации', icon: 'pi pi-bolt',        feature: 'crm_builtin' },
     { to: '/app/tasks',    label: 'Задачи',        icon: 'pi pi-check-square',  feature: 'crm_builtin' },
     { to: '/app/calendar', label: 'Календарь',     icon: 'pi pi-calendar',      feature: 'crm_builtin' },
+    { to: '/app/stats',    label: 'Аналитика',     icon: 'pi pi-chart-line',    feature: 'crm_builtin' },
+    ...(isAdminOwner.value ? [{ to: '/app/sales-targets', label: 'Планы продаж', icon: 'pi pi-flag', feature: 'crm_builtin' }] : []),
     { to: '/app/data-tools', label: 'Импорт/экспорт', icon: 'pi pi-database',   feature: 'crm_builtin' },
   ]),
   withLock([

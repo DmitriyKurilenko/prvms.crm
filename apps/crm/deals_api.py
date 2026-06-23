@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from collections import defaultdict
 
+from django.utils import timezone
+
 from apps.audit.services import log_event
 from apps.core.access import (
     filter_crm_queryset_by_scope,
@@ -295,7 +297,17 @@ def move_deal(request, deal_id: int, payload: DealMoveIn):
     old_stage = deal.stage
     new_stage = Stage.objects.get(id=payload.stage_id, pipeline_id=deal.pipeline_id)
     deal.stage = new_stage
-    deal.save(update_fields=['stage'])
+    # closed_at фиксирует момент закрытия сделки для периодной аналитики/планов:
+    # выставляется при входе в won/lost, обнуляется при возврате в работу.
+    update_fields = ['stage']
+    if new_stage.stage_type in ('won', 'lost'):
+        if deal.closed_at is None:
+            deal.closed_at = timezone.now()
+            update_fields.append('closed_at')
+    elif deal.closed_at is not None:
+        deal.closed_at = None
+        update_fields.append('closed_at')
+    deal.save(update_fields=update_fields)
     Activity.objects.create(
         activity_type='stage_change',
         deal=deal,

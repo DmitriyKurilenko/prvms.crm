@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.17.0] — 2026-06-23
+
+### Added — Sales targets and funnel analytics (DEC-055)
+
+**The built-in CRM now has funnel analytics and monthly sales plans.** New reports cover stage conversion, close forecast and loss reasons; owners/admins set per-manager monthly targets and track actual-vs-plan.
+
+- Backend:
+  - `apps/crm/models.py`: added `SalesTarget` (migration `crm/0012`).
+  - `apps/crm/deals_api.py`: `move_deal` now sets/clears `Deal.closed_at` on won/lost/open transitions (basis for period analytics).
+  - `apps/crm/analytics_api.py`: `funnel`, `loss-reasons`, `forecast`, target CRUD (owner/admin), and `target-progress` endpoints.
+  - `apps/crm/api.py`, `apps/crm/schemas.py`: wired the router and added target schemas.
+- Frontend:
+  - `frontend/src/views/StatsView.vue`: funnel/conversion, forecast and loss-reason sections.
+  - `frontend/src/views/SalesTargetsView.vue`: per-manager monthly plan with actual-vs-plan progress bars.
+  - `frontend/src/api/crm.ts`, `frontend/src/router/index.ts`, `frontend/src/layout/AppMenu.vue`: analytics API, routes, and menu items.
+- Tests: `apps/crm/tests/test_analytics_targets.py` (7), `frontend/e2e/sales-analytics.spec.ts`.
+
 ## [0.16.0] — 2026-06-22
 
 ### Added — Calendar, reminders and recurring tasks (DEC-054)

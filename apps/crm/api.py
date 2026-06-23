@@ -12,6 +12,7 @@ Do not remove these imports — they are required for endpoint registration.
 """
 from . import (  # noqa: F401
     activities_api,
+    analytics_api,
     automation_api,
     companies_api,
     contacts_api,

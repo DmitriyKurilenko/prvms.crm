@@ -18,6 +18,7 @@ import TagsView from '@/views/TagsView.vue'
 import AutomationView from '@/views/AutomationView.vue'
 import DataToolsView from '@/views/DataToolsView.vue'
 import CalendarView from '@/views/CalendarView.vue'
+import SalesTargetsView from '@/views/SalesTargetsView.vue'
 import DealsView from '@/views/DealsView.vue'
 import DealDetailView from '@/views/DealDetailView.vue'
 import PipelinesView from '@/views/PipelinesView.vue'
@@ -166,6 +167,12 @@ const routes: RouteRecordRaw[] = [
         name: 'stats',
         component: StatsView,
         meta: { roles: ['owner', 'admin', 'manager', 'viewer'], feature: 'crm_builtin', title: 'Аналитика CRM' }
+      },
+      {
+        path: 'sales-targets',
+        name: 'sales-targets',
+        component: SalesTargetsView,
+        meta: { roles: ['owner', 'admin'], feature: 'crm_builtin', title: 'Планы продаж' }
       },
       {
         path: 'integrations',

@@ -296,3 +296,17 @@ class AutomationRulePatchIn(Schema):
 class MergeIn(Schema):
     primary_id: int
     merged_ids: list[int] = []
+
+
+# --- Sales targets (Фаза 10) ------------------------------------------------
+
+class SalesTargetIn(Schema):
+    period: str                       # 'YYYY-MM'
+    responsible_id: int
+    target_amount: float | None = None
+    target_count: int | None = None
+
+
+class SalesTargetPatchIn(Schema):
+    target_amount: float | None = None
+    target_count: int | None = None

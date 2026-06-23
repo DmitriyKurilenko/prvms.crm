@@ -379,6 +379,77 @@ export const patchAutomationRule = (id: number, data: Record<string, unknown>) =
 export const deleteAutomationRule = (id: number) =>
   api<{ detail: string }>('/crm/automation/rules/' + id + '/', { method: 'DELETE' })
 
+/* ---------- Analytics & sales targets (Фаза 10) ---------- */
+export interface FunnelStage {
+  stage_id: number
+  stage_name: string
+  stage_type: string
+  count: number
+  amount: number
+  share: number
+}
+export interface FunnelData {
+  stages: FunnelStage[]
+  summary: { total: number; won: number; lost: number; open: number; win_rate: number }
+}
+export interface LossReasonRow {
+  loss_reason: string
+  count: number
+  amount: number
+}
+export interface ForecastData {
+  open_total_amount: number
+  open_count: number
+  period_forecast_amount: number
+  period_forecast_count: number
+}
+export interface SalesTarget {
+  id: number
+  period: string
+  responsible_id: number
+  manager_name: string
+  target_amount: number | null
+  target_count: number | null
+}
+export interface TargetProgressRow {
+  responsible_id: number
+  manager_name: string
+  target_amount: number | null
+  actual_amount: number
+  amount_pct: number | null
+  target_count: number | null
+  actual_count: number
+  count_pct: number | null
+}
+
+function rangeQs(dateFrom?: string, dateTo?: string): string {
+  const p = new URLSearchParams()
+  if (dateFrom) p.set('date_from', dateFrom)
+  if (dateTo) p.set('date_to', dateTo)
+  const s = p.toString()
+  return s ? `?${s}` : ''
+}
+
+export const funnel = (pipelineId: number, dateFrom?: string, dateTo?: string) => {
+  const p = new URLSearchParams({ pipeline_id: String(pipelineId) })
+  if (dateFrom) p.set('date_from', dateFrom)
+  if (dateTo) p.set('date_to', dateTo)
+  return api<FunnelData>(`/crm/analytics/funnel/?${p.toString()}`)
+}
+export const lossReasons = (dateFrom?: string, dateTo?: string) =>
+  api<LossReasonRow[]>(`/crm/analytics/loss-reasons/${rangeQs(dateFrom, dateTo)}`)
+export const forecast = (dateFrom?: string, dateTo?: string) =>
+  api<ForecastData>(`/crm/analytics/forecast/${rangeQs(dateFrom, dateTo)}`)
+
+export const listTargets = (period?: string) =>
+  api<SalesTarget[]>(`/crm/targets/${period ? `?period=${period}` : ''}`)
+export const upsertTarget = (data: { period: string; responsible_id: number; target_amount?: number | null; target_count?: number | null }) =>
+  api<{ id: number }>('/crm/targets/', { method: 'POST', body: data })
+export const deleteTarget = (id: number) =>
+  api<{ detail: string }>('/crm/targets/' + id + '/', { method: 'DELETE' })
+export const targetProgress = (period: string) =>
+  api<TargetProgressRow[]>(`/crm/analytics/target-progress/?period=${period}`)
+
 /* ---------- Import / export / merge ---------- */
 export type DataEntity = 'contacts' | 'companies'
 
