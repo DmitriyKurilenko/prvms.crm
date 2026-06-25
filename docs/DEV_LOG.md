@@ -1,5 +1,67 @@
 # Dev Log
 
+## 2026-06-25 — 0.18.0: Подготовка коммита и синхронизация релизных файлов
+
+### Что сделано:
+- Проверен состав рабочей сессии через `git status`: в коммит входят транскрипция и AI-резюме звонков (DEC-056), Hermes/OpenCode без onboarding (DEC-057), миграции `telephony/0004` и `billing/0009`, backend/frontend-тесты и релизная документация.
+- Bump определён как **minor**: изменения добавляют новую пользовательскую функциональность и обратно-совместимые API.
+- `VERSION` содержит финальную SemVer-версию `0.18.0` без `-dev`.
+- `CHANGELOG.md` содержит верхнюю секцию `0.18.0` с текущей датой `2026-06-25`.
+- `docs/RELEASE_NOTES.md` содержит пользовательское описание версии `0.18.0` с датой `25.06.2026`.
+
+### Файлы релизной подготовки:
+`VERSION`, `CHANGELOG.md`, `docs/TASK_STATE.md`, `docs/DEV_LOG.md`, `docs/DECISIONS.md`, `docs/KNOWN_ISSUES.md`, `docs/RELEASE_NOTES.md`.
+
+### Валидация:
+- Согласованность релизных файлов: `VERSION`, верхняя секция `CHANGELOG.md`, `docs/TASK_STATE.md`, `docs/DEV_LOG.md` и `docs/RELEASE_NOTES.md` ссылаются на `0.18.0`.
+- Полный Docker baseline в рамках подготовки коммита повторно не запускался; функциональная валидация зафиксирована в записях `2026-06-24 — 0.18.0` ниже.
+
+### Риски:
+- Остаточные ограничения остаются в `docs/KNOWN_ISSUES.md` #36: сквозной результат (реальная запись Exolve → транскрипт → резюме в ЛК) проверяется только после деплоя на прод.
+
+## 2026-06-24 — Hermes/OpenCode без onboarding (DEC-057)
+
+### Что сделано:
+- **Hermes config-as-code.** Добавлен `config/hermes/config.yaml`: upstream `provider: opencode-go`, `default: qwen3.6-plus`, `base_url: https://opencode.ai/zen/go/v1`.
+- **Init вместо wizard.** Добавлен `config/hermes/init.sh` и сервис `hermes-init` в dev/prod compose. Он готовит writable named volume `hermes_profiles`, копирует CRM skills и приводит существующий Hermes volume к OpenCode-конфигу. Прямой bind-mount `/opt/data/config.yaml` отклонён после живой ошибки Hermes migration (`Device or resource busy`), read-only mount `/opt/data/skills` отклонён после ошибок синхронизации bundled skills.
+- **Production.** В `docker-compose.prod.yml` добавлен сервис `hermes`; сеть `backend` даёт приватный доступ Django, сеть `traefik` — исходящий интернет к OpenCode (так как `backend` internal-only).
+- **Env/API контракт.** `.env.example`/`.env.prod.example`: `OPENCODE_API_KEY`, `HERMES_MODEL=hermes-agent`. Compose прокидывает `OPENCODE_API_KEY`/`OPENCODE_GO_API_KEY` в `OPENCODE_GO_API_KEY`; `API_SERVER_MODEL_NAME=${HERMES_MODEL:-hermes-agent}`.
+- **Django.** `apps/ai_assistant/services.py` теперь отправляет в Hermes `model=settings.HERMES_MODEL` (`hermes-agent`), а не `tenant.slug`. Upstream-модель OpenCode остаётся внутренним конфигом Hermes.
+
+### Файлы:
+`config/hermes/config.yaml`, `config/hermes/init.sh`, `docker-compose.yml`, `docker-compose.prod.yml`, `.env.example`, `.env.prod.example`, `config/settings.py`, `apps/ai_assistant/services.py`, `apps/ai_assistant/tests/test_ai_assistant.py`, релизные/архитектурные документы.
+
+### Валидация:
+- `docker compose config --quiet` — OK; `docker compose -f docker-compose.prod.yml config --quiet` — OK (локальные предупреждения только о незаданных prod env).
+- `DEBUG=False docker compose run --rm web python manage.py check` — 0 issues.
+- `DEBUG=False docker compose run --rm web python manage.py test apps.ai_assistant.tests.test_ai_assistant --verbosity 2` — 7/7 OK.
+- `docker compose run --rm lint` — All checks passed.
+- `[граница]` `docker compose up -d hermes`; внутри контейнера `/opt/data/config.yaml` подтверждён как `opencode-go/qwen3.6-plus`; `GET /health` и `GET /v1/models` вернули 200; live `POST /v1/chat/completions` с `model=hermes-agent` вернул `ok` через OpenCode. Проверка с `model=qwen3.6-plus` показала, что это не внешний API model id текущего Hermes server.
+
+### Риски:
+- Upstream-модель Hermes/OpenCode зафиксирована в `config/hermes/config.yaml`; для смены модели нужно менять этот файл и перезапускать `hermes-init`/`hermes`, а не только `HERMES_MODEL`.
+
+## 2026-06-24 — 0.18.0: Транскрипция и AI-резюме звонков (Фаза 2, DEC-056)
+
+### Что сделано:
+- **ASR Deepgram.** Изолированный клиент `apps/telephony/deepgram_client.py`; контракт сверён живым вызовом боевого API до кода (POST `/v1/listen`, `Authorization: Token`, raw-bytes `audio/mpeg`, ответ `results.channels[0].alternatives[0].transcript/.confidence`, `metadata.request_id`). Настройки `DEEPGRAM_*` в `config/settings.py`.
+- **Конвейер.** Модель `CallTranscript` (`apps/telephony/migrations/0004`). Celery-задачи `transcribe_call_record`→`summarize_call` (`apps/telephony/tasks.py`), запуск из `download_call_record`. Резюме — через существующий Hermes (`apps/ai_assistant/services.py::summarize_call_text`), кладётся `Activity(note, related_call, deal)` в таймлайн сделки. Идемпотентность статусом транскрипта.
+- **Фича и API.** `ai_call_intelligence` (`apps/billing/migrations/0009`) гейтует фон и ручные endpoint-ы `POST /telephony/calls/{id}/transcribe/` + `GET …/transcript/`; в `list_calls` добавлены `transcript_status`/`transcript_summary`.
+- **Frontend.** Колонка «AI-резюме» с кнопкой «Распознать» в журнале (`TelephonyView`), функции/типы в `frontend/src/api/telephony.ts`.
+- **Тест-инфра.** `TenantAPITestCase._ensure_crm_plan` дозаполняет фичи и для уже засеянного миграцией плана `crm` (ранний `return` не обновлял M2M) — иначе новые коды `ALL_FEATURE_CODES` не попадали на тестовый план; добавлен код `ai_call_intelligence`.
+
+### Файлы:
+`config/settings.py`, `apps/telephony/deepgram_client.py`, `apps/telephony/models.py`, `apps/telephony/migrations/0004_calltranscript.py`, `apps/telephony/tasks.py`, `apps/telephony/api.py`, `apps/telephony/tests/test_call_intelligence.py`, `apps/ai_assistant/services.py`, `apps/billing/migrations/0009_seed_ai_call_intelligence.py`, `apps/users/tests/base.py`, `frontend/src/api/telephony.ts`, `frontend/src/views/TelephonyView.vue`, релизные файлы.
+
+### Валидация:
+- `[локально]` `makemigrations --check` без дрейфа; `manage.py check` 0 issues; ruff чисто.
+- `[локально]` Backend `test_call_intelligence` 8/8; регрессия `telephony`+`billing` 27/27. Frontend typecheck/build EXIT=0, vitest 11/11.
+- `[граница]` Живой вызов Deepgram через сам `deepgram_client.transcribe` (2.28 МБ аудио): confidence 0.998, real request_id `019ef8e6-…`, доменный логгер сработал; URL- и байтовый пути подтверждены.
+- **НЕ проверено [сквозь]:** реальная запись Exolve → транскрипт → резюме в таймлайне на проде — прод работает на старом коде, проверка возможна только после деплоя. Резюме идёт через Hermes, конфигурация его модели — на стороне инфраструктуры. Изменение самодиагностируемо (логгер `apps.telephony.transcription`). KNOWN_ISSUES #36.
+
+### Риски:
+- Качество русского ASR на боевых записях и стоимость минут не измерялись; лимита транскрипции нет. Зафиксировано в KNOWN_ISSUES #36.
+
 ## 2026-06-23 — 0.17.1: Документация: полная актуализация руководства пользователя
 
 ### Что сделано:

@@ -16,6 +16,11 @@ def get_hermes_profile_for_tenant(tenant_slug: str) -> str:
     return tenant_slug
 
 
+def get_hermes_model() -> str:
+    """Return the concrete LLM model requested from Hermes' OpenAI-compatible API."""
+    return getattr(settings, 'HERMES_MODEL', 'hermes-agent')
+
+
 def build_context_for_hermes(tenant, context_data: dict) -> dict:
     """Build system context with CRM data for Hermes prompt."""
     context_parts = []
@@ -68,8 +73,7 @@ def send_to_hermes(tenant, user: User, message: str, conversation_id: str, conte
     """
     hermes_url = getattr(settings, 'HERMES_API_URL', 'http://hermes:8642')
     hermes_api_key = getattr(settings, 'HERMES_API_KEY', '')
-
-    profile = get_hermes_profile_for_tenant(tenant.slug)
+    model = get_hermes_model()
 
     system_context = ""
     if context:
@@ -83,7 +87,7 @@ def send_to_hermes(tenant, user: User, message: str, conversation_id: str, conte
         system_prompt += f"\n\nКонтекст CRM:\n{system_context}"
 
     payload = {
-        'model': profile,
+        'model': model,
         'messages': [
             {'role': 'system', 'content': system_prompt},
             {'role': 'user', 'content': message},
@@ -116,17 +120,48 @@ def send_to_hermes(tenant, user: User, message: str, conversation_id: str, conte
         return f'Ошибка связи с AI: {str(e)}'
 
 
+def summarize_call_text(tenant, transcript_text: str) -> str:
+    """Краткое резюме телефонного разговора через Hermes (LLM). Бросает
+    requests-исключения наружу — вызывающая Celery-задача их обрабатывает."""
+    hermes_url = getattr(settings, 'HERMES_API_URL', 'http://hermes:8642')
+    hermes_api_key = getattr(settings, 'HERMES_API_KEY', '')
+    model = get_hermes_model()
+
+    system_prompt = (
+        'Ты ассистент менеджера по продажам. На основе расшифровки телефонного '
+        'разговора составь краткое резюме на русском языке: 2–4 предложения о сути '
+        'разговора, достигнутых договорённостях и предлагаемом следующем шаге. '
+        'Без вступлений и общих фраз.'
+    )
+    payload = {
+        'model': model,
+        'messages': [
+            {'role': 'system', 'content': system_prompt},
+            {'role': 'user', 'content': transcript_text[:12000]},
+        ],
+        'stream': False,
+    }
+    headers = {'Authorization': f'Bearer {hermes_api_key}', 'Content-Type': 'application/json'}
+    response = requests.post(
+        f'{hermes_url}/v1/chat/completions', json=payload, headers=headers, timeout=120,
+    )
+    response.raise_for_status()
+    data = response.json()
+    if data.get('choices'):
+        return data['choices'][0]['message']['content']
+    return ''
+
+
 def send_notification_via_hermes(tenant, user: User, title: str, body: str) -> bool:
     """
     Send notification through Hermes (for proactive alerts from cron jobs).
     """
     hermes_url = getattr(settings, 'HERMES_API_URL', 'http://hermes:8642')
     hermes_api_key = getattr(settings, 'HERMES_API_KEY', '')
-
-    profile = get_hermes_profile_for_tenant(tenant.slug)
+    model = get_hermes_model()
 
     payload = {
-        'model': profile,
+        'model': model,
         'messages': [
             {'role': 'system', 'content': 'Ты отправляешь уведомления менеджеру.'},
             {'role': 'user', 'content': f'Отправь уведомление пользователю {user.get_full_name()}: {title}\n{body}'},

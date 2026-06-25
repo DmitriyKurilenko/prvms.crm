@@ -156,6 +156,51 @@ services:
     healthcheck:
       disable: true
 
+  hermes-init:
+    image: alpine:3.20
+    restart: "no"
+    command: sh /config/init.sh
+    volumes:
+      - hermes_profiles:/opt/data
+      - ./config/hermes/init.sh:/config/init.sh:ro
+      - ./config/hermes/config.yaml:/config/config.yaml:ro
+      - ./apps/ai_assistant/hermes_skills:/crm-skills:ro
+    networks:
+      - backend
+
+  hermes:
+    image: nousresearch/hermes-agent:latest
+    container_name: prvmscrm-hermes
+    restart: always
+    command: gateway run
+    expose:
+      - "8642"
+    volumes:
+      - hermes_profiles:/opt/data
+    networks:
+      # backend — private access from Django; traefik — outbound internet
+      # for the OpenCode provider because backend is internal-only.
+      - backend
+      - traefik
+    env_file:
+      - .env
+    environment:
+      - TZ=${TZ:-Europe/Moscow}
+      - HERMES_HOME=/opt/data
+      - API_SERVER_ENABLED=true
+      - API_SERVER_PORT=8642
+      - API_SERVER_KEY=${HERMES_API_KEY}
+      - API_SERVER_HOST=0.0.0.0
+      - API_SERVER_MODEL_NAME=${HERMES_MODEL:-hermes-agent}
+      - OPENCODE_GO_API_KEY=${OPENCODE_GO_API_KEY:-${OPENCODE_API_KEY:-}}
+      - HERMES_MULTIUSER=true
+      - GATEWAY_ALLOW_ALL_USERS=true
+    depends_on:
+      hermes-init:
+        condition: service_completed_successfully
+    healthcheck:
+      disable: true
+
   frontend-app:
     image: prvms-crm-frontend:latest
     build:
@@ -197,6 +242,8 @@ volumes:
   redis_data:
     driver: local
   static_volume:
+    driver: local
+  hermes_profiles:
     driver: local
 
 networks:

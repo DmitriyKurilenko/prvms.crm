@@ -66,6 +66,23 @@
               <a v-if="data.record_file" :href="data.record_file" target="_blank" rel="noopener"><i class="pi pi-play-circle" /></a>
             </template>
           </PColumn>
+          <PColumn header="AI-резюме">
+            <template #body="{ data }">
+              <div class="ai-cell">
+                <span v-if="data.transcript_summary" class="ai-summary" :title="data.transcript_summary">{{ data.transcript_summary }}</span>
+                <span v-else-if="data.transcript_status === 'processing' || data.transcript_status === 'pending'" class="muted">Распознаётся…</span>
+                <span v-else-if="data.transcript_status === 'failed'" class="muted">Ошибка распознавания</span>
+                <PButton
+                  v-else-if="data.record_file"
+                  label="Распознать"
+                  size="small"
+                  text
+                  :loading="transcribing === data.id"
+                  @click="runTranscribe(data.id)"
+                />
+              </div>
+            </template>
+          </PColumn>
           <PColumn header="Время">
             <template #body="{ data }">{{ formatDt(data.started_at) }}</template>
           </PColumn>
@@ -82,11 +99,12 @@ import { useToast } from 'primevue/usetoast'
 import FeatureGate from '@/components/FeatureGate.vue'
 import ExolveNumberWizard from '@/components/ExolveNumberWizard.vue'
 import {
-  getChannel, listSipAccounts, provisionSipAccounts, listCalls,
+  getChannel, listSipAccounts, provisionSipAccounts, listCalls, transcribeCall,
   type ExolveChannelInfo, type SipAccount, type CallRecord, type CallFilters,
 } from '@/api/telephony'
 
 const toast = useToast()
+const transcribing = ref<number | null>(null)
 
 type TabKey = 'channel' | 'sip' | 'calls'
 const tabs: { key: TabKey; label: string }[] = [
@@ -135,6 +153,19 @@ async function loadChannel() {
 async function loadSip() {
   try { sipAccounts.value = await listSipAccounts() } catch { /* noop */ }
 }
+async function runTranscribe(callId: number) {
+  transcribing.value = callId
+  try {
+    await transcribeCall(callId)
+    toast.add({ severity: 'success', summary: 'Распознавание запущено', detail: 'Резюме появится через несколько секунд', life: 4000 })
+    const row = calls.value.find((c) => c.id === callId)
+    if (row) row.transcript_status = 'processing'
+  } catch {
+    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось запустить распознавание', life: 5000 })
+  } finally {
+    transcribing.value = null
+  }
+}
 async function loadCalls() {
   try { calls.value = await listCalls(filters) } catch { /* noop */ }
 }
@@ -175,4 +206,6 @@ onMounted(() => {
 .status-pill.st-active, .status-pill.res-answered { background: #dcfce7; color: #166534; }
 .status-pill.st-error, .status-pill.res-missed { background: #fee2e2; color: #991b1b; }
 .status-pill.st-connecting { background: #fef9c3; color: #854d0e; }
+.ai-cell { max-width: 280px; }
+.ai-summary { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 13px; color: var(--text, #374151); }
 </style>

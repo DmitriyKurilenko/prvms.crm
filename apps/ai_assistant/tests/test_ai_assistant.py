@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+from django.test import override_settings
+
 from apps.users.tests.base import TenantAPITestCase
 
 
@@ -21,6 +23,7 @@ class AIServicesTest(TenantAPITestCase):
         result = build_context_for_hermes(self.tenant, {})
         self.assertEqual(result, '')
 
+    @override_settings(HERMES_MODEL='hermes-agent')
     def test_send_to_hermes_success(self):
         from apps.ai_assistant.services import send_to_hermes
 
@@ -40,7 +43,7 @@ class AIServicesTest(TenantAPITestCase):
             self.assertEqual(result, 'Test response')
             mock_post.assert_called_once()
             call_args = mock_post.call_args
-            self.assertEqual(call_args.kwargs['json']['model'], 'qa')
+            self.assertEqual(call_args.kwargs['json']['model'], 'hermes-agent')
 
     def test_send_to_hermes_timeout(self):
         import requests

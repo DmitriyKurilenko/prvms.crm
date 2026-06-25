@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.18.0] — 2026-06-25
+
+### Added — Call transcription and AI summary (DEC-056)
+
+**Call recordings can now be transcribed (Deepgram) and summarized (Hermes LLM).** The summary lands in the deal timeline; gated by the new `ai_call_intelligence` feature.
+
+- Backend:
+  - `apps/telephony/deepgram_client.py`: isolated Deepgram pre-recorded ASR client (contract verified by a live API call).
+  - `apps/telephony/models.py`: added `CallTranscript` (migration `telephony/0004`).
+  - `apps/telephony/tasks.py`: `transcribe_call_record` → `summarize_call`, chained from `download_call_record`; summary written as a timeline `Activity`.
+  - `apps/ai_assistant/services.py`: `summarize_call_text` helper reusing the Hermes chat endpoint.
+  - `apps/telephony/api.py`: transcript fields in the call list, plus `transcribe/` and `transcript/` endpoints.
+  - `apps/billing/migrations/0009`: seeds the `ai_call_intelligence` feature.
+  - `config/settings.py`: `DEEPGRAM_*` settings.
+- Frontend:
+  - `frontend/src/views/TelephonyView.vue`: "AI summary" column with a transcribe button.
+  - `frontend/src/api/telephony.ts`: transcribe/transcript API and types.
+- Tests: `apps/telephony/tests/test_call_intelligence.py` (8).
+
+### Fixed — Hermes OpenCode runtime config (DEC-057)
+
+Hermes is now configured without running the interactive setup wizard. The project seeds a writable Hermes profile volume with an OpenCode config and CRM skills, and Django sends the API server model id (`hermes-agent`) instead of a tenant slug.
+
+- Added `config/hermes/config.yaml` and `config/hermes/init.sh`.
+- Added `hermes-init` to dev/prod compose; added `hermes` to production compose.
+- Standardized env examples on `OPENCODE_API_KEY`, `HERMES_MODEL=hermes-agent`.
+- Verified live Hermes `/health`, `/v1/models`, and `/v1/chat/completions` through OpenCode.
+
 ## [0.17.1] — 2026-06-23
 
 ### Improved — User guide refresh

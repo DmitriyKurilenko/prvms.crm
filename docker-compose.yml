@@ -114,6 +114,15 @@ services:
     env_file:
       - .env
 
+  hermes-init:
+    image: alpine:3.20
+    command: sh /config/init.sh
+    volumes:
+      - hermes_profiles:/opt/data
+      - ./config/hermes/init.sh:/config/init.sh:ro
+      - ./config/hermes/config.yaml:/config/config.yaml:ro
+      - ./apps/ai_assistant/hermes_skills:/crm-skills:ro
+
   hermes:
     image: nousresearch/hermes-agent:latest
     container_name: prvmscrm-hermes
@@ -131,10 +140,14 @@ services:
       - API_SERVER_PORT=8642
       - API_SERVER_KEY=${HERMES_API_KEY:-change-me}
       - API_SERVER_HOST=0.0.0.0
-      - OPENCODE_GO_API_KEY=${OPENCODE_API_KEY:-}
+      - API_SERVER_MODEL_NAME=${HERMES_MODEL:-hermes-agent}
+      - OPENCODE_GO_API_KEY=${OPENCODE_GO_API_KEY:-${OPENCODE_API_KEY:-}}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
       - HERMES_MULTIUSER=true
       - GATEWAY_ALLOW_ALL_USERS=true
+    depends_on:
+      hermes-init:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   # --- Dev-tools (профиль "tools": не поднимаются обычным `up`) ---

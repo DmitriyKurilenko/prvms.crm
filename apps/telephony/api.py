@@ -21,7 +21,7 @@ from .exolve_service import (
     list_available_numbers,
     number_reference,
 )
-from .models import CallRecord, ExolveSIPAccount
+from .models import CallRecord, CallTranscript, ExolveSIPAccount
 
 telephony_router = Router(tags=['telephony'], auth=JWTAuth())
 
@@ -207,7 +207,7 @@ def client_log(request, payload: ClientLogIn):
 def list_calls(request, result: str = None, direction: str = None, date_from: str = None, date_to: str = None):
     require_roles(request, ['owner', 'admin', 'manager'])
     require_feature_access(request, 'telephony')
-    qs = CallRecord.objects.select_related('manager').order_by('-started_at')
+    qs = CallRecord.objects.select_related('manager', 'transcript').order_by('-started_at')
     if result:
         qs = qs.filter(result=result)
     if direction:
@@ -216,8 +216,10 @@ def list_calls(request, result: str = None, direction: str = None, date_from: st
         qs = qs.filter(started_at__date__gte=date_from)
     if date_to:
         qs = qs.filter(started_at__date__lte=date_to)
-    return [
-        {
+    rows = []
+    for c in qs[:300]:
+        transcript = CallTranscript.objects.filter(call_id=c.id).first()
+        rows.append({
             'id': c.id,
             'call_sid': c.call_sid,
             'direction': c.direction,
@@ -232,9 +234,42 @@ def list_calls(request, result: str = None, direction: str = None, date_from: st
             'crm_lead_id': c.crm_lead_id,
             'started_at': c.started_at.isoformat(),
             'record_file': c.record_file.url if c.record_file else None,
-        }
-        for c in qs[:300]
-    ]
+            'transcript_status': transcript.status if transcript else None,
+            'transcript_summary': transcript.summary if transcript else '',
+        })
+    return rows
+
+
+@telephony_router.post('/calls/{call_id}/transcribe/')
+def transcribe_call(request, call_id: int):
+    require_roles(request, ['owner', 'admin', 'manager'])
+    require_feature_access(request, 'ai_call_intelligence')
+    from .tasks import transcribe_call_record
+    c = CallRecord.objects.filter(id=call_id).first()
+    if c is None:
+        raise HttpError(404, 'Звонок не найден')
+    if not c.record_file:
+        raise HttpError(400, 'У звонка нет записи для распознавания')
+    tenant = get_request_tenant(request)
+    transcribe_call_record.delay(tenant.id, c.id)
+    return {'status': 'queued'}
+
+
+@telephony_router.get('/calls/{call_id}/transcript/')
+def call_transcript(request, call_id: int):
+    require_roles(request, ['owner', 'admin', 'manager'])
+    require_feature_access(request, 'ai_call_intelligence')
+    t = CallTranscript.objects.filter(call_id=call_id).first()
+    if t is None:
+        return {'status': 'none'}
+    return {
+        'status': t.status,
+        'text': t.text,
+        'summary': t.summary,
+        'confidence': t.confidence,
+        'language': t.language,
+        'error': t.error,
+    }
 
 
 @telephony_router.get('/calls/{call_id}/record/')

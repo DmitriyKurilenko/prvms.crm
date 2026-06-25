@@ -359,9 +359,19 @@ TELEGRAM_NOTIFICATION_BOT_TOKEN = env('TELEGRAM_NOTIFICATION_BOT_TOKEN', default
 TELEGRAM_NOTIFICATION_BOT_USERNAME = env('TELEGRAM_NOTIFICATION_BOT_USERNAME', default='')
 
 # ---------- Hermes AI Assistant ----------
-HERMES_API_URL = env('HERMES_API_URL', default='http://prvmscrm-hermes:8642')
+HERMES_API_URL = env('HERMES_API_URL', default='http://hermes:8642')
 HERMES_API_KEY = env('HERMES_API_KEY', default='')
+HERMES_MODEL = env('HERMES_MODEL', default='hermes-agent')
 HERMES_WEBHOOK_SECRET = env('HERMES_WEBHOOK_SECRET', default='')
+
+# ---------- Deepgram ASR (транскрипция звонков, Фаза 2) ----------
+# Контракт сверён живым зондом: POST https://api.deepgram.com/v1/listen,
+# заголовок Authorization: Token <key>, для байтов Content-Type audio/mpeg,
+# ответ results.channels[0].alternatives[0].transcript/.confidence.
+DEEPGRAM_API_KEY = env('DEEPGRAM_API_KEY', default='')
+DEEPGRAM_API_BASE = env('DEEPGRAM_API_BASE', default='https://api.deepgram.com')
+DEEPGRAM_MODEL = env('DEEPGRAM_MODEL', default='nova-2')
+DEEPGRAM_LANGUAGE = env('DEEPGRAM_LANGUAGE', default='ru')
 
 # ---------- Webhooks ----------
 WEBHOOK_BASE_URL = env('WEBHOOK_BASE_URL', default='')

@@ -45,6 +45,17 @@ export interface CallRecord {
   crm_lead_id: string
   started_at: string
   record_file: string | null
+  transcript_status: string | null
+  transcript_summary: string
+}
+
+export interface CallTranscript {
+  status: string
+  text?: string
+  summary?: string
+  confidence?: number | null
+  language?: string
+  error?: string
 }
 
 export interface CallFilters {
@@ -95,3 +106,9 @@ export const listCalls = (filters: CallFilters = {}) => {
   return api<CallRecord[]>(`/telephony/calls/${s ? '?' + s : ''}`)
 }
 export const callStats = () => api<{ total: number; missed: number; answered: number }>('/telephony/stats/')
+
+export const transcribeCall = (callId: number) =>
+  api<{ status: string }>(`/telephony/calls/${callId}/transcribe/`, { method: 'POST' })
+
+export const getCallTranscript = (callId: number) =>
+  api<CallTranscript>(`/telephony/calls/${callId}/transcript/`)

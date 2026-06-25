@@ -25,6 +25,7 @@ ALL_FEATURE_CODES = [
     'messenger_channels',
     'telephony',
     'crm_builtin',
+    'ai_call_intelligence',
 ]
 
 
@@ -76,19 +77,20 @@ class TenantAPITestCase(FastTenantTestCase):
     def _ensure_crm_plan(cls):
         with schema_context('public'):
             plan = Plan.objects.filter(slug='crm').first()
-            if plan:
-                return plan
-            plan = Plan.objects.create(
-                name='CRM',
-                slug='crm',
-                max_managers=None,
-                max_documents_per_month=None,
-                max_crm_connections=3,
-                max_pipelines=None,
-                price_monthly='0.00',
-                is_active=True,
-                sort_order=1,
-            )
+            if plan is None:
+                plan = Plan.objects.create(
+                    name='CRM',
+                    slug='crm',
+                    max_managers=None,
+                    max_documents_per_month=None,
+                    max_crm_connections=3,
+                    max_pipelines=None,
+                    price_monthly='0.00',
+                    is_active=True,
+                    sort_order=1,
+                )
+            # Гарантируем полный набор фич и для уже засеянного миграцией плана
+            # `crm`, иначе новые коды из ALL_FEATURE_CODES на него не попадают.
             feature_ids = []
             for code in ALL_FEATURE_CODES:
                 feature, _ = Feature.objects.get_or_create(
@@ -96,7 +98,7 @@ class TenantAPITestCase(FastTenantTestCase):
                     defaults={'name': code, 'description': ''},
                 )
                 feature_ids.append(feature.id)
-            plan.features.set(feature_ids)
+            plan.features.add(*feature_ids)
             return plan
 
     def setUp(self):

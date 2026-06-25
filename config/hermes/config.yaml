@@ -1,0 +1,9 @@
+model:
+  default: qwen3.6-plus
+  provider: opencode-go
+  base_url: https://opencode.ai/zen/go/v1
+providers: {}
+fallback_providers: []
+
+terminal:
+  backend: local

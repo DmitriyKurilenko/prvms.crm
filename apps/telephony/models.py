@@ -123,3 +123,27 @@ class CallRecord(models.Model):
 
     def __str__(self):
         return f'{self.direction} {self.caller_number} → {self.called_number}'
+
+
+class CallTranscript(models.Model):
+    """Транскрипция и AI-резюме записи звонка (Фаза 2). Текст получает Deepgram,
+    резюме — LLM через Hermes. Одна транскрипция на запись."""
+    STATUS_CHOICES = [
+        ('pending', 'В очереди'),
+        ('processing', 'Распознаётся'),
+        ('done', 'Готово'),
+        ('failed', 'Ошибка'),
+    ]
+    call = models.OneToOneField(CallRecord, on_delete=models.CASCADE, related_name='transcript')
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default='pending')
+    text = models.TextField(blank=True)
+    summary = models.TextField(blank=True)
+    language = models.CharField(max_length=10, blank=True)
+    confidence = models.FloatField(null=True, blank=True)
+    provider = models.CharField(max_length=30, default='deepgram')
+    error = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'Transcript call={self.call_id} ({self.status})'

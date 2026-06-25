@@ -12,7 +12,7 @@ from django_tenants.utils import schema_context, tenant_context
 from apps.tenants.models import Tenant
 
 from .exolve_client import ExolveClient, ExolveError
-from .models import CallRecord
+from .models import CallRecord, CallTranscript
 
 logger = logging.getLogger(__name__)
 
@@ -117,4 +117,104 @@ def download_call_record(tenant_id: int, call_record_id: int, path: str):
             logger.exception('Не удалось скачать запись звонка %s', call_record_id)
             return {'status': 'error'}
         record.record_file.save(f'{record.call_sid}.mp3', ContentFile(content), save=True)
+        # Запускаем распознавание, если ключ Deepgram настроен (фичу тенанта
+        # проверяет сама задача транскрипции).
+        from django.conf import settings
+        if settings.DEEPGRAM_API_KEY:
+            transcribe_call_record.delay(tenant.id, record.id)
         return {'status': 'ok', 'id': record.id}
+
+
+def _ai_call_intelligence_enabled(tenant) -> bool:
+    """Проверка фичи `ai_call_intelligence` на уровне тарифа тенанта (public-схема)."""
+    from apps.billing.models import Plan
+    with schema_context('public'):
+        return bool(tenant.plan_id) and Plan.objects.filter(
+            id=tenant.plan_id, features__code='ai_call_intelligence',
+        ).exists()
+
+
+@shared_task(autoretry_for=(ExolveError,), retry_backoff=True, max_retries=2)
+def transcribe_call_record(tenant_id: int, call_record_id: int):
+    """Распознаёт запись звонка через Deepgram и ставит задачу резюме.
+    Идемпотентна: повторный запуск по готовой транскрипции пропускается."""
+    from .deepgram_client import DeepgramError, transcribe
+
+    with schema_context('public'):
+        tenant = Tenant.objects.get(id=tenant_id)
+    if not _ai_call_intelligence_enabled(tenant):
+        return {'status': 'skipped', 'reason': 'feature_disabled'}
+
+    with tenant_context(tenant):
+        try:
+            record = CallRecord.objects.get(id=call_record_id)
+        except CallRecord.DoesNotExist:
+            return {'status': 'skipped', 'reason': 'no_record'}
+        if not record.record_file:
+            return {'status': 'skipped', 'reason': 'no_audio'}
+
+        transcript, _ = CallTranscript.objects.get_or_create(call=record)
+        if transcript.status == 'done':
+            return {'status': 'skipped', 'reason': 'already_done'}
+        transcript.status = 'processing'
+        transcript.save(update_fields=['status', 'updated_at'])
+
+        try:
+            audio = record.record_file.read()
+            result = transcribe(audio, content_type='audio/mpeg')
+        except (DeepgramError, OSError) as exc:
+            transcript.status = 'failed'
+            transcript.error = str(exc)[:500]
+            transcript.save(update_fields=['status', 'error', 'updated_at'])
+            logger.warning('Транскрипция звонка %s провалена: %s', call_record_id, exc)
+            return {'status': 'failed', 'reason': str(exc)[:200]}
+
+        transcript.text = result['text']
+        transcript.confidence = result['confidence']
+        transcript.language = result['language'] or ''
+        transcript.status = 'done'
+        transcript.error = ''
+        transcript.save()
+        summarize_call.delay(tenant_id, transcript.id)
+        return {'status': 'ok', 'transcript_id': transcript.id, 'chars': len(transcript.text)}
+
+
+@shared_task
+def summarize_call(tenant_id: int, transcript_id: int):
+    """Формирует AI-резюме транскрипта через Hermes и кладёт его активностью
+    в таймлайн сделки."""
+    from apps.ai_assistant.services import summarize_call_text
+    from apps.crm.models import Activity
+
+    with schema_context('public'):
+        tenant = Tenant.objects.get(id=tenant_id)
+
+    with tenant_context(tenant):
+        try:
+            transcript = CallTranscript.objects.select_related('call').get(id=transcript_id)
+        except CallTranscript.DoesNotExist:
+            return {'status': 'skipped', 'reason': 'no_transcript'}
+        if not transcript.text:
+            return {'status': 'skipped', 'reason': 'empty_text'}
+
+        try:
+            summary = summarize_call_text(tenant, transcript.text)
+        except Exception as exc:  # noqa: BLE001 — граница LLM: логируем, не роняем цепочку
+            logger.warning('Резюме звонка для транскрипта %s не получено: %s', transcript_id, exc)
+            return {'status': 'failed', 'reason': str(exc)[:200]}
+
+        transcript.summary = summary
+        transcript.save(update_fields=['summary', 'updated_at'])
+
+        record = transcript.call
+        deal_id = int(record.crm_lead_id) if (record.crm_lead_id or '').isdigit() else None
+        if deal_id and summary:
+            Activity.objects.create(
+                activity_type='note',
+                deal_id=deal_id,
+                related_call=record,
+                title='Резюме звонка',
+                body=summary,
+                status='done',
+            )
+        return {'status': 'ok', 'transcript_id': transcript.id, 'activity_deal': deal_id}
