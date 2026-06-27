@@ -5,6 +5,7 @@ import io
 from apps.crm.models import Activity, Company, Contact, Deal, ImportJob, Pipeline, Stage
 from apps.crm.services.import_export import (
     export_contacts_csv,
+    export_deals_csv,
     parse_file,
     suggest_mapping,
 )
@@ -160,5 +161,67 @@ class ExportApiTest(TenantAPITestCase):
         self.assertIn('attachment', resp['Content-Disposition'])
 
     def test_export_rejects_unknown_entity(self):
-        resp = self.client.get('/api/crm/export/deals/', **self.auth_headers(self.owner))
+        resp = self.client.get('/api/crm/export/orders/', **self.auth_headers(self.owner))
         self.assertEqual(resp.status_code, 400)
+
+    def test_export_deals_endpoint_returns_csv(self):
+        p = Pipeline.objects.create(name='Main', is_default=True)
+        s = Stage.objects.create(pipeline=p, name='New', stage_type='open')
+        Deal.objects.create(name='Сделка1', pipeline=p, stage=s)
+        resp = self.client.get('/api/crm/export/deals/', **self.auth_headers(self.owner))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn('text/csv', resp['Content-Type'])
+        self.assertIn('Сделка1', resp.content.decode('utf-8'))
+
+
+class DealImportExportServiceTest(TenantAPITestCase):
+    def setUp(self):
+        super().setUp()
+        self.pipeline = Pipeline.objects.create(name='Продажи', is_default=True)
+        self.s_new = Stage.objects.create(pipeline=self.pipeline, name='Новая', stage_type='open', sort_order=0)
+        self.s_work = Stage.objects.create(pipeline=self.pipeline, name='В работе', stage_type='open', sort_order=1)
+        self.contact = Contact.objects.create(first_name='Иван', last_name='Петров', phone='+7900')
+
+    def test_import_creates_deal_resolves_fk_and_dedups(self):
+        rows = [
+            {'Название': 'Сделка А', 'Воронка': 'Продажи', 'Стадия': 'В работе', 'Сумма': '1000', 'Контакт': '+7900'},
+            {'Название': 'Сделка А', 'Воронка': 'Продажи', 'Стадия': 'В работе', 'Сумма': '2000', 'Контакт': '+7900'},
+            {'Название': 'Сделка Б', 'Контакт': 'Неизвестный'},
+        ]
+        mapping = {'Название': 'name', 'Воронка': 'pipeline', 'Стадия': 'stage', 'Сумма': 'amount', 'Контакт': 'contact'}
+        job = ImportJob.objects.create(entity='deals')
+        import_records(self.tenant.schema_name, job.id, 'deals', rows, mapping)
+        job.refresh_from_db()
+        self.assertEqual(job.status, 'done')
+        self.assertEqual(job.created, 2)  # Сделка А + Сделка Б
+        self.assertEqual(job.updated, 1)  # повтор Сделка А по name+contact
+
+        a = Deal.objects.get(name='Сделка А')
+        self.assertEqual(a.contact_id, self.contact.id)
+        self.assertEqual(a.stage_id, self.s_work.id)
+        self.assertEqual(float(a.amount), 2000.0)  # обновлено вторым рядом
+
+        b = Deal.objects.get(name='Сделка Б')
+        self.assertEqual(b.pipeline_id, self.pipeline.id)  # дефолтная воронка
+        self.assertEqual(b.stage_id, self.s_new.id)        # первая стадия
+        self.assertIsNone(b.contact_id)                    # контакт не найден
+
+    def test_import_deal_requires_name(self):
+        rows = [{'Название': '', 'Сумма': '100'}]
+        mapping = {'Название': 'name', 'Сумма': 'amount'}
+        job = ImportJob.objects.create(entity='deals')
+        import_records(self.tenant.schema_name, job.id, 'deals', rows, mapping)
+        job.refresh_from_db()
+        self.assertEqual(job.created, 0)
+        self.assertEqual(len(job.errors), 1)
+
+    def test_export_deals_csv_has_bom_and_fields(self):
+        Deal.objects.create(name='Экспорт', pipeline=self.pipeline, stage=self.s_new,
+                            contact=self.contact, amount=500, currency='RUB')
+        body = export_deals_csv(
+            Deal.objects.select_related('pipeline', 'stage', 'contact').all(),
+        )
+        self.assertTrue(body.startswith('﻿'))
+        self.assertIn('Экспорт', body)
+        self.assertIn('Продажи', body)
+        self.assertIn('Иван Петров', body)

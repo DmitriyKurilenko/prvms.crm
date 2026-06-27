@@ -4,7 +4,7 @@ import json
 
 from django_tenants.utils import schema_context, tenant_context
 
-from apps.integrations.models import ManagerProfile
+from apps.team.models import Manager
 from apps.users.models import Membership
 from apps.users.tests.base import TenantAPITestCase
 
@@ -46,4 +46,4 @@ class OnboardingInviteTest(TenantAPITestCase):
         self.assertFalse(check.json()['has_account'])
 
         with tenant_context(self.tenant):
-            self.assertTrue(ManagerProfile.objects.filter(user__email=email).exists())
+            self.assertTrue(Manager.objects.filter(user__email=email).exists())

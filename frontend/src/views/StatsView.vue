@@ -31,6 +31,26 @@
             <div class="kpi"><span class="kpi-label">В работе</span><span class="kpi-value">{{ funnelData.summary.open }}</span></div>
             <div class="kpi"><span class="kpi-label">Конверсия</span><span class="kpi-value">{{ funnelData.summary.win_rate }}%</span></div>
           </div>
+
+          <h4 style="margin-top: 16px">Прохождение по стадиям (история)</h4>
+          <p class="muted-note">
+            «Прошло» — сколько уникальных сделок когда-либо входило в стадию; конверсия — доля
+            дошедших от предыдущей стадии.
+            <template v-if="funnelData.history_since">
+              История ведётся с {{ formatDate(funnelData.history_since) }}; сделки, закрытые ранее, в неё не входят.
+            </template>
+            <template v-else>История переходов пока пуста — данные появятся по мере перемещения сделок.</template>
+          </p>
+          <PDataTable v-responsive-table :value="funnelData.stages" size="small" stripedRows>
+            <PColumn field="stage_name" header="Этап" />
+            <PColumn field="count" header="Сейчас на стадии" />
+            <PColumn field="reached" header="Прошло (всего)" />
+            <PColumn header="Конверсия со стадии">
+              <template #body="{ data }">
+                <PProgressBar :value="data.reached_conversion" :showValue="true" style="height: 20px" />
+              </template>
+            </PColumn>
+          </PDataTable>
         </div>
 
         <div v-if="forecastData" class="stats-section surface-card">
@@ -112,6 +132,7 @@ import type { CrmPipeline, FunnelData, ForecastData, LossReasonRow } from '@/api
 import { useAuthStore } from '@/stores/auth'
 import { createLogger } from '@/utils/logger'
 import { normalizeCrmPermissions } from '@/utils/crmPermissions'
+import { formatDate } from '@/utils/datetime'
 
 const log = createLogger('stats')
 const toast = useToast()
@@ -182,4 +203,5 @@ onMounted(async () => {
 .kpi-value.lost { color: #ef4444; }
 .empty-state { padding: 30px; text-align: center; color: var(--p-text-muted-color); }
 .locked-feature { padding: 24px; text-align: center; color: var(--p-text-muted-color); }
+.muted-note { font-size: 12px; color: var(--p-text-muted-color); margin: 6px 0 10px; }
 </style>

@@ -43,7 +43,6 @@
           <ul class="plan-limits">
             <li>Менеджеров: {{ p.max_managers ?? '∞' }}</li>
             <li>Документов/мес: {{ p.max_documents_per_month ?? '∞' }}</li>
-            <li>CRM-подключений: {{ p.max_crm_connections ?? '∞' }}</li>
             <li>Воронок: {{ p.max_pipelines ?? '∞' }}</li>
           </ul>
 
@@ -182,11 +181,6 @@ const usageRows = computed(() => {
       label: 'Документы в месяц',
       value: `${plan.value.usage.documents}/${plan.value.max_documents_per_month ?? '∞'}`,
       percent: pct(plan.value.usage.documents, plan.value.max_documents_per_month)
-    },
-    {
-      label: 'CRM-подключения',
-      value: `${plan.value.usage.crm_connections}/${plan.value.max_crm_connections ?? '∞'}`,
-      percent: pct(plan.value.usage.crm_connections, plan.value.max_crm_connections)
     },
     {
       label: 'Воронки',

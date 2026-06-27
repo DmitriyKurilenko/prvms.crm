@@ -74,6 +74,7 @@ def get_contact(request, contact_id: int):
         'responsible_id': c.responsible_id,
         'esign_agreement_signed_at': c.esign_agreement_signed_at.isoformat() if c.esign_agreement_signed_at else None,
         'esign_agreement_id': c.esign_agreement_id,
+        'tags': [{'id': t.id, 'name': t.name, 'color': t.color} for t in c.tags.all()],
         'activities': [
             {'id': a.id, 'type': a.activity_type, 'title': a.title, 'status': a.status, 'created_at': a.created_at.isoformat()}
             for a in activities

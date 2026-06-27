@@ -155,8 +155,8 @@ def connect_existing_number(tenant: Tenant, number: str, number_code: str,
     приёмник Call Events (там создаётся сделка с контролем дублей). Покупку не
     выполняем — номер и SIP уже существуют на аккаунте Exolve.
     """
-    from apps.distribution.services import ensure_builtin_manager_profiles
-    from apps.integrations.models import ManagerProfile
+    from apps.team.models import Manager
+    from apps.team.services import ensure_team_members
 
     client = client or ExolveClient()
     digits = _digits(number)
@@ -177,9 +177,8 @@ def connect_existing_number(tenant: Tenant, number: str, number_code: str,
     channel.save()
     _upsert_number_lookup(tenant, channel)
 
-    if getattr(tenant, 'crm_mode', None) == 'builtin':
-        ensure_builtin_manager_profiles()
-    manager = ManagerProfile.objects.filter(is_active=True).order_by('id').first()
+    ensure_team_members()
+    manager = Manager.objects.filter(is_active=True).order_by('id').first()
     if manager:
         ExolveSIPAccount.objects.update_or_create(
             manager=manager,
@@ -201,14 +200,14 @@ def register_inbound_deal(from_number: str, to_number: str):
     Вызывается из обработчика Call Events на событии 'b' (начало вызова).
     Возвращает (contact, deal, manager_profile ответственного или None).
     """
-    from apps.integrations.models import ManagerProfile
+    from apps.team.models import Manager
 
     contact, _ = _get_or_create_contact(from_number)
     deal, _ = _ensure_deal_with_dedup(contact, from_number)
     responsible_user_id = _responsible_user_id(deal, contact)
     manager_profile = None
     if responsible_user_id:
-        manager_profile = ManagerProfile.objects.filter(user_id=responsible_user_id, is_active=True).first()
+        manager_profile = Manager.objects.filter(user_id=responsible_user_id, is_active=True).first()
     return contact, deal, manager_profile
 
 
@@ -229,7 +228,7 @@ def provision_sip_account(manager, number_code: str, display_number: str,
     account.save(update_fields=['status', 'status_detail'])
     try:
         created = client.sip_create(
-            sip_name=f'crm-{manager.id}-{manager.crm_user_name[:20]}',
+            sip_name=f'crm-{manager.id}-{manager.display_name[:20]}',
             number=number_code,
             call_record=True,
         )
@@ -259,18 +258,17 @@ def provision_sip_account(manager, number_code: str, display_number: str,
 
 def ensure_sip_accounts(tenant: Tenant, client: ExolveClient | None = None) -> int:
     """Завести SIP-аккаунты всем активным менеджерам тенанта без аккаунта."""
-    from apps.distribution.services import ensure_builtin_manager_profiles
-    from apps.integrations.models import ManagerProfile
+    from apps.team.models import Manager
+    from apps.team.services import ensure_team_members
 
     client = client or ExolveClient()
     channel = get_channel()
     if not channel.number_code:
         return 0
-    if getattr(tenant, 'crm_mode', None) == 'builtin':
-        ensure_builtin_manager_profiles()
+    ensure_team_members()
 
     provisioned = 0
-    for manager in ManagerProfile.objects.filter(is_active=True):
+    for manager in Manager.objects.filter(is_active=True):
         account = getattr(manager, 'exolve_sip', None)
         if account and account.status == 'active' and account.username:
             continue
@@ -343,7 +341,8 @@ def _ensure_deal_with_dedup(contact, numberA: str):
     """Контроль дублей: при наличии активной (open) сделки новую не создаём."""
     from apps.channels.tasks import _find_pipeline_and_stage
     from apps.crm.models import Deal
-    from apps.distribution.services import ensure_builtin_manager_profiles, try_distribute
+    from apps.distribution.services import try_distribute
+    from apps.team.services import ensure_team_members
 
     open_deal = (
         Deal.objects.filter(contact=contact, stage__stage_type='open')
@@ -366,7 +365,7 @@ def _ensure_deal_with_dedup(contact, numberA: str):
         source='exolve',
     )
     if not deal.responsible_id:
-        ensure_builtin_manager_profiles()
+        ensure_team_members()
         try_distribute('new_deal', 'deal', str(deal.id))
         deal.refresh_from_db()
     return deal, True
@@ -417,7 +416,7 @@ def build_followme_response(rpc_id, tenant: Tenant, sip_id: str, numberA: str, c
         followme.append({
             'I_FOLLOW_ORDER': 1,
             'ACTIVE': True,
-            'NAME': responsible_acc.manager.crm_user_name or 'Менеджер',
+            'NAME': responsible_acc.manager.display_name or 'Менеджер',
             'REDIRECT_NUMBER': responsible_acc.username,
             'PERIOD': 'always',
             'PERIOD_DESCRIPTION': 'always',
@@ -428,7 +427,7 @@ def build_followme_response(rpc_id, tenant: Tenant, sip_id: str, numberA: str, c
         followme.append({
             'I_FOLLOW_ORDER': order,
             'ACTIVE': True,
-            'NAME': acc.manager.crm_user_name or 'Менеджер',
+            'NAME': acc.manager.display_name or 'Менеджер',
             'REDIRECT_NUMBER': acc.username,
             'PERIOD': 'always',
             'PERIOD_DESCRIPTION': 'always',

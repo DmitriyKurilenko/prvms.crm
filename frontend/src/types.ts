@@ -43,8 +43,6 @@ export type FeatureCode =
   | 'distribution'
   | 'documents'
   | 'document_signing'
-  | 'crm_bitrix24'
-  | 'crm_amocrm'
   | 'analytics'
   | 'export_pdf'
   | 'export_excel'
@@ -68,7 +66,6 @@ export interface PlanCatalogItem {
   features: PlanFeature[]
   max_managers: number | null
   max_documents_per_month: number | null
-  max_crm_connections: number | null
   max_pipelines: number | null
   max_messengers: number | null
   max_inbound_channels: number | null
@@ -105,7 +102,6 @@ export interface TenantInfo {
   id: number
   name: string
   slug: string
-  crm_mode: string
   brand_color: string
   timezone: string
   language: string
@@ -124,12 +120,10 @@ export interface TenantPlan {
   features: FeatureCode[]
   max_managers: number | null
   max_documents_per_month: number | null
-  max_crm_connections: number | null
   max_pipelines: number | null
   usage: {
     managers: number
     documents: number
-    crm_connections: number
     pipelines: number
   }
 }

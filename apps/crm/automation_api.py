@@ -10,7 +10,7 @@ from .models import AutomationRule
 from .schemas import AutomationRuleIn, AutomationRulePatchIn
 
 # Триггеры и типы действий, поддержанные исполнителем (`auto_actions.execute_action`).
-_TRIGGERS = {'new_deal', 'stage_changed', 'no_activity'}
+_TRIGGERS = {'new_deal', 'stage_changed', 'no_activity', 'sla_breach'}
 _ACTION_TYPES = {'create_task', 'send_notification', 'create_document', 'change_stage', 'assign'}
 
 
@@ -26,9 +26,18 @@ def _serialize(r: AutomationRule) -> dict:
 def _validate(trigger: str, action: dict) -> None:
     if trigger not in _TRIGGERS:
         raise HttpError(400, f'Недопустимый триггер: {trigger}')
-    action_type = (action or {}).get('type')
+    action = action or {}
+    action_type = action.get('type')
     if action_type and action_type not in _ACTION_TYPES:
         raise HttpError(400, f'Недопустимое действие: {action_type}')
+    # Исполнитель (`execute_action`) читает эти параметры напрямую — без них
+    # правило упадёт при срабатывании внутри create_deal/move_deal. Проверяем на записи.
+    if action_type == 'change_stage' and not action.get('stage_id'):
+        raise HttpError(400, 'Для действия «сменить стадию» нужно выбрать стадию')
+    if action_type == 'assign' and not action.get('responsible_id'):
+        raise HttpError(400, 'Для действия «назначить ответственного» нужно выбрать менеджера')
+    if action_type == 'create_document' and not action.get('template_id'):
+        raise HttpError(400, 'Для действия «создать документ» нужно выбрать шаблон')
 
 
 @crm_router.get('/automation/rules/')

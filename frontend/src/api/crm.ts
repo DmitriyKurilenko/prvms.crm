@@ -14,6 +14,7 @@ export interface CrmContact {
   responsible_id: number | null
   esign_agreement_signed_at?: string | null
   esign_agreement_id?: number | null
+  tags?: CrmTag[]
   created_at: string
 }
 
@@ -81,6 +82,7 @@ export interface CrmDeal {
   loss_reason?: string
   documents?: CrmDealDocumentRef[]
   chat_sessions?: CrmDealChatSessionRef[]
+  tags?: CrmTag[]
   created_at?: string
   updated_at: string
 }
@@ -104,8 +106,13 @@ export const listManagers = () =>
   api<Array<{ id: number; name: string }>>('/crm/managers/')
 
 /* ---------- Contacts ---------- */
-export const listContacts = (q?: string) =>
-  api<CrmContact[]>(`/crm/contacts/${q ? `?q=${encodeURIComponent(q)}` : ''}`)
+export const listContacts = (q?: string, tagId?: number) => {
+  const params = new URLSearchParams()
+  if (q) params.set('q', q)
+  if (tagId) params.set('tag_id', String(tagId))
+  const qs = params.toString()
+  return api<CrmContact[]>(`/crm/contacts/${qs ? `?${qs}` : ''}`)
+}
 
 export const getContact = (id: number) => api<CrmContact & { activities: CrmActivity[] }>(`/crm/contacts/${id}/`)
 
@@ -230,11 +237,12 @@ export interface CrmCalendarTask {
   recurrence_rule: string
   remind_at: string | null
   reminder_sent_at: string | null
+  responsible_name?: string
   created_at: string
 }
 
-export const calendarActivities = (dateFrom: string, dateTo: string) =>
-  api<CrmCalendarTask[]>(`/crm/activities/calendar/?date_from=${dateFrom}&date_to=${dateTo}`)
+export const calendarActivities = (dateFrom: string, dateTo: string, scope: 'mine' | 'team' = 'mine') =>
+  api<CrmCalendarTask[]>(`/crm/activities/calendar/?date_from=${dateFrom}&date_to=${dateTo}&scope=${scope}`)
 
 /* ---------- Products (catalog) ---------- */
 export interface CrmProduct {
@@ -356,6 +364,22 @@ export const setDealTags = (dealId: number, tagIds: number[]) =>
 export const setContactTags = (contactId: number, tagIds: number[]) =>
   api(`/crm/contacts/${contactId}/tags/`, { method: 'PATCH', body: { tag_ids: tagIds } })
 
+export interface CrmSegment {
+  id: number
+  name: string
+  entity: string
+  filters: Record<string, unknown>
+}
+
+export const listSegments = (entity?: string) =>
+  api<CrmSegment[]>(`/crm/segments/${entity ? `?entity=${entity}` : ''}`)
+
+export const createSegment = (data: { name: string; entity: string; filters: Record<string, unknown> }) =>
+  api<{ id: number }>('/crm/segments/', { method: 'POST', body: data })
+
+export const deleteSegment = (id: number) =>
+  api<{ detail: string }>('/crm/segments/' + id + '/', { method: 'DELETE' })
+
 /* ---------- Automation rules ---------- */
 export interface CrmAutomationRule {
   id: number
@@ -387,10 +411,13 @@ export interface FunnelStage {
   count: number
   amount: number
   share: number
+  reached: number
+  reached_conversion: number
 }
 export interface FunnelData {
   stages: FunnelStage[]
   summary: { total: number; won: number; lost: number; open: number; win_rate: number }
+  history_since: string | null
 }
 export interface LossReasonRow {
   loss_reason: string
@@ -406,13 +433,16 @@ export interface ForecastData {
 export interface SalesTarget {
   id: number
   period: string
-  responsible_id: number
+  responsible_id: number | null
   manager_name: string
+  pipeline_id: number | null
+  pipeline_name: string
   target_amount: number | null
   target_count: number | null
 }
 export interface TargetProgressRow {
-  responsible_id: number
+  responsible_id: number | null
+  pipeline_id: number | null
   manager_name: string
   target_amount: number | null
   actual_amount: number
@@ -443,7 +473,7 @@ export const forecast = (dateFrom?: string, dateTo?: string) =>
 
 export const listTargets = (period?: string) =>
   api<SalesTarget[]>(`/crm/targets/${period ? `?period=${period}` : ''}`)
-export const upsertTarget = (data: { period: string; responsible_id: number; target_amount?: number | null; target_count?: number | null }) =>
+export const upsertTarget = (data: { period: string; responsible_id?: number | null; pipeline_id?: number | null; target_amount?: number | null; target_count?: number | null }) =>
   api<{ id: number }>('/crm/targets/', { method: 'POST', body: data })
 export const deleteTarget = (id: number) =>
   api<{ detail: string }>('/crm/targets/' + id + '/', { method: 'DELETE' })
@@ -451,7 +481,7 @@ export const targetProgress = (period: string) =>
   api<TargetProgressRow[]>(`/crm/analytics/target-progress/?period=${period}`)
 
 /* ---------- Import / export / merge ---------- */
-export type DataEntity = 'contacts' | 'companies'
+export type DataEntity = 'contacts' | 'companies' | 'deals'
 
 export interface CrmImportPreview {
   headers: string[]

@@ -24,6 +24,27 @@
             @keyup.enter="loadContacts"
           />
         </div>
+        <PSelect
+          v-model="tagFilter"
+          :options="tagOptions"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="Тег"
+          showClear
+          style="min-width: 160px"
+          @change="loadContacts"
+        />
+        <PSelect
+          v-model="selectedSegment"
+          :options="segmentOptions"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="Сегмент"
+          showClear
+          style="min-width: 150px"
+          @change="applySegment"
+        />
+        <PButton icon="pi pi-bookmark" size="small" outlined title="Сохранить фильтр как сегмент" :disabled="!tagFilter" @click="openSaveSegment" />
         <PButton icon="pi pi-refresh" size="small" outlined @click="loadContacts" />
       </div>
 
@@ -98,6 +119,14 @@
         @update:visible="showForm = $event"
         @submit="submitContact"
       />
+
+      <PDialog v-model:visible="showSaveSegment" header="Сохранить сегмент" :style="{ width: '360px' }" modal>
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <PInputText v-model="segmentName" placeholder="Название сегмента" @keyup.enter="saveSegment" />
+          <small class="hint">Сегмент сохранит текущий фильтр по тегу.</small>
+          <PButton label="Сохранить" :disabled="!segmentName.trim()" @click="saveSegment" />
+        </div>
+      </PDialog>
     </section>
 
     <template #locked>
@@ -143,22 +172,61 @@ const sourceOptions = [
 const contacts = ref<CrmContact[]>([])
 const companies = ref<crmApi.CrmCompany[]>([])
 const managers = ref<{ id: number; name: string }[]>([])
+const tags = ref<crmApi.CrmTag[]>([])
+const tagFilter = ref<number | null>(null)
+const segments = ref<crmApi.CrmSegment[]>([])
+const selectedSegment = ref<number | null>(null)
+const segmentOptions = computed(() => segments.value.map(s => ({ label: s.name, value: s.id })))
+const showSaveSegment = ref(false)
+const segmentName = ref('')
 const loading = ref(false)
 const contactSearch = ref('')
 const selectedContactId = ref<number | null>(null)
 
 const companyOptions = computed(() => companies.value.map(c => ({ label: c.name, value: c.id })))
 const managerOptions = computed(() => managers.value.map(m => ({ label: m.name, value: m.id })))
+const tagOptions = computed(() => tags.value.map(t => ({ label: t.name, value: t.id })))
 const companyName = (id: number | null) => companies.value.find(c => c.id === id)?.name || ''
 
 const loadContacts = async () => {
   loading.value = true
   try {
-    contacts.value = await crmApi.listContacts(contactSearch.value || undefined)
+    contacts.value = await crmApi.listContacts(contactSearch.value || undefined, tagFilter.value || undefined)
   } catch {
     toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось загрузить контакты.', life: 5000 })
   }
   loading.value = false
+}
+
+async function loadSegments() {
+  try {
+    segments.value = await crmApi.listSegments('contacts')
+  } catch {
+    segments.value = []
+  }
+}
+
+function applySegment() {
+  const seg = segments.value.find(s => s.id === selectedSegment.value)
+  if (!seg) return
+  tagFilter.value = (seg.filters.tag_id as number) ?? null
+  loadContacts()
+}
+
+function openSaveSegment() {
+  segmentName.value = ''
+  showSaveSegment.value = true
+}
+
+async function saveSegment() {
+  if (!segmentName.value.trim()) return
+  try {
+    await crmApi.createSegment({ name: segmentName.value.trim(), entity: 'contacts', filters: { tag_id: tagFilter.value } })
+    showSaveSegment.value = false
+    await loadSegments()
+  } catch {
+    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось сохранить сегмент.', life: 5000 })
+  }
 }
 
 onMounted(async () => {
@@ -166,6 +234,8 @@ onMounted(async () => {
     loadContacts(),
     crmApi.listCompanies().then(r => (companies.value = r)),
     crmApi.listManagers().then(r => (managers.value = r)),
+    crmApi.listTags().then(r => (tags.value = r)).catch(() => { /* теги опциональны */ }),
+    loadSegments(),
   ])
 })
 

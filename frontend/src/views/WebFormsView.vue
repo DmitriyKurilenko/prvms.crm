@@ -59,6 +59,13 @@
               <PSelect v-model="f.type" :options="fieldTypes" optionLabel="label" optionValue="value" style="width: 130px" />
               <label class="req"><input type="checkbox" v-model="f.required" /> обяз.</label>
               <PButton icon="pi pi-trash" text size="small" severity="danger" @click="form.fields_schema.splice(i, 1)" />
+              <PInputText
+                v-if="f.type === 'select'"
+                :modelValue="(f.options || []).join(', ')"
+                placeholder="Варианты через запятую: A, B, C"
+                style="flex: 1 1 100%"
+                @update:modelValue="(v: string) => (f.options = String(v).split(',').map((s) => s.trim()).filter(Boolean))"
+              />
             </div>
           </div>
 
@@ -101,6 +108,7 @@ const canDelete = computed(() => perms.value.webforms.can_delete)
 const fieldTypes = [
   { label: 'Текст', value: 'text' }, { label: 'Телефон', value: 'phone' },
   { label: 'Email', value: 'email' }, { label: 'Многострочное', value: 'textarea' },
+  { label: 'Список', value: 'select' }, { label: 'Чекбокс', value: 'checkbox' },
 ]
 
 const forms = ref<CrmWebForm[]>([])
@@ -207,7 +215,7 @@ onMounted(load)
 .form-grid { display: flex; flex-direction: column; gap: 10px; }
 .fields-block { border: 1px solid var(--line); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
 .fields-head { display: flex; justify-content: space-between; align-items: center; }
-.field-row { display: flex; gap: 6px; align-items: center; }
+.field-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .req { display: flex; align-items: center; gap: 4px; font-size: 12px; white-space: nowrap; }
 .snippet { background: var(--surface-alt, #f3f4f6); padding: 12px; border-radius: 8px; font-size: 12px; white-space: pre-wrap; word-break: break-all; }
 .hint { color: var(--text-muted); font-size: 13px; }

@@ -77,6 +77,30 @@ MAX_API_BASE = 'https://platform-api.max.ru'
 VK_API_VERSION = '5.199'
 
 
+def get_vk_user_name(access_token: str, user_id: str | int) -> str:
+    """Имя пользователя ВК через users.get (для подписи контакта вместо «Клиент ВК»).
+
+    Стык [граница]: реальный VK API. Возвращает '' при ошибке/пустом ответе —
+    вызывающий код тогда оставляет прежнюю заглушку.
+    """
+    try:
+        resp = requests.get(
+            'https://api.vk.com/method/users.get',
+            params={'user_ids': user_id, 'access_token': access_token, 'v': VK_API_VERSION},
+            timeout=10,
+        )
+        body = resp.json()
+    except (requests.RequestException, ValueError) as exc:
+        logger.warning('vk users.get failed for %s: %s', user_id, exc)
+        return ''
+    users = body.get('response') or []
+    if not users:
+        logger.warning('vk users.get empty/err for %s: %s', user_id, body.get('error'))
+        return ''
+    u = users[0]
+    return f"{u.get('first_name', '')} {u.get('last_name', '')}".strip()
+
+
 def get_vk_group_info(access_token: str, group_id: int | str) -> dict:
     """Get group name and photo from VK API."""
     try:
@@ -440,15 +464,36 @@ def send_outgoing(channel: MessengerChannel, external_chat_id: str, text: str, a
                 return False, str(exc)[:500]
 
         if channel.channel_type == 'email':
-            return _send_email(credentials, external_chat_id, text)
+            in_reply_to = _last_incoming_email_id(channel, external_chat_id)
+            return _send_email(credentials, external_chat_id, text, in_reply_to=in_reply_to)
 
         return False, f'Unsupported channel type: {channel.channel_type}'
     except requests.RequestException as exc:
         return False, str(exc)[:500]
 
 
-def _send_email(credentials: dict, to_email: str, text: str) -> tuple[bool, str]:
-    """Отправка ответа письмом через per-channel SMTP. Стык [граница]: реальный SMTP."""
+def _last_incoming_email_id(channel: MessengerChannel, external_chat_id: str) -> str:
+    """Message-ID последнего входящего письма этой переписки — для тред-заголовков."""
+    from .models import ChatSession, MessageLog
+
+    session = ChatSession.objects.filter(channel=channel, external_chat_id=external_chat_id).first()
+    if session is None:
+        return ''
+    last_in = (
+        MessageLog.objects.filter(chat_session=session, direction='in')
+        .exclude(external_message_id='')
+        .order_by('-created_at')
+        .first()
+    )
+    return last_in.external_message_id if last_in else ''
+
+
+def _send_email(credentials: dict, to_email: str, text: str, in_reply_to: str = '') -> tuple[bool, str]:
+    """Отправка ответа письмом через per-channel SMTP. Стык [граница]: реальный SMTP.
+
+    При наличии Message-ID входящего письма проставляет тред-заголовки
+    `In-Reply-To`/`References`, чтобы ответ попал в ту же цепочку у клиента.
+    """
     import smtplib
 
     from django.core.mail import EmailMessage, get_connection
@@ -460,6 +505,7 @@ def _send_email(credentials: dict, to_email: str, text: str) -> tuple[bool, str]
     from_name = str(credentials.get('from_name') or '')
     username = credentials.get('username', '')
     from_email = f'{from_name} <{username}>' if from_name else username
+    headers = {'In-Reply-To': in_reply_to, 'References': in_reply_to} if in_reply_to else None
     try:
         connection = get_connection(
             backend='django.core.mail.backends.smtp.EmailBackend',
@@ -476,6 +522,7 @@ def _send_email(credentials: dict, to_email: str, text: str) -> tuple[bool, str]
             from_email=from_email,
             to=[to_email],
             connection=connection,
+            headers=headers,
         )
         sent = message.send()
         return (bool(sent), '') if sent else (False, 'SMTP returned 0 sent')

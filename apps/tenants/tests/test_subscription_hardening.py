@@ -9,7 +9,6 @@ from django_tenants.utils import schema_context, tenant_context
 
 from apps.crm.models import Pipeline
 from apps.documents.models import Document, DocumentTemplate
-from apps.integrations.models import CRMConnection
 from apps.tenants.models import Tenant
 from apps.users.models import Membership, User
 from apps.users.tests.base import TenantAPITestCase
@@ -110,18 +109,6 @@ class SubscriptionHardeningTest(TenantAPITestCase):
         with tenant_context(self.tenant):
             Pipeline.objects.create(name='Active pipeline', is_active=True)
             Pipeline.objects.create(name='Inactive pipeline', is_active=False)
-            CRMConnection.objects.create(
-                crm_type='amocrm',
-                name='Active connection',
-                credentials={'access_token': 'token'},
-                is_active=True,
-            )
-            CRMConnection.objects.create(
-                crm_type='bitrix24',
-                name='Inactive connection',
-                credentials={'webhook_url': 'https://example.com'},
-                is_active=False,
-            )
             Document.objects.create(
                 template=self.template,
                 template_version=1,
@@ -147,5 +134,4 @@ class SubscriptionHardeningTest(TenantAPITestCase):
         usage = response.json()['usage']
         self.assertEqual(usage['managers'], 3)
         self.assertEqual(usage['documents'], 1)
-        self.assertEqual(usage['crm_connections'], 1)
         self.assertEqual(usage['pipelines'], 1)

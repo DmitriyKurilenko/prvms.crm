@@ -56,10 +56,39 @@ def funnel(request, pipeline_id: int, date_from: str | None = None, date_to: str
         row['stage_id']: row
         for row in deals.values('stage_id').annotate(count=Count('id'), amount=Sum('amount'))
     }
+
+    # Честный исторический проход: сколько уникальных сделок из этой когорты
+    # когда-либо входило в каждую стадию (по логу StageTransition). Достоверно
+    # только с момента внедрения лога — для старых сделок переходов нет.
+    from .models import StageTransition
+    deal_ids = list(deals.values_list('id', flat=True))
+    reached_by_stage = {
+        row['to_stage_id']: row['c']
+        for row in (
+            StageTransition.objects.filter(deal_id__in=deal_ids)
+            .values('to_stage_id')
+            .annotate(c=Count('deal_id', distinct=True))
+        )
+    }
+    history_since = (
+        StageTransition.objects.filter(deal_id__in=deal_ids)
+        .order_by('created_at')
+        .values_list('created_at', flat=True)
+        .first()
+    )
+
     stages = []
+    prev_reached = None
     for st in Stage.objects.filter(pipeline_id=pipeline_id).order_by('sort_order'):
         row = by_stage.get(st.id, {})
         count = row.get('count', 0)
+        reached = reached_by_stage.get(st.id, 0)
+        # Поэтапная конверсия = доля дошедших до этой стадии от предыдущей.
+        if prev_reached is None:
+            reached_conversion = 100.0 if reached else 0.0
+        else:
+            reached_conversion = round(reached / prev_reached * 100, 1) if prev_reached else 0.0
+        prev_reached = reached
         stages.append({
             'stage_id': st.id,
             'stage_name': st.name,
@@ -67,6 +96,8 @@ def funnel(request, pipeline_id: int, date_from: str | None = None, date_to: str
             'count': count,
             'amount': float(row.get('amount') or 0),
             'share': round(count / total * 100, 1) if total else 0.0,
+            'reached': reached,
+            'reached_conversion': reached_conversion,
         })
     won = deals.filter(stage__stage_type='won').count()
     lost = deals.filter(stage__stage_type='lost').count()
@@ -75,6 +106,7 @@ def funnel(request, pipeline_id: int, date_from: str | None = None, date_to: str
     return {
         'stages': stages,
         'summary': {'total': total, 'won': won, 'lost': lost, 'open': open_count, 'win_rate': win_rate},
+        'history_since': history_since.isoformat() if history_since else None,
     }
 
 
@@ -124,7 +156,7 @@ def forecast(request, date_from: str | None = None, date_to: str | None = None):
 def list_targets(request, period: str | None = None):
     require_roles(request, ['owner', 'admin'])
     _ensure_builtin(request)
-    qs = SalesTarget.objects.select_related('responsible').order_by('-period_month')
+    qs = SalesTarget.objects.select_related('responsible', 'pipeline').order_by('-period_month')
     if period:
         start, _ = _month_bounds(period)
         qs = qs.filter(period_month=start)
@@ -133,7 +165,9 @@ def list_targets(request, period: str | None = None):
             'id': t.id,
             'period': t.period_month.strftime('%Y-%m'),
             'responsible_id': t.responsible_id,
-            'manager_name': t.responsible.get_full_name() or t.responsible.email,
+            'manager_name': (t.responsible.get_full_name() or t.responsible.email) if t.responsible else 'Команда',
+            'pipeline_id': t.pipeline_id,
+            'pipeline_name': t.pipeline.name if t.pipeline else 'Все воронки',
             'target_amount': float(t.target_amount) if t.target_amount is not None else None,
             'target_count': t.target_count,
         }
@@ -149,6 +183,7 @@ def upsert_target(request, payload: SalesTargetIn):
     target, _created = SalesTarget.objects.update_or_create(
         period_month=start,
         responsible_id=payload.responsible_id,
+        pipeline_id=payload.pipeline_id,
         defaults={'target_amount': payload.target_amount, 'target_count': payload.target_count},
     )
     log_event(request, action='update', instance=target,
@@ -181,30 +216,34 @@ def target_progress(request, period: str):
     _ensure_builtin(request)
     start, nxt = _month_bounds(period)
 
-    won = (
-        Deal.objects.filter(stage__stage_type='won', closed_at__date__gte=start, closed_at__date__lt=nxt)
-        .values('responsible_id', 'responsible__first_name', 'responsible__last_name', 'responsible__email')
-        .annotate(actual_amount=Sum('amount'), actual_count=Count('id'))
+    won_base = Deal.objects.filter(
+        stage__stage_type='won', closed_at__date__gte=start, closed_at__date__lt=nxt,
     )
-    actual_by_mgr = {row['responsible_id']: row for row in won}
-
-    targets = SalesTarget.objects.filter(period_month=start).select_related('responsible')
-    target_by_mgr = {t.responsible_id: t for t in targets}
 
     rows = []
-    for mgr_id in set(actual_by_mgr) | set(target_by_mgr):
-        actual = actual_by_mgr.get(mgr_id, {})
-        target = target_by_mgr.get(mgr_id)
-        if target is not None:
-            name = target.responsible.get_full_name() or target.responsible.email
+    targets = SalesTarget.objects.filter(period_month=start).select_related('responsible', 'pipeline')
+    targeted_mgr_ids = set()
+    for t in targets:
+        scoped = won_base
+        if t.responsible_id:
+            scoped = scoped.filter(responsible_id=t.responsible_id)
+            targeted_mgr_ids.add(t.responsible_id)
+        if t.pipeline_id:
+            scoped = scoped.filter(pipeline_id=t.pipeline_id)
+        agg = scoped.aggregate(actual_amount=Sum('amount'), actual_count=Count('id'))
+        actual_amount = float(agg['actual_amount'] or 0)
+        actual_count = agg['actual_count'] or 0
+        target_amount = float(t.target_amount) if t.target_amount is not None else None
+        target_count = t.target_count
+        if t.responsible_id:
+            name = t.responsible.get_full_name() or t.responsible.email
         else:
-            name = _manager_name(actual)
-        actual_amount = float(actual.get('actual_amount') or 0)
-        actual_count = actual.get('actual_count') or 0
-        target_amount = float(target.target_amount) if target and target.target_amount is not None else None
-        target_count = target.target_count if target else None
+            name = 'Команда'
+        if t.pipeline_id:
+            name = f'{name} · {t.pipeline.name}'
         rows.append({
-            'responsible_id': mgr_id,
+            'responsible_id': t.responsible_id,
+            'pipeline_id': t.pipeline_id,
             'manager_name': name,
             'target_amount': target_amount,
             'actual_amount': actual_amount,
@@ -212,6 +251,25 @@ def target_progress(request, period: str):
             'target_count': target_count,
             'actual_count': actual_count,
             'count_pct': round(actual_count / target_count * 100, 1) if target_count else None,
+        })
+
+    # Менеджеры с фактом, но без единого плана на месяц — показываем факт без плана.
+    extra = (
+        won_base.exclude(responsible_id__in=targeted_mgr_ids)
+        .values('responsible_id', 'responsible__first_name', 'responsible__last_name', 'responsible__email')
+        .annotate(actual_amount=Sum('amount'), actual_count=Count('id'))
+    )
+    for row in extra:
+        rows.append({
+            'responsible_id': row['responsible_id'],
+            'pipeline_id': None,
+            'manager_name': _manager_name(row),
+            'target_amount': None,
+            'actual_amount': float(row['actual_amount'] or 0),
+            'amount_pct': None,
+            'target_count': None,
+            'actual_count': row['actual_count'] or 0,
+            'count_pct': None,
         })
     rows.sort(key=lambda r: r['actual_amount'], reverse=True)
     return rows

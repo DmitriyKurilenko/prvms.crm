@@ -57,8 +57,8 @@ SHARED_APPS = [
 
 TENANT_APPS = [
     'apps.documents',
+    'apps.team',
     'apps.distribution',
-    'apps.integrations',
     'apps.channels',
     'apps.telephony',
     'apps.crm',
@@ -189,10 +189,6 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'apps.billing.tasks.check_plan_limits',
         'schedule': timedelta(hours=1),
     },
-    'check-crm-health-every-15-min': {
-        'task': 'apps.integrations.tasks.check_crm_connections_health',
-        'schedule': timedelta(minutes=15),
-    },
     'check-overdue-tasks-hourly': {
         'task': 'apps.crm.tasks.check_overdue_tasks',
         'schedule': timedelta(hours=1),
@@ -258,7 +254,6 @@ LOGGING = {
         # Доменные логгеры внешних интеграций — единая точка наблюдения за
         # граничными вызовами (Exolve, внешние CRM, ЮKassa, мессенджеры, ЭДО).
         'apps.telephony': {'handlers': ['console'], 'level': LOG_LEVEL, 'propagate': False},
-        'apps.integrations': {'handlers': ['console'], 'level': LOG_LEVEL, 'propagate': False},
         'apps.billing': {'handlers': ['console'], 'level': LOG_LEVEL, 'propagate': False},
         'apps.channels': {'handlers': ['console'], 'level': LOG_LEVEL, 'propagate': False},
         'apps.documents': {'handlers': ['console'], 'level': LOG_LEVEL, 'propagate': False},
@@ -384,3 +379,11 @@ VK_API_VERSION = '5.199'
 YOOKASSA_SHOP_ID = env('YOOKASSA_SHOP_ID', default='')
 YOOKASSA_SECRET_KEY = env('YOOKASSA_SECRET_KEY', default='')
 YOOKASSA_RETURN_URL = env('YOOKASSA_RETURN_URL', default=f'{FRONTEND_APP_URL}/app/subscription')
+
+# Капча публичных веб-форм. Пустой CAPTCHA_SECRET = капча отключена (no-op).
+# CAPTCHA_PROVIDER: 'recaptcha' | 'hcaptcha'. CAPTCHA_VERIFY_URL переопределяет
+# дефолтный siteverify (для hCaptcha — https://hcaptcha.com/siteverify).
+CAPTCHA_PROVIDER = env('CAPTCHA_PROVIDER', default='recaptcha')
+CAPTCHA_SECRET = env('CAPTCHA_SECRET', default='')
+CAPTCHA_SITE_KEY = env('CAPTCHA_SITE_KEY', default='')
+CAPTCHA_VERIFY_URL = env('CAPTCHA_VERIFY_URL', default='')

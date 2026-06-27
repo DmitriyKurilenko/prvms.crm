@@ -8,7 +8,6 @@ from celery import shared_task
 from channels.layers import get_channel_layer
 from django_tenants.utils import schema_context, tenant_context
 
-from apps.integrations.adapters import get_adapter_for_tenant
 from apps.tenants.models import Tenant
 
 from .models import ChatSession, MessageLog, MessengerChannel
@@ -137,7 +136,8 @@ def _auto_create_lead(
     the failure in the UI / logs.
     """
     from apps.crm.models import Deal
-    from apps.distribution.services import ensure_builtin_manager_profiles, try_distribute
+    from apps.distribution.services import try_distribute
+    from apps.team.services import ensure_team_members
 
     contact = _build_contact(normalized, channel, external_chat_id)
     result = _find_pipeline_and_stage()
@@ -159,32 +159,8 @@ def _auto_create_lead(
     session.crm_contact_id = str(contact.id)
     session.save(update_fields=['crm_lead_id', 'crm_contact_id'])
     if not deal.responsible_id:
-        ensure_builtin_manager_profiles()
+        ensure_team_members()
         try_distribute('new_deal', 'deal', str(deal.id))
-
-
-def _sync_to_external_crm(
-    tenant: Tenant,
-    channel: MessengerChannel,
-    session: ChatSession,
-    message: MessageLog,
-    external_chat_id: str,
-) -> None:
-    """Forward incoming message to an external CRM adapter."""
-    adapter = get_adapter_for_tenant(tenant)
-    if not session.crm_chat_id:
-        session.crm_chat_id = adapter.register_chat_channel(str(channel.id), channel.name, '')
-        session.save(update_fields=['crm_chat_id'])
-    crm_message_id = adapter.send_message_to_crm(
-        scope_id=session.crm_contact_id or external_chat_id,
-        chat_id=session.crm_chat_id or external_chat_id,
-        sender={'name': session.external_user_name or 'Client'},
-        text=message.text,
-        attachments=message.attachments,
-    )
-    if crm_message_id:
-        message.crm_message_id = str(crm_message_id)
-        message.save(update_fields=['crm_message_id'])
 
 
 @shared_task
@@ -208,6 +184,15 @@ def route_incoming_message(tenant_id: int, channel_id: int, payload: dict):
             },
         )
 
+        # ВКонтакте: имя в payload не приходит — подтягиваем реальное через users.get
+        # один раз (пока имя сессии пусто), чтобы контакт назывался по-человечески.
+        if channel.channel_type == 'vk' and not session.external_user_name:
+            from .providers import get_vk_user_name
+            vk_name = get_vk_user_name((channel.credentials or {}).get('access_token', ''), external_chat_id)
+            if vk_name:
+                session.external_user_name = vk_name
+                session.save(update_fields=['external_user_name'])
+
         message = MessageLog.objects.create(
             chat_session=session,
             direction='in',
@@ -220,20 +205,12 @@ def route_incoming_message(tenant_id: int, channel_id: int, payload: dict):
         _broadcast_message(tenant.slug, channel_id, session, message)
         _broadcast_session_update(tenant.slug, channel_id, session)
 
-        if channel.auto_create_lead and not session.crm_lead_id and tenant.crm_mode == 'builtin':
+        if channel.auto_create_lead and not session.crm_lead_id:
             try:
                 _auto_create_lead(channel, session, message, normalized, external_chat_id)
             except Exception:
                 logger.exception('Auto-create lead failed for channel %s message %s', channel.id, message.id)
                 message.error = 'Ошибка при автоматическом создании сделки'
-                message.delivered = False
-                message.save(update_fields=['error', 'delivered'])
-        elif channel.auto_create_lead and tenant.crm_mode != 'builtin':
-            try:
-                _sync_to_external_crm(tenant, channel, session, message, external_chat_id)
-            except Exception:
-                logger.exception('CRM sync failed for message %s on tenant %s', message.id, tenant.schema_name)
-                message.error = 'Ошибка синхронизации с внешней CRM'
                 message.delivered = False
                 message.save(update_fields=['error', 'delivered'])
 

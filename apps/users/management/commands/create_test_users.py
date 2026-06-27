@@ -60,7 +60,7 @@ class Command(BaseCommand):
         parser.add_argument(
             '--skip-manager-profile',
             action='store_true',
-            help='Do not create/update ManagerProfile for manager account.',
+            help='Do not create/update team Manager profile for manager account.',
         )
         parser.add_argument(
             '--force',
@@ -238,9 +238,6 @@ class Command(BaseCommand):
                 if not tenant.is_active:
                     tenant.is_active = True
                     updates.append('is_active')
-                if tenant.crm_mode != 'builtin':
-                    tenant.crm_mode = 'builtin'
-                    updates.append('crm_mode')
                 if updates:
                     tenant.save(update_fields=updates)
 
@@ -257,7 +254,6 @@ class Command(BaseCommand):
                 slug=tenant_slug,
                 schema_name=tenant_slug,
                 plan=plan,
-                crm_mode='builtin',
                 is_active=True,
             )
             tenant.save()
@@ -401,13 +397,12 @@ class Command(BaseCommand):
 
     def _ensure_manager_profile(self, *, tenant: Tenant, manager_user: User) -> str:
         with tenant_context(tenant):
-            from apps.integrations.models import ManagerProfile
+            from apps.team.models import Manager
 
-            _, created = ManagerProfile.objects.update_or_create(
+            _, created = Manager.objects.update_or_create(
                 user=manager_user,
                 defaults={
-                    'crm_user_id': str(manager_user.id),
-                    'crm_user_name': manager_user.username or manager_user.email,
+                                        'display_name': manager_user.username or manager_user.email,
                     'max_active_deals': 10,
                     'schedule': {},
                     'is_active': True,

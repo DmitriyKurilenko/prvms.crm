@@ -28,6 +28,8 @@ from .models import Company, Contact, ImportJob
 from .schemas import MergeIn
 
 _ENTITIES = ('contacts', 'companies')
+# Импорт/экспорт охватывают и сделки; слияние/дубли — только справочные сущности.
+_IO_ENTITIES = ('contacts', 'companies', 'deals')
 _MAX_IMPORT_ROWS = 10000
 
 
@@ -37,11 +39,17 @@ def _check_entity(entity: str) -> str:
     return entity
 
 
+def _check_io_entity(entity: str) -> str:
+    if entity not in _IO_ENTITIES:
+        raise HttpError(400, 'Поддерживаются только contacts, companies и deals')
+    return entity
+
+
 # --- Импорт -----------------------------------------------------------------
 
 @crm_router.post('/import/preview/')
 def import_preview(request, entity: str = Form(...), file: UploadedFile = File(...)):
-    _check_entity(entity)
+    _check_io_entity(entity)
     require_crm_permission(request, entity, 'create')
     _ensure_builtin(request)
     from .services.import_export import allowed_fields, parse_file, suggest_mapping
@@ -68,7 +76,7 @@ def import_run(
     mapping: str = Form(...),
     file: UploadedFile = File(...),
 ):
-    _check_entity(entity)
+    _check_io_entity(entity)
     require_crm_permission(request, entity, 'create')
     _ensure_builtin(request)
     from .services.import_export import parse_file
@@ -119,9 +127,10 @@ def import_job_status(request, job_id: int):
 
 @crm_router.get('/export/{entity}/')
 def export_entity(request, entity: str, source: str | None = None):
-    _check_entity(entity)
+    _check_io_entity(entity)
+    require_crm_permission(request, entity, 'view')
     _ensure_builtin(request)
-    from .services.import_export import export_companies_csv, export_contacts_csv
+    from .services.import_export import export_companies_csv, export_contacts_csv, export_deals_csv
 
     if entity == 'contacts':
         qs = filter_crm_queryset_by_scope(request, Contact.objects.select_related('company').all(), 'contacts')
@@ -129,6 +138,16 @@ def export_entity(request, entity: str, source: str | None = None):
             qs = qs.filter(source=source)
         body = export_contacts_csv(qs.order_by('-created_at'))
         filename = 'contacts.csv'
+    elif entity == 'deals':
+        from .models import Deal
+
+        qs = filter_crm_queryset_by_scope(
+            request, Deal.objects.select_related('pipeline', 'stage', 'contact').all(), 'deals',
+        )
+        if source:
+            qs = qs.filter(source=source)
+        body = export_deals_csv(qs.order_by('-created_at'))
+        filename = 'deals.csv'
     else:
         qs = filter_crm_queryset_by_scope(request, Company.objects.all(), 'companies')
         body = export_companies_csv(qs.order_by('-created_at'))

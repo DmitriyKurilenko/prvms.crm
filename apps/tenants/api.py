@@ -26,7 +26,6 @@ class TenantOut(Schema):
     id: int
     name: str
     slug: str
-    crm_mode: str
     brand_color: str
     timezone: str
     language: str
@@ -52,7 +51,6 @@ class PlanUsageOut(Schema):
     features: list[str]
     max_managers: int | None
     max_documents_per_month: int | None
-    max_crm_connections: int | None
     max_pipelines: int | None
     usage: dict
 
@@ -78,7 +76,6 @@ def _serialize_tenant(request, tenant) -> TenantOut:
         id=tenant.id,
         name=tenant.name,
         slug=tenant.slug,
-        crm_mode=tenant.crm_mode,
         brand_color=tenant.brand_color,
         timezone=tenant.timezone,
         language=tenant.language,
@@ -188,7 +185,6 @@ def get_plan(request):
         features=features,
         max_managers=plan.max_managers,
         max_documents_per_month=plan.max_documents_per_month,
-        max_crm_connections=plan.max_crm_connections,
         max_pipelines=plan.max_pipelines,
         usage=usage,
     )

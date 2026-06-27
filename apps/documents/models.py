@@ -35,12 +35,6 @@ class DocumentTemplate(models.Model):
 class FieldMapping(models.Model):
     """Маппинг переменных шаблона на поля CRM."""
     template = models.ForeignKey(DocumentTemplate, on_delete=models.CASCADE, related_name='field_mappings')
-    crm_connection = models.ForeignKey(
-        'integrations.CRMConnection',
-        on_delete=models.CASCADE,
-        null=True,
-        blank=True,
-    )
     variable_key = models.CharField(max_length=100)
     crm_field_path = models.CharField(max_length=200)
 
@@ -72,12 +66,6 @@ class Document(models.Model):
     template = models.ForeignKey(DocumentTemplate, on_delete=models.SET_NULL, null=True)
     template_version = models.PositiveIntegerField()
 
-    crm_connection = models.ForeignKey(
-        'integrations.CRMConnection',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-    )
     crm_entity_type = models.CharField(max_length=20)
     crm_entity_id = models.CharField(max_length=100)
     deal = models.ForeignKey(

@@ -70,7 +70,6 @@ class DashboardAPITest(TenantAPITestCase):
 
         DistributionLog.objects.create(
             rule=None,
-            crm_connection=None,
             crm_entity_type='lead',
             crm_entity_id='lead-1',
             assigned_to=self.manager_profile,

@@ -8,8 +8,9 @@ from __future__ import annotations
 import logging
 
 from apps.crm.models import Contact, Deal, WebForm
-from apps.distribution.services import ensure_builtin_manager_profiles, try_distribute
+from apps.distribution.services import try_distribute
 from apps.notifications.services import notify
+from apps.team.services import ensure_team_members
 
 logger = logging.getLogger('crm.webform')
 
@@ -42,7 +43,7 @@ def intake_webform_submission(tenant, token, fields: dict) -> dict | None:
     WebForm.objects.filter(id=form.id).update(submissions_count=form.submissions_count + 1)
 
     if form.auto_distribute and not deal.responsible_id:
-        ensure_builtin_manager_profiles()
+        ensure_team_members()
         try_distribute('new_lead', 'deal', str(deal.id))
 
     notify(tenant, 'new_deal_created', {'deal_id': deal.id, 'link': f'/app/deals/{deal.id}'})

@@ -70,7 +70,7 @@ class SeedDemoUsersCommandTest(TenantAPITestCase):
                 cursor.execute(f'DROP SCHEMA IF EXISTS "company-{i}" CASCADE')
 
         with schema_context('public'):
-            # Raw SQL to avoid ORM cascade into tenant-scoped tables (e.g. integrations_managerprofile).
+            # Raw SQL to avoid ORM cascade into tenant-scoped tables (e.g. team_manager).
             with connection.cursor() as cursor:
                 cursor.execute(
                     "DELETE FROM users_membership WHERE tenant_id IN (SELECT id FROM tenants_tenant WHERE slug LIKE 'company-%%')"

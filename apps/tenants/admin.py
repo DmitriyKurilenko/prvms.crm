@@ -6,8 +6,8 @@ from .models import Domain, SigningTokenLookup, Tenant
 
 @admin.register(Tenant)
 class TenantAdmin(TenantAdminMixin, admin.ModelAdmin):
-    list_display = ('name', 'slug', 'plan', 'crm_mode', 'is_active', 'created_at')
-    list_filter = ('is_active', 'crm_mode', 'plan')
+    list_display = ('name', 'slug', 'plan', 'is_active', 'created_at')
+    list_filter = ('is_active', 'plan')
     search_fields = ('name', 'slug')
     readonly_fields = ('created_at',)
 

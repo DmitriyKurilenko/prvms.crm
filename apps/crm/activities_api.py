@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from ninja.errors import HttpError
 
-from apps.core.access import require_crm_permission, require_roles
+from apps.core.access import get_membership, require_crm_permission, require_roles
 
 from ._api_common import (
     _ensure_builtin,
@@ -26,18 +26,37 @@ def my_tasks(request, status: str | None = None):
 
 
 @crm_router.get('/activities/calendar/')
-def calendar_activities(request, date_from: str, date_to: str):
-    """Задачи ответственного с `due_date` в диапазоне [date_from, date_to] —
-    источник данных для календарного представления."""
+def calendar_activities(request, date_from: str, date_to: str, scope: str = 'mine'):
+    """Задачи с `due_date` в диапазоне [date_from, date_to] — источник для календаря.
+
+    `scope='mine'` (по умолчанию) — только задачи текущего пользователя.
+    `scope='team'`/`'all'` — все задачи тенанта; доступно только владельцу/админу,
+    иначе тихо откатывается на личные задачи. В командном виде добавляется
+    `responsible_name` для подписи событий.
+    """
     require_crm_permission(request, 'deals', 'view')
     _ensure_builtin(request)
     qs = Activity.objects.filter(
         activity_type='task',
-        responsible_id=request.auth.id,
         due_date__date__gte=date_from,
         due_date__date__lte=date_to,
-    ).order_by('due_date')
-    return _serialize_activities(qs)
+    ).select_related('responsible').order_by('due_date')
+
+    membership = get_membership(request)
+    allow_team = membership is not None and membership.role in ('owner', 'admin')
+    if scope in ('team', 'all') and allow_team:
+        rows = list(qs)
+    else:
+        rows = list(qs.filter(responsible_id=request.auth.id))
+
+    data = _serialize_activities(rows)
+    name_by_id = {
+        a.id: ((a.responsible.get_full_name() or a.responsible.email) if a.responsible else '')
+        for a in rows
+    }
+    for item in data:
+        item['responsible_name'] = name_by_id.get(item['id'], '')
+    return data
 
 
 @crm_router.post('/activities/')

@@ -175,31 +175,6 @@ class ChannelsBridgeTest(TenantAPITestCase):
         self.assertFalse(session.crm_lead_id)
         self.assertEqual(Deal.objects.count(), 0)
 
-    def test_route_incoming_external_crm_creates_chat_id(self):
-        self.tenant.crm_mode = 'amocrm'
-        self.tenant.save(update_fields=['crm_mode'])
-        self.channel.auto_create_lead = True
-        self.channel.save(update_fields=['auto_create_lead'])
-
-        with patch('apps.channels.tasks.get_adapter_for_tenant') as mock_adapter:
-            adapter = mock_adapter.return_value
-            adapter.register_chat_channel.return_value = 'amo_chat_1'
-            adapter.send_message_to_crm.return_value = 'amo_msg_1'
-            payload = {
-                'message': {
-                    'message_id': 16,
-                    'text': 'External',
-                    'chat': {'id': 666},
-                    'from': {'username': 'eve'},
-                }
-            }
-            result = route_incoming_message(self.tenant.id, self.channel.id, payload)
-            self.assertEqual(result['status'], 'ok')
-            session = ChatSession.objects.get(external_chat_id='666')
-            self.assertEqual(session.crm_chat_id, 'amo_chat_1')
-            message = MessageLog.objects.get(chat_session=session)
-            self.assertEqual(message.crm_message_id, 'amo_msg_1')
-
     # ---------- route_outgoing_message ----------
 
     @patch('apps.channels.tasks.send_outgoing', return_value=(False, 'provider error'))

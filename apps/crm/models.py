@@ -258,6 +258,35 @@ class Activity(models.Model):
         return self.title
 
 
+class StageTransition(models.Model):
+    """Лог перехода сделки между стадиями — основа честной поэтапной воронки.
+
+    Пишется при создании сделки (`from_stage=NULL` → начальная стадия) и при
+    каждом перемещении (`move_deal`). В отличие от `Activity(stage_change)`,
+    хранит `stage_id` обеих стадий, что позволяет считать, сколько уникальных
+    сделок прошло через каждую стадию (исторический проход, а не текущий срез).
+    Достоверна только с момента внедрения лога: у сделок, созданных раньше,
+    записей нет.
+    """
+    deal = models.ForeignKey(Deal, on_delete=models.CASCADE, related_name='stage_transitions')
+    pipeline = models.ForeignKey(Pipeline, on_delete=models.CASCADE, related_name='stage_transitions')
+    from_stage = models.ForeignKey(
+        Stage, on_delete=models.SET_NULL, null=True, blank=True, related_name='transitions_out',
+    )
+    to_stage = models.ForeignKey(Stage, on_delete=models.CASCADE, related_name='transitions_in')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at']
+        indexes = [
+            models.Index(fields=['pipeline', 'to_stage']),
+            models.Index(fields=['deal', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f'{self.deal_id}: {self.from_stage_id} → {self.to_stage_id}'
+
+
 class ProductCategory(models.Model):
     """Категория номенклатуры (дерево)."""
     name = models.CharField(max_length=200)
@@ -436,14 +465,27 @@ class AutomationRunLog(models.Model):
 
 
 class SalesTarget(models.Model):
-    """План продаж менеджера на месяц (Фаза 10). Метрики — сумма выручки и/или
-    количество выигранных сделок; факт считается по сделкам в стадии `won` с
-    `closed_at` в пределах месяца."""
+    """План продаж на месяц (Фаза 10). Метрики — сумма выручки и/или количество
+    выигранных сделок; факт считается по сделкам в стадии `won` с `closed_at` в
+    пределах месяца.
+
+    Область плана: `responsible=NULL` — командная цель (по всем менеджерам),
+    иначе план конкретного менеджера; `pipeline=NULL` — по всем воронкам, иначе
+    только по указанной воронке."""
     period_month = models.DateField(help_text='Первое число месяца плана')
     responsible = models.ForeignKey(
         'users.User',
         on_delete=models.CASCADE,
         related_name='sales_targets',
+        null=True, blank=True,
+        help_text='Менеджер плана; пусто = командная цель',
+    )
+    pipeline = models.ForeignKey(
+        'crm.Pipeline',
+        on_delete=models.CASCADE,
+        related_name='sales_targets',
+        null=True, blank=True,
+        help_text='Воронка плана; пусто = по всем воронкам',
     )
     target_amount = models.DecimalField(
         max_digits=14, decimal_places=2, null=True, blank=True,
@@ -459,8 +501,9 @@ class SalesTarget(models.Model):
         ordering = ['-period_month']
         constraints = [
             models.UniqueConstraint(
-                fields=['period_month', 'responsible'],
-                name='uniq_sales_target_month_manager',
+                fields=['period_month', 'responsible', 'pipeline'],
+                name='uniq_sales_target_month_manager_pipeline',
+                nulls_distinct=False,
             ),
         ]
 

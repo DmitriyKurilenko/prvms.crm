@@ -18,16 +18,13 @@ from apps.core.access import (
     normalize_crm_responsible_for_write,
     require_feature_access,
 )
-from apps.core.tenant import get_request_tenant
 
 crm_router = Router(tags=['crm'], auth=JWTAuth())
 
 
 def _ensure_builtin(request):
-    tenant = get_request_tenant(request)
+    """Гейт встроенного CRM по фиче плана. Внешних CRM-режимов больше нет."""
     require_feature_access(request, 'crm_builtin')
-    if tenant.crm_mode != 'builtin':
-        raise HttpError(400, 'Builtin CRM API is available only for crm_mode=builtin')
 
 
 def _scoped_object_or_error(request, model, obj_id: int, entity: str, action: str):

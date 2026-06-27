@@ -64,10 +64,6 @@
             <span class="usage-label">Пайплайны</span>
             <span class="usage-val">{{ tenantStore.plan?.usage?.pipelines ?? 0 }}</span>
           </div>
-          <div class="usage-row">
-            <span class="usage-label">CRM-интеграции</span>
-            <span class="usage-val">{{ tenantStore.plan?.usage?.crm_connections ?? 0 }}</span>
-          </div>
         </div>
       </div>
     </div>
@@ -92,7 +88,6 @@ const hasDistribution = computed(() => planReady.value && tenantStore.hasFeature
 const hasDocuments = computed(() => planReady.value && tenantStore.hasFeature('documents'))
 const hasTelephony = computed(() => planReady.value && tenantStore.hasFeature('telephony'))
 const hasChannels = computed(() => planReady.value && tenantStore.hasFeature('messenger_channels'))
-const hasExternalCrm = computed(() => planReady.value && (tenantStore.hasFeature('crm_amocrm') || tenantStore.hasFeature('crm_bitrix24')))
 const totalManagers = computed(() => tenantStore.plan?.usage?.managers ?? 0)
 
 const kpis = computed(() => [
@@ -145,7 +140,6 @@ const navLinks = computed(() => [
   { to: '/app/documents', label: 'Документы', icon: 'pi pi-file', iconBg: '#fff7ed', iconColor: '#f97316', allowed: hasDocuments.value },
   { to: '/app/telephony', label: 'Телефония', icon: 'pi pi-phone', iconBg: '#ecfdf5', iconColor: '#10b981', allowed: hasTelephony.value },
   { to: '/app/channels', label: 'Мессенджеры', icon: 'pi pi-send', iconBg: '#eef2ff', iconColor: '#4f46e5', allowed: hasChannels.value },
-  { to: '/app/integrations', label: 'Интеграции', icon: 'pi pi-plug', iconBg: '#fef2f2', iconColor: '#ef4444', allowed: hasExternalCrm.value },
   { to: '/app/distribution', label: 'Распределение', icon: 'pi pi-sitemap', iconBg: '#fffbeb', iconColor: '#f59e0b', allowed: hasDistribution.value },
 ])
 

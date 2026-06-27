@@ -128,3 +128,38 @@ class TaskReminderTaskTest(TenantAPITestCase):
         )
         result = send_task_reminders()
         self.assertEqual(result['sent'], 0)
+
+
+class CalendarScopeTest(TenantAPITestCase):
+    def setUp(self):
+        super().setUp()
+        self.owner = self.create_user(role='owner', email='cal_owner@example.com', username='cal_owner')
+        self.mgr = self.create_user(role='manager', email='cal_mgr@example.com', username='cal_mgr')
+        today = timezone.now().replace(hour=10, minute=0, second=0, microsecond=0)
+        Activity.objects.create(activity_type='task', title='Задача владельца', status='planned',
+                                due_date=today, responsible=self.owner, created_by=self.owner)
+        Activity.objects.create(activity_type='task', title='Задача менеджера', status='planned',
+                                due_date=today, responsible=self.mgr, created_by=self.mgr)
+        self.day = today.date().isoformat()
+
+    def _get(self, user, scope):
+        return self.client.get(
+            f'/api/crm/activities/calendar/?date_from={self.day}&date_to={self.day}&scope={scope}',
+            **self.auth_headers(user),
+        )
+
+    def test_owner_team_scope_sees_all_tasks(self):
+        resp = self._get(self.owner, 'team')
+        self.assertEqual(resp.status_code, 200)
+        titles = {r['title'] for r in resp.json()}
+        self.assertEqual(titles, {'Задача владельца', 'Задача менеджера'})
+
+    def test_owner_mine_scope_sees_only_own(self):
+        resp = self._get(self.owner, 'mine')
+        titles = {r['title'] for r in resp.json()}
+        self.assertEqual(titles, {'Задача владельца'})
+
+    def test_manager_team_scope_falls_back_to_own(self):
+        resp = self._get(self.mgr, 'team')
+        titles = {r['title'] for r in resp.json()}
+        self.assertEqual(titles, {'Задача менеджера'})

@@ -30,7 +30,6 @@ messenger_channels_router = Router(tags=['channels'], auth=JWTAuth())
 class ChannelIn(Schema):
     name: str
     channel_type: str
-    crm_connection_id: int | None = None
     credentials: dict = {}
     crm_channel_id: str = ''
     auto_create_lead: bool = True
@@ -41,7 +40,6 @@ class ChannelIn(Schema):
 class ChannelPatchIn(Schema):
     name: str | None = None
     channel_type: str | None = None
-    crm_connection_id: int | None = None
     credentials: dict | None = None
     crm_channel_id: str | None = None
     auto_create_lead: bool | None = None
@@ -64,7 +62,6 @@ def list_channels(request):
             'id': c.id,
             'name': c.name,
             'channel_type': c.channel_type,
-            'crm_connection_id': c.crm_connection_id,
             'credentials': c.credentials or {},
             'status': c.status,
             'status_detail': c.status_detail,

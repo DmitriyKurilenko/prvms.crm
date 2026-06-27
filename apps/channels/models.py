@@ -21,13 +21,6 @@ class MessengerChannel(models.Model):
 
     name = models.CharField(max_length=200)
     channel_type = models.CharField(max_length=20, choices=CHANNEL_TYPE_CHOICES)
-    crm_connection = models.ForeignKey(
-        'integrations.CRMConnection',
-        on_delete=models.SET_NULL,
-        related_name='messenger_channels',
-        null=True,
-        blank=True,
-    )
     credentials = EncryptedJSONField()
     crm_channel_id = models.CharField(max_length=200, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')

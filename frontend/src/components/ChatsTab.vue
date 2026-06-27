@@ -50,6 +50,17 @@
               fontSize: '0.9em'
             }">
             <div>{{ m.text }}</div>
+            <div v-if="m.attachments && m.attachments.length" class="msg-attachments">
+              <template v-for="(a, ai) in m.attachments" :key="ai">
+                <a
+                  v-if="a.content_base64"
+                  :href="`data:${a.content_type};base64,${a.content_base64}`"
+                  :download="a.filename"
+                  class="att-link"
+                >📎 {{ a.filename }}</a>
+                <span v-else class="att-link att-nodl">📎 {{ a.filename }}</span>
+              </template>
+            </div>
             <div style="font-size: 0.7em; color: var(--text-muted); text-align: right; margin-top: 2px">
               {{ formatTime(m.created_at) }}
               <span v-if="m.direction === 'out' && !m.delivered" style="color: #dc2626"> ✕</span>
@@ -123,4 +134,8 @@ defineExpose({ scrollToBottom })
 
 <style scoped>
 .field-label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.msg-attachments { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+.att-link { font-size: 0.8em; color: var(--p-primary-color); text-decoration: none; }
+.att-link:hover { text-decoration: underline; }
+.att-nodl { color: var(--text-muted); cursor: default; }
 </style>

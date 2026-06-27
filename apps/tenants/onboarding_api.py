@@ -11,7 +11,7 @@ from ninja_jwt.authentication import JWTAuth
 from apps.core.access import require_roles
 from apps.core.tenant import get_request_tenant
 from apps.distribution.models import DistributionRule
-from apps.integrations.models import ManagerProfile
+from apps.team.models import Manager
 from apps.tenants.services import ensure_default_pipeline
 from apps.users.models import Membership, User
 
@@ -133,9 +133,9 @@ def _apply_managers_step(tenant, payload: dict):
                     invited_at=now,
                 )
 
-        ManagerProfile.objects.get_or_create(
+        Manager.objects.get_or_create(
             user=user,
-            defaults={'crm_user_name': name, 'crm_user_id': '', 'schedule': {}, 'is_active': True},
+            defaults={'display_name': name, 'schedule': {}, 'is_active': True},
         )
         if invite_token:
             invite_link = f'{settings.FRONTEND_APP_URL.rstrip("/")}/invite/accept?token={invite_token}'

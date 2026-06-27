@@ -14,6 +14,7 @@
 """
 from __future__ import annotations
 
+import base64
 import email
 import imaplib
 import logging
@@ -24,6 +25,10 @@ from email.utils import parseaddr
 from html.parser import HTMLParser
 
 logger = logging.getLogger('channels.email')
+
+# Вложения крупнее лимита сохраняются только метаданными (без содержимого),
+# чтобы не раздувать JSON-поле сообщения и БД.
+_MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024
 
 
 def _decode(value: str | None) -> str:
@@ -104,21 +109,41 @@ def _extract_body(msg: Message) -> str:
     return _html_to_text(html) if html else ''
 
 
+def _extract_html(msg: Message) -> str:
+    """Возвращает первую часть text/html (без вложений) — сырой HTML письма."""
+    if msg.is_multipart():
+        for part in msg.walk():
+            if 'attachment' in str(part.get('Content-Disposition', '')):
+                continue
+            if part.get_content_type() == 'text/html':
+                return _part_text(part)
+        return ''
+    return _part_text(msg) if msg.get_content_type() == 'text/html' else ''
+
+
 def _extract_attachments(msg: Message) -> list[dict]:
-    """Метаданные вложений (имя, тип). Содержимое в первой версии не сохраняется."""
+    """Вложения с метаданными и содержимым (base64). Содержимое крупнее лимита
+    не сохраняется — остаются только имя/тип/размер."""
     out: list[dict] = []
     if not msg.is_multipart():
         return out
     for part in msg.walk():
         disposition = str(part.get('Content-Disposition', ''))
         filename = part.get_filename()
-        if filename or 'attachment' in disposition:
-            out.append(
-                {
-                    'filename': _decode(filename) or 'attachment',
-                    'content_type': part.get_content_type(),
-                }
-            )
+        if not (filename or 'attachment' in disposition):
+            continue
+        meta = {
+            'filename': _decode(filename) or 'attachment',
+            'content_type': part.get_content_type(),
+            'size': 0,
+            'content_base64': '',
+        }
+        payload = part.get_payload(decode=True)
+        if isinstance(payload, (bytes, bytearray)):
+            meta['size'] = len(payload)
+            if len(payload) <= _MAX_ATTACHMENT_BYTES:
+                meta['content_base64'] = base64.b64encode(payload).decode('ascii')
+        out.append(meta)
     return out
 
 
@@ -132,10 +157,13 @@ def parse_email(raw: bytes) -> dict:
     from_name, from_email = parseaddr(_decode(msg.get('From')))
     return {
         'message_id': (msg.get('Message-ID') or '').strip(),
+        'in_reply_to': (msg.get('In-Reply-To') or '').strip(),
+        'references': (msg.get('References') or '').strip(),
         'from_email': from_email,
         'from_name': from_name or from_email,
         'subject': _decode(msg.get('Subject')),
         'text': _extract_body(msg),
+        'html': _extract_html(msg),
         'attachments': _extract_attachments(msg),
     }
 

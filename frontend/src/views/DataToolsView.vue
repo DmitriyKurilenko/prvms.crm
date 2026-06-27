@@ -9,6 +9,7 @@
         <div class="entity-switch">
           <PButton :label="'Контакты'" size="small" :outlined="entity !== 'contacts'" @click="setEntity('contacts')" />
           <PButton :label="'Компании'" size="small" :outlined="entity !== 'companies'" @click="setEntity('companies')" />
+          <PButton :label="'Сделки'" size="small" :outlined="entity !== 'deals'" @click="setEntity('deals')" />
         </div>
         <div class="tab-switch">
           <PButton label="Импорт" icon="pi pi-upload" size="small" text :class="{ active: tab === 'import' }" @click="tab = 'import'" />
@@ -74,7 +75,8 @@
 
       <!-- ДУБЛИ -->
       <div v-if="tab === 'dupes'" class="surface-card pane">
-        <p v-if="!canMerge" class="muted">У вас нет прав на слияние ({{ entityLabel }}).</p>
+        <p v-if="entity === 'deals'" class="muted">Слияние сделок не поддерживается: сделки — транзакционные записи, дедуп применяется к контактам и компаниям.</p>
+        <p v-else-if="!canMerge" class="muted">У вас нет прав на слияние ({{ entityLabel }}).</p>
         <template v-else>
           <PButton label="Найти дубли" icon="pi pi-search" size="small" :loading="dupesLoading" @click="loadDuplicates" />
           <p v-if="dupesLoaded && !groups.length" class="muted">Дублей не найдено.</p>
@@ -121,7 +123,7 @@ const perms = computed(() => normalizeCrmPermissions(authStore.user?.crm_permiss
 const entity = ref<DataEntity>('contacts')
 const tab = ref<'import' | 'export' | 'dupes'>('import')
 
-const entityLabel = computed(() => (entity.value === 'contacts' ? 'Контакты' : 'Компании'))
+const entityLabel = computed(() => ({ contacts: 'Контакты', companies: 'Компании', deals: 'Сделки' }[entity.value]))
 const canImport = computed(() => perms.value[entity.value].can_create)
 const canExport = computed(() => perms.value[entity.value].can_view)
 const canMerge = computed(() => perms.value[entity.value].can_delete)

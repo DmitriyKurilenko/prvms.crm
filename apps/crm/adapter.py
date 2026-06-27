@@ -1,8 +1,28 @@
+from dataclasses import dataclass
+
 from django.core.files.base import ContentFile
 
-from apps.integrations.adapters import LeadData
-
 from .models import Activity, Contact, Deal
+
+
+@dataclass
+class LeadData:
+    id: str
+    name: str
+    price: int | None
+    responsible_user_id: str | None
+    contacts: list[dict]
+    custom_fields: dict
+    created_at: str
+    updated_at: str
+
+
+@dataclass
+class CRMUser:
+    id: str
+    name: str
+    email: str | None
+    is_active: bool
 
 
 class BuiltinCRMAdapter:
@@ -60,7 +80,6 @@ class BuiltinCRMAdapter:
     def list_users(self):
         from django.db import connection
 
-        from apps.integrations.adapters import CRMUser
         from apps.users.models import Membership
         members = Membership.objects.filter(
             tenant=connection.tenant, is_active=True,
@@ -126,3 +145,12 @@ class BuiltinCRMAdapter:
             related_call_id=call_id,
             body='',
         ).update(body=f'Запись звонка: {record_url}')
+
+
+def get_crm_adapter() -> BuiltinCRMAdapter:
+    """Единственный CRM-адаптер продукта — встроенный CRM.
+
+    Раньше выбор адаптера зависел от внешней CRM (`crm_mode`); после удаления
+    внешних интеграций остался только встроенный, поэтому диспетчеризации нет.
+    """
+    return BuiltinCRMAdapter()

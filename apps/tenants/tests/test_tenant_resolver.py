@@ -49,7 +49,6 @@ class TenantResolverTest(TenantAPITestCase):
                 slug='qa-second',
                 name='QA Second',
                 plan=self.tenant.plan,
-                crm_mode='builtin',
                 is_active=True,
             )
             Domain.objects.create(

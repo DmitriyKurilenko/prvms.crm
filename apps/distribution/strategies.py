@@ -6,7 +6,7 @@ from typing import Protocol
 
 from django.utils import timezone
 
-from apps.integrations.models import ManagerProfile
+from apps.team.models import Manager
 
 from .models import DistributionLog
 
@@ -14,21 +14,21 @@ from .models import DistributionLog
 class DistributionStrategy(Protocol):
     def choose_manager(
         self,
-        candidates: list[ManagerProfile],
+        candidates: list[Manager],
         context: dict,
         config: dict,
-    ) -> tuple[ManagerProfile | None, str]:
+    ) -> tuple[Manager | None, str]:
         ...
 
 
-def _is_available(manager: ManagerProfile) -> bool:
+def _is_available(manager: Manager) -> bool:
     if not manager.is_active:
         return False
     today = timezone.localdate()
     return not manager.days_off.filter(date=today).exists()
 
 
-def _available(candidates: list[ManagerProfile]) -> list[ManagerProfile]:
+def _available(candidates: list[Manager]) -> list[Manager]:
     return [m for m in candidates if _is_available(m)]
 
 

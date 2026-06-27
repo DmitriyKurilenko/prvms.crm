@@ -124,7 +124,6 @@ class Command(BaseCommand):
                     'name': tenant_name,
                     'schema_name': tenant_slug,
                     'plan': plan,
-                    'crm_mode': 'builtin',
                     'is_active': True,
                     'trial_expires_at': trial_expires,
                 },
@@ -140,9 +139,6 @@ class Command(BaseCommand):
                 if not tenant.is_active:
                     tenant.is_active = True
                     updates.append('is_active')
-                if tenant.crm_mode != 'builtin':
-                    tenant.crm_mode = 'builtin'
-                    updates.append('crm_mode')
                 if tenant.trial_expires_at is None or tenant.trial_expires_at < timezone.now():
                     tenant.trial_expires_at = trial_expires
                     updates.append('trial_expires_at')

@@ -70,6 +70,7 @@ const groups = computed(() => [
     { to: '/app/products', label: 'Товары',        icon: 'pi pi-box',           feature: 'crm_builtin' },
     { to: '/app/webforms', label: 'Веб-формы',     icon: 'pi pi-id-card',       feature: 'crm_builtin' },
     { to: '/app/deals',    label: 'Сделки',        icon: 'pi pi-chart-bar',     feature: 'crm_builtin' },
+    ...(isAdminOwner.value ? [{ to: '/app/pipelines', label: 'Воронки', icon: 'pi pi-sitemap', feature: 'crm_builtin' }] : []),
     { to: '/app/tags',     label: 'Теги',          icon: 'pi pi-tags',          feature: 'crm_builtin' },
     { to: '/app/automation', label: 'Автоматизации', icon: 'pi pi-bolt',        feature: 'crm_builtin' },
     { to: '/app/tasks',    label: 'Задачи',        icon: 'pi pi-check-square',  feature: 'crm_builtin' },
@@ -84,7 +85,6 @@ const groups = computed(() => [
     { to: '/app/telephony',   label: 'Телефония',    icon: 'pi pi-phone',    feature: 'telephony' },
   ]),
   withLock([
-    { to: '/app/integrations',  label: 'Интеграции',  icon: 'pi pi-plug',            feature: null, locked: true },
     { to: '/app/team',          label: 'Команда',     icon: 'pi pi-users',           feature: null },
     { to: '/app/assistant',     label: 'AI Ассистент', icon: 'pi pi-comment',         feature: null },
     { to: '/app/audit',         label: 'Аудит',       icon: 'pi pi-list-check',      feature: null },

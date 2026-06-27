@@ -40,6 +40,9 @@
         <PSelect v-model="filter.source" :options="sourceOptions" optionLabel="label" optionValue="value" placeholder="Источник" showClear class="filter-field" />
         <PSelect v-model="filter.contact_id" :options="contactOptions" optionLabel="label" optionValue="value" placeholder="Контакт" showClear filter filterPlaceholder="Поиск…" class="filter-field" />
         <PSelect v-model="filter.company_id" :options="companyOptions" optionLabel="label" optionValue="value" placeholder="Компания" showClear filter filterPlaceholder="Поиск…" class="filter-field" />
+        <PSelect v-model="filter.tag_id" :options="tagOptions" optionLabel="label" optionValue="value" placeholder="Тег" showClear class="filter-field" />
+        <PSelect v-model="selectedSegment" :options="segmentOptions" optionLabel="label" optionValue="value" placeholder="Сегмент" showClear class="filter-field" @change="applySegment" />
+        <PButton icon="pi pi-bookmark" size="small" outlined title="Сохранить фильтр как сегмент" :disabled="!filter.tag_id" @click="openSaveSegment" />
         <PSelect v-model="filter.date" :options="dateFilterOptions" optionLabel="label" optionValue="value" placeholder="Дата" showClear class="filter-field" />
       </div>
 
@@ -118,6 +121,14 @@
       @created="onQuickCompanyCreated"
     />
 
+    <PDialog v-model:visible="showSaveSegment" header="Сохранить сегмент" :style="{ width: '360px' }" modal>
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <PInputText v-model="segmentName" placeholder="Название сегмента" @keyup.enter="saveSegment" />
+        <small>Сегмент сохранит текущий фильтр по тегу.</small>
+        <PButton label="Сохранить" :disabled="!segmentName.trim()" @click="saveSegment" />
+      </div>
+    </PDialog>
+
     <template #locked>
       <div class="surface-card" style="padding: 16px">Раздел доступен в плане CRM.</div>
     </template>
@@ -169,17 +180,24 @@ const columns = ref<KanbanColumn[]>([])
 const contacts = ref<crmApi.CrmContact[]>([])
 const companies = ref<crmApi.CrmCompany[]>([])
 const managers = ref<{ id: number; name: string }[]>([])
+const tags = ref<crmApi.CrmTag[]>([])
+const segments = ref<crmApi.CrmSegment[]>([])
+const selectedSegment = ref<number | null>(null)
+const segmentOptions = computed(() => segments.value.map(s => ({ label: s.name, value: s.id })))
+const showSaveSegment = ref(false)
+const segmentName = ref('')
 const viewMode = ref<'board' | 'list'>('board')
 const showFilters = ref(false)
-const filter = reactive({ source: null as string | null, contact_id: null as number | null, company_id: null as number | null, date: null as string | null })
+const filter = reactive({ source: null as string | null, contact_id: null as number | null, company_id: null as number | null, tag_id: null as number | null, date: null as string | null })
 
 const contactOptions = computed(() => contacts.value.map(c => ({ label: `${c.first_name} ${c.last_name}`.trim(), value: c.id })))
 const companyOptions = computed(() => companies.value.map(c => ({ label: c.name, value: c.id })))
 const managerOptions = computed(() => managers.value.map(m => ({ label: m.name, value: m.id })))
+const tagOptions = computed(() => tags.value.map(t => ({ label: t.name, value: t.id })))
 const contactLabel = (id: number | null | undefined) => contacts.value.find(c => c.id === id)?.first_name || ''
 
 const filteredColumns = computed(() => {
-  const hasF = filter.source || filter.contact_id || filter.company_id || filter.date
+  const hasF = filter.source || filter.contact_id || filter.company_id || filter.tag_id || filter.date
   if (!hasF) return columns.value
   const now = new Date()
   const todayStr = now.toISOString().slice(0, 10)
@@ -191,6 +209,7 @@ const filteredColumns = computed(() => {
       if (filter.source && d.source !== filter.source) return false
       if (filter.contact_id && d.contact_id !== filter.contact_id) return false
       if (filter.company_id && d.company_id !== filter.company_id) return false
+      if (filter.tag_id && !(d.tags || []).some(t => t.id === filter.tag_id)) return false
       if (filter.date && d.created_at) {
         const c = d.created_at.slice(0, 10)
         if (filter.date === 'today' && c !== todayStr) return false
@@ -253,11 +272,37 @@ onMounted(async () => {
     crmApi.listContacts().then(r => (contacts.value = r)),
     crmApi.listCompanies().then(r => (companies.value = r)),
     crmApi.listManagers().then(r => (managers.value = r)),
+    crmApi.listTags().then(r => (tags.value = r)).catch(() => { /* теги опциональны */ }),
+    crmApi.listSegments('deals').then(r => (segments.value = r)).catch(() => { /* сегменты опциональны */ }),
   ])
 })
 
 const openDeal = (id: number) => {
   router.push(`/app/deals/${id}`)
+}
+
+/* --- Segments (saved tag filters) --- */
+function applySegment() {
+  const seg = segments.value.find(s => s.id === selectedSegment.value)
+  if (!seg) return
+  filter.tag_id = (seg.filters.tag_id as number) ?? null
+}
+
+function openSaveSegment() {
+  segmentName.value = ''
+  showSaveSegment.value = true
+}
+
+async function saveSegment() {
+  if (!segmentName.value.trim()) return
+  const res = await call(
+    () => crmApi.createSegment({ name: segmentName.value.trim(), entity: 'deals', filters: { tag_id: filter.tag_id } }),
+    'Не удалось сохранить сегмент.',
+  )
+  if (res === undefined) return
+  showSaveSegment.value = false
+  const list = await call(() => crmApi.listSegments('deals'), 'Не удалось загрузить сегменты.')
+  if (list !== undefined) segments.value = list
 }
 
 /* --- New deal form --- */

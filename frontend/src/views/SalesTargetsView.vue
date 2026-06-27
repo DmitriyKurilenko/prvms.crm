@@ -18,7 +18,11 @@
             </div>
             <div class="field">
               <label>Менеджер</label>
-              <PSelect v-model="form.responsible_id" :options="managers" optionLabel="name" optionValue="id" placeholder="Выберите" class="mgr-select" />
+              <PSelect v-model="form.responsible_id" :options="managerOptions" optionLabel="name" optionValue="id" placeholder="Выберите" class="mgr-select" />
+            </div>
+            <div class="field">
+              <label>Воронка</label>
+              <PSelect v-model="form.pipeline_id" :options="pipelineOptions" optionLabel="name" optionValue="id" class="mgr-select" />
             </div>
             <div class="field">
               <label>План по сумме, ₽</label>
@@ -35,7 +39,10 @@
         <div class="surface-card progress-card">
           <h4>Выполнение за {{ period }}</h4>
           <PDataTable v-responsive-table :value="progress" size="small" stripedRows>
-            <PColumn field="manager_name" header="Менеджер" />
+            <PColumn field="manager_name" header="План" />
+            <PColumn header="Воронка">
+              <template #body="{ data }">{{ pipelineName(data.pipeline_id) }}</template>
+            </PColumn>
             <PColumn header="Сумма (факт / план)">
               <template #body="{ data }">
                 <div class="cell-progress">
@@ -54,7 +61,7 @@
             </PColumn>
             <PColumn header="" style="width: 60px">
               <template #body="{ data }">
-                <PButton v-if="targetIdByManager[data.responsible_id]" icon="pi pi-trash" text size="small" severity="danger" @click="removeTarget(data.responsible_id)" />
+                <PButton v-if="rowTargetId(data)" icon="pi pi-trash" text size="small" severity="danger" @click="removeTarget(rowTargetId(data)!)" />
               </template>
             </PColumn>
             <template #empty>
@@ -90,21 +97,36 @@ function currentMonth(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
+const TEAM = -1   // sentinel: командная цель (responsible_id = null)
+const ALL_PIPE = -1  // sentinel: по всем воронкам (pipeline_id = null)
+
 const period = ref(currentMonth())
 const managers = ref<Array<{ id: number; name: string }>>([])
+const pipelines = ref<crmApi.CrmPipeline[]>([])
 const progress = ref<TargetProgressRow[]>([])
 const targets = ref<SalesTarget[]>([])
-const form = reactive<{ responsible_id: number | null; target_amount: number | null; target_count: number | null }>({
+const form = reactive<{ responsible_id: number | null; pipeline_id: number; target_amount: number | null; target_count: number | null }>({
   responsible_id: null,
+  pipeline_id: ALL_PIPE,
   target_amount: null,
   target_count: null,
 })
 
-const targetIdByManager = computed<Record<number, number>>(() => {
-  const map: Record<number, number> = {}
-  for (const t of targets.value) map[t.responsible_id] = t.id
+const managerOptions = computed(() => [{ id: TEAM, name: 'Команда (вся команда)' }, ...managers.value])
+const pipelineOptions = computed(() => [{ id: ALL_PIPE, name: 'Все воронки' }, ...pipelines.value.map(p => ({ id: p.id, name: p.name }))])
+
+const pipelineName = (id: number | null) => (id == null ? 'Все воронки' : pipelines.value.find(p => p.id === id)?.name || '—')
+
+function keyOf(responsibleId: number | null, pipelineId: number | null): string {
+  return `${responsibleId ?? 'team'}:${pipelineId ?? 'all'}`
+}
+const targetIdByKey = computed<Record<string, number>>(() => {
+  const map: Record<string, number> = {}
+  for (const t of targets.value) map[keyOf(t.responsible_id, t.pipeline_id)] = t.id
   return map
 })
+const rowTargetId = (row: TargetProgressRow): number | undefined =>
+  targetIdByKey.value[keyOf(row.responsible_id, row.pipeline_id)]
 
 async function reload() {
   if (!canManage.value) return
@@ -118,11 +140,12 @@ async function reload() {
 }
 
 async function save() {
-  if (!form.responsible_id) return
+  if (form.responsible_id == null) return
   try {
     await crmApi.upsertTarget({
       period: period.value,
-      responsible_id: form.responsible_id,
+      responsible_id: form.responsible_id === TEAM ? null : form.responsible_id,
+      pipeline_id: form.pipeline_id === ALL_PIPE ? null : form.pipeline_id,
       target_amount: form.target_amount,
       target_count: form.target_count,
     })
@@ -134,8 +157,7 @@ async function save() {
   }
 }
 
-async function removeTarget(managerId: number) {
-  const id = targetIdByManager.value[managerId]
+async function removeTarget(id: number) {
   if (!id) return
   try {
     await crmApi.deleteTarget(id)
@@ -150,8 +172,9 @@ onMounted(async () => {
   if (!canManage.value) return
   try {
     managers.value = await crmApi.listManagers()
+    pipelines.value = await crmApi.listPipelines()
   } catch (err) {
-    log.error('Failed to load managers', err)
+    log.error('Failed to load managers/pipelines', err)
   }
   await reload()
 })

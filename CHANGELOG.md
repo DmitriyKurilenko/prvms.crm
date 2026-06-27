@@ -1,5 +1,56 @@
 # Changelog
 
+## [0.19.0] — 2026-06-27
+
+### Added — Team domain extraction and removal of external CRM integrations (DEC-058)
+
+**The built-in CRM is now the only CRM; external CRM integrations (amoCRM/Bitrix24) have been removed.** The core team model (`Manager`/`TimeOff`) has been extracted into a new `apps/team` app, making it independent of CRM adapters.
+
+- Backend:
+  - New TENANT app `apps/team`: models `Manager` (renamed from `ManagerProfile`, without CRM fields, with `display_name`) and `TimeOff` (from `ManagerDayOff`), service `ensure_team_members`.
+  - Removed `apps/integrations` entirely: models, adapters (amoCRM/Bitrix24), OAuth, webhooks, API, UI, feature codes, and limits.
+  - Collapsed CRM adapter abstraction: only `BuiltinCRMAdapter` in `apps/crm/adapter.py` + `get_crm_adapter()` remains; `channels`/`documents`/`distribution` call it directly.
+  - Removed `tenant.crm_mode`, `Plan.max_crm_connections`, features `crm_amocrm`/`crm_bitrix24`, FK `crm_connection` from `channels`/`documents`/`distribution`.
+  - All dependent FKs (`distribution`, `telephony`) retargeted to `team.Manager`.
+  - Migrations recreated on empty DB (precedent DEC-043): all migrations deleted and regenerated; plan/feature seed consolidated into `billing/0003_seed_plans` (plans `solo`/`komanda`/`free-custom` + 12 features including `ai_call_intelligence`).
+- Frontend:
+  - Removed `IntegrationsView.vue`, `api/integrations.ts`, menu item and route «Интеграции», feature gates `crm_amocrm`/`crm_bitrix24`, `crm_mode` field from `DashboardView`.
+- Tests: backend **225/225**; Playwright e2e **9/9 passed** (latent serializer references to deleted `crm_connection` caught and fixed).
+
+### Added — Wave 2 backlog completion (segments, calendar, web forms, email, VK, deals import, SLA, funnel history, scoped targets)
+
+- **Segments (closes KI #30).** Saved filters by tag in contact/deal lists: dropdown applies `filters.tag_id`, bookmark button saves current filter as named segment (`createSegment`/`listSegments`/`deleteSegment`).
+- **Calendar team view & drag-and-drop (closes KI #33).** Endpoint `calendar_activities` accepts `scope=mine|team` (owner/admin see all tasks with `responsible_name`, others fall back to own). `CalendarView.vue` gained toggle «Мои/Все задачи» and drag-reschedule (`eventDrop` → `patch_activity(due_date)`). Tests `CalendarScopeTest`.
+- **Web forms enhancements (closes KI #29).** Field types `select` (with options) and `checkbox` in constructor and widget. Pluggable CAPTCHA (`apps/crm/services/captcha.py`): no-op without `CAPTCHA_SECRET`, otherwise `siteverify` against reCAPTCHA/hCaptcha; `site_key` in schema, rendered in widget. Tests `CaptchaServiceTest`.
+- **Email attachments & threading (closes KI #28).** `parse_email` stores attachment content as base64 in `MessageLog.attachments` (5 MB limit; larger → metadata only). `ChatsTab.vue` serves download links via data-URI. Outgoing replies carry `In-Reply-To`/`References` from last incoming email ID. Tests `EmailParseAndThreadingTest`.
+- **VK real names (closes KI #22).** On first incoming VK message, `route_incoming_message` fetches real name via `get_vk_user_name` (VK `users.get`) and stores in session. Tests `VkUserNameTest`.
+- **Deal import/export (closes KI #32).** `_import_one_deal` resolves pipeline/stage/contact by name, deduplicates by `name+contact`; `export_deals_csv` with BOM; API accepts `deals` entity for import/preview/run/export. Frontend: «Сделки» switch in `DataToolsView`. Tests `DealImportExportServiceTest`.
+- **SLA breach trigger (closes KI #31).** `evaluate_time_rules` handles `sla_breach`: metric is time since entering current stage (last `stage_change` activity or `created_at`), idempotent via `AutomationRunLog`. Added to `_TRIGGERS` and constructor UI with field «Дней на стадии (SLA)». Tests `test_sla_breach_*`.
+- **Backfill `closed_at` (KI #34 part B).** Service `backfill_closed_at()` + data migration `crm/0013` sets `closed_at` for historically won/lost deals from last `stage_change` or `updated_at`. Tests `BackfillClosedAtTest`.
+- **Honest stage funnel (KI #34 part A).** New `StageTransition` model (`crm/0014`) logs `from_stage→to_stage` on every move; `funnel` endpoint returns `reached` (unique deals ever entering stage), step conversion, and `history_since`. `StatsView` shows «Прохождение по стадиям» with explicit history-start note. Tests `HonestFunnelTest`.
+- **Sales targets by pipeline & team goals (KI #34 part C).** `SalesTarget` gained optional `pipeline` (NULL = all) and team goal (`responsible` NULL = whole team, `nulls_distinct=False` uniqueness). `target_progress` recalculated per-plan area with team row and pipeline plan. `SalesTargetsView` supports pipeline selector and «Команда» option. Migration `crm/0015`. Tests `TargetScopeTest`.
+
+### Added — Wave 1 backlog completion (tags in cards, automation actions/conditions)
+
+- **Tags in cards and filters (KI #30).** Serializers `get_contact`/`get_deal`/`kanban_deals` return `tags` (with `prefetch_related` for kanban). Frontend: colored chips + `PMultiSelect` in `ContactDrawer.vue` and `DealDetailView.vue`; tag filter in `ContactsView` toolbar and kanban filters. Tests `TagSerializationApiTest`.
+- **Automation actions & conditions (KI #31).** Constructor `AutomationView.vue` now exposes `change_stage`, `assign`, and `create_document` (gated by `documents` feature) actions with required params. Optional conditions «Воронка» and «Стадия» added. Backend validation `_validate` requires `stage_id`/`responsible_id`/`template_id`. Tests `AutomationValidationApiTest` + execution tests.
+
+### Fixed — Navigation and dead code (Wave 0)
+
+- Restored «Воронки» menu item for owner/admin (`feature: crm_builtin`) in `AppMenu.vue`.
+- Removed dead components `SidebarNav.vue` and `TopBar.vue` (zero references in `src`).
+- Removed duplicate «Чаты» tab and chat logic from `ChannelsView.vue`; old link `/app/channels?tab=chats` redirects to `/app/chats`.
+
+### Documentation
+
+- Added `DEC-058`.
+- Updated `docs/TASK_STATE.md`, `docs/DEV_LOG.md`, `docs/KNOWN_ISSUES.md`, `docs/RELEASE_NOTES.md`.
+- Created `docs/ROADMAP_BACKLOG.md` (waves 0–4).
+
+**Validation:** migrations applied on clean DB without drift; `manage.py check` 0 issues; ruff clean; backend **225/225** tests; frontend typecheck/build OK, vitest **11/11**; Playwright e2e **9/9 passed**; live probes: `/healthz` and `/api/docs` 200, `seed_demo_users` provisioned 10 tenants, plans + 12 features seeded, `ensure_team_members` synced 4 managers.
+
+---
+
 ## [0.18.0] — 2026-06-25
 
 ### Added — Call transcription and AI summary (DEC-056)

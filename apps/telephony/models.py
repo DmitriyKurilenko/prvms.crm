@@ -48,7 +48,7 @@ class ExolveSIPAccount(models.Model):
     ]
 
     manager = models.OneToOneField(
-        'integrations.ManagerProfile',
+        'team.Manager',
         on_delete=models.CASCADE,
         related_name='exolve_sip',
     )
@@ -97,7 +97,7 @@ class CallRecord(models.Model):
     talk_time = models.PositiveIntegerField(default=0)
     cause_code = models.CharField(max_length=10, blank=True)
     manager = models.ForeignKey(
-        'integrations.ManagerProfile',
+        'team.Manager',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,

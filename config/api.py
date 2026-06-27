@@ -34,10 +34,6 @@ from apps.notifications.api import notifications_router
 
 api.add_router('/notifications/', notifications_router)
 
-from apps.integrations.api import integrations_router
-
-api.add_router('/integrations/', integrations_router)
-
 from apps.documents.api import documents_router
 
 api.add_router('/documents/', documents_router)

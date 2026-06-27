@@ -78,6 +78,26 @@
                 </div>
               </div>
 
+              <!-- Tags -->
+              <div class="deal-tags-block">
+                <label class="field-label">Теги</label>
+                <div class="tag-chips">
+                  <span v-for="t in deal.tags || []" :key="t.id" class="tag-chip" :style="{ background: t.color }">{{ t.name }}</span>
+                  <span v-if="!(deal.tags || []).length" class="tags-empty">—</span>
+                </div>
+                <PMultiSelect
+                  v-if="canUpdateDeal"
+                  v-model="dealTagIds"
+                  :options="allTags"
+                  optionLabel="name"
+                  optionValue="id"
+                  placeholder="Назначить теги"
+                  filter
+                  class="w-full"
+                  @change="saveDealTags"
+                />
+              </div>
+
               <!-- Documents -->
               <div v-if="deal.documents?.length" style="margin-top: 8px">
                 <PDivider />
@@ -205,7 +225,7 @@ import DealChatTab from '@/components/DealChatTab.vue'
 import QuickContactDialog from '@/components/QuickContactDialog.vue'
 import QuickCompanyDialog from '@/components/QuickCompanyDialog.vue'
 import * as crmApi from '@/api/crm'
-import type { CrmActivity, CrmDeal } from '@/api/crm'
+import type { CrmActivity, CrmDeal, CrmTag } from '@/api/crm'
 import { api, getAccessToken, getTenantSlug } from '@/api/http'
 import { refresh as refreshToken } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
@@ -246,6 +266,9 @@ const deal = ref<(CrmDeal & { activities: CrmActivity[] }) | null>(null)
 const edit = reactive({ name: '', amount: null as number | null, currency: 'RUB', contact_id: null as number | null, company_id: null as number | null, responsible_id: null as number | null, expected_close_date: '', source: '', loss_reason: '' })
 const newNote = ref('')
 const newActivityType = ref('note')
+
+const allTags = ref<CrmTag[]>([])
+const dealTagIds = ref<number[]>([])
 
 const contacts = ref<crmApi.CrmContact[]>([])
 const companies = ref<crmApi.CrmCompany[]>([])
@@ -300,6 +323,7 @@ const loadDeal = async () => {
     source: d.source || '',
     loss_reason: d.loss_reason || '',
   })
+  dealTagIds.value = (d.tags || []).map(t => t.id)
   // auto-select first chat session when opening chat tab
   if (d.chat_sessions?.length && !selectedChatSessionId.value) {
     selectedChatSessionId.value = d.chat_sessions[0].id
@@ -343,6 +367,7 @@ onMounted(async () => {
     crmApi.listCompanies().then(r => (companies.value = r)),
     crmApi.listManagers().then(r => (managers.value = r)),
     crmApi.listProducts().then(r => (products.value = r)),
+    crmApi.listTags().then(r => (allTags.value = r)).catch(() => { /* теги опциональны */ }),
   ])
   connectChatWs()
 })
@@ -358,6 +383,13 @@ const saveDealEdit = async () => {
     () => crmApi.patchDeal(deal.value!.id, { ...edit, expected_close_date: edit.expected_close_date || null }),
     'Не удалось сохранить сделку.',
   )
+  if (res === undefined) return
+  await loadDeal()
+}
+
+const saveDealTags = async () => {
+  if (!canUpdateDeal.value || !deal.value) return
+  const res = await call(() => crmApi.setDealTags(deal.value!.id, dealTagIds.value), 'Не удалось сохранить теги.')
   if (res === undefined) return
   await loadDeal()
 }
@@ -632,6 +664,11 @@ const documentStatusLabel = (s: string) => ({ draft: 'Черновик', sent: '
 .w-full { width: 100%; }
 .select-with-add { display: flex; gap: 6px; align-items: flex-end; }
 .flex-1 { flex: 1; }
+
+.deal-tags-block { margin-top: 4px; }
+.tag-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
+.tag-chip { display: inline-block; padding: 2px 10px; border-radius: 12px; color: #fff; font-size: 12px; font-weight: 600; }
+.tags-empty { color: var(--text-muted); }
 
 .status-badge { padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
 .status-draft { background: var(--surface-alt); }

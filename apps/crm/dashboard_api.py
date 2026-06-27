@@ -65,7 +65,7 @@ def managers(request):
         .order_by('-total')
     )
     calls_qs = (
-        CallRecord.objects.values('manager_id', 'manager__crm_user_name')
+        CallRecord.objects.values('manager_id', 'manager__display_name')
         .annotate(total_calls=Count('id'), avg_duration=Avg('duration'))
         .order_by('-total_calls')
     )
@@ -84,12 +84,21 @@ def managers(request):
             name = row['responsible__email'] or '—'
         deal_rows.append({
             'responsible_id': manager_id,
-            'responsible__crm_user_name': name,
+            'manager_name': name,
             'total': total,
             'won': won,
             'win_rate': round(win_rate, 2),
         })
-    return {'deals': deal_rows, 'calls': list(calls_qs)}
+    calls = [
+        {
+            'manager_id': r['manager_id'],
+            'manager_name': r['manager__display_name'],
+            'total_calls': r['total_calls'],
+            'avg_duration': r['avg_duration'],
+        }
+        for r in calls_qs
+    ]
+    return {'deals': deal_rows, 'calls': calls}
 
 
 MANAGER_ROLES = ('owner', 'admin', 'manager')

@@ -11,7 +11,7 @@ from ninja_jwt.authentication import JWTAuth
 
 from apps.core.access import require_feature_access, require_roles
 from apps.core.tenant import get_request_tenant
-from apps.integrations.models import ManagerProfile
+from apps.team.models import Manager
 
 from .exolve_client import ExolveError
 from .exolve_service import (
@@ -116,14 +116,14 @@ def sip_accounts(request):
         {
             'id': a.id,
             'manager_id': a.manager_id,
-            'manager_name': a.manager.crm_user_name,
+            'manager_name': a.manager.display_name,
             'username': a.username,
             'display_number': a.display_number,
             'status': a.status,
             'status_detail': a.status_detail,
             'is_active': a.is_active,
         }
-        for a in ExolveSIPAccount.objects.select_related('manager').order_by('manager__crm_user_name')
+        for a in ExolveSIPAccount.objects.select_related('manager').order_by('manager__display_name')
     ]
 
 
@@ -173,7 +173,7 @@ def webrtc_credentials(request):
 def click_to_call(request, payload: ClickToCallIn):
     require_roles(request, ['owner', 'admin', 'manager'])
     require_feature_access(request, 'telephony')
-    manager = ManagerProfile.objects.filter(user_id=request.auth.id, is_active=True).first()
+    manager = Manager.objects.filter(user_id=request.auth.id, is_active=True).first()
     channel = get_channel()
     record = CallRecord.objects.create(
         call_sid=f'cti-{uuid.uuid4()}',
@@ -229,7 +229,7 @@ def list_calls(request, result: str = None, direction: str = None, date_from: st
             'duration': c.duration,
             'talk_time': c.talk_time,
             'manager_id': c.manager_id,
-            'manager_name': c.manager.crm_user_name if c.manager_id else None,
+            'manager_name': c.manager.display_name if c.manager_id else None,
             'crm_contact_id': c.crm_contact_id,
             'crm_lead_id': c.crm_lead_id,
             'started_at': c.started_at.isoformat(),

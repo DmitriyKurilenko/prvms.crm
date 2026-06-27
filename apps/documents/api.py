@@ -115,7 +115,6 @@ def list_mappings(request, template_id: int):
     return [
         {
             'id': row.id,
-            'crm_connection_id': row.crm_connection_id,
             'variable_key': row.variable_key,
             'crm_field_path': row.crm_field_path,
         }
@@ -127,13 +126,13 @@ def list_mappings(request, template_id: int):
 def save_mappings(request, template_id: int, connection_id: int, payload: list[dict]):
     require_roles(request, ['owner', 'admin'])
     require_feature_access(request, 'documents')
-    conn_id = None if connection_id == 0 else connection_id
-    FieldMapping.objects.filter(template_id=template_id, crm_connection_id=conn_id).delete()
+    # connection_id оставлен в URL ради совместимости фронтенда (всегда 0);
+    # маппинги теперь привязаны только к шаблону — внешних CRM нет.
+    FieldMapping.objects.filter(template_id=template_id).delete()
     created = 0
     for item in payload:
         FieldMapping.objects.create(
             template_id=template_id,
-            crm_connection_id=conn_id,
             variable_key=item['variable_key'],
             crm_field_path=item['crm_field_path'],
         )

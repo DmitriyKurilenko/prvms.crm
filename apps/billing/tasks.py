@@ -30,7 +30,6 @@ def check_plan_limits():
             usage = {
                 'max_managers': normalized_usage['managers'],
                 'max_documents_per_month': normalized_usage['documents'],
-                'max_crm_connections': normalized_usage['crm_connections'],
                 'max_pipelines': normalized_usage['pipelines'],
             }
 

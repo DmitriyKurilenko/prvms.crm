@@ -35,3 +35,38 @@ class TagsTest(TenantAPITestCase):
         seg.refresh_from_db()
         self.assertEqual(seg.filters['tag_ids'], [1, 2])
         self.assertEqual(seg.entity, 'contacts')
+
+
+class TagSerializationApiTest(TenantAPITestCase):
+    def setUp(self):
+        super().setUp()
+        self.owner = self.create_user(role='owner', email='tag_owner@example.com', username='tag_owner')
+        self.pipeline = Pipeline.objects.create(name='Main', is_default=True, sort_order=0)
+        self.stage = Stage.objects.create(pipeline=self.pipeline, name='New', stage_type='open', sort_order=0)
+        self.tag = Tag.objects.create(name='VIP', color='#ff0000')
+
+    def test_get_contact_returns_tags(self):
+        c = Contact.objects.create(first_name='Иван')
+        c.tags.add(self.tag)
+        resp = self.client.get(f'/api/crm/contacts/{c.id}/', **self.auth_headers(self.owner))
+        self.assertEqual(resp.status_code, 200)
+        tags = resp.json()['tags']
+        self.assertEqual([t['id'] for t in tags], [self.tag.id])
+        self.assertEqual(tags[0]['name'], 'VIP')
+        self.assertEqual(tags[0]['color'], '#ff0000')
+
+    def test_get_deal_returns_tags(self):
+        d = Deal.objects.create(name='D', pipeline=self.pipeline, stage=self.stage)
+        d.tags.add(self.tag)
+        resp = self.client.get(f'/api/crm/deals/{d.id}/', **self.auth_headers(self.owner))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual([t['id'] for t in resp.json()['tags']], [self.tag.id])
+
+    def test_kanban_returns_deal_tags(self):
+        d = Deal.objects.create(name='D', pipeline=self.pipeline, stage=self.stage)
+        d.tags.add(self.tag)
+        resp = self.client.get(f'/api/crm/deals/kanban/{self.pipeline.id}/', **self.auth_headers(self.owner))
+        self.assertEqual(resp.status_code, 200)
+        columns = resp.json()
+        deal_payload = next(dl for col in columns for dl in col['deals'] if dl['id'] == d.id)
+        self.assertEqual([t['id'] for t in deal_payload['tags']], [self.tag.id])

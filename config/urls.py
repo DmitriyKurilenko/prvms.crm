@@ -16,7 +16,6 @@ from apps.documents.public_views import (
     sign_send_email,
     sign_verify,
 )
-from apps.integrations.webhook_views import incoming_crm_webhook
 from apps.notifications.views import TelegramBotWebhookView
 from apps.telephony.public_views import exolve_events, exolve_ipcr
 
@@ -43,7 +42,6 @@ urlpatterns = [
     path('sign/<uuid:token>/verify/', sign_verify),
     path('sign/<uuid:token>/download/', sign_download_pdf),
     path('sign/<uuid:token>/send-email/', sign_send_email),
-    path('wh/<slug:tenant_slug>/<uuid:webhook_uuid>/', incoming_crm_webhook),
     path('channels/webhook/<slug:tenant_slug>/<str:channel_type>/<int:channel_id>/', channel_webhook),
     path('telephony/exolve/ipcr/', exolve_ipcr),
     path('telephony/exolve/events/', exolve_events),

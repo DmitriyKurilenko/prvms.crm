@@ -55,3 +55,24 @@ class WebFormPermissionsTest(TenantAPITestCase):
         self.assertTrue(perms['webforms']['can_create'])
         viewer = get_role_permissions_for_role(self.tenant.id, 'viewer')
         self.assertFalse(viewer['webforms']['can_create'])
+
+
+class CaptchaServiceTest(TenantAPITestCase):
+    def test_captcha_disabled_by_default_passes(self):
+        from apps.crm.services.captcha import captcha_enabled, captcha_site_info, verify_captcha
+        self.assertFalse(captcha_enabled())
+        self.assertTrue(verify_captcha(''))          # отключена → пропускает
+        self.assertIsNone(captcha_site_info())       # нет данных для виджета
+
+    def test_captcha_enabled_rejects_invalid_token(self):
+        from django.test import override_settings
+        with override_settings(CAPTCHA_SECRET='secret', CAPTCHA_SITE_KEY='site'):
+            from apps.crm.services.captcha import captcha_enabled, captcha_site_info, verify_captcha
+            self.assertTrue(captcha_enabled())
+            self.assertEqual(captcha_site_info()['site_key'], 'site')
+            with patch('apps.crm.services.captcha.requests.post') as mock_post:
+                mock_post.return_value.json.return_value = {'success': False, 'error-codes': ['invalid-input-response']}
+                self.assertFalse(verify_captcha('bad-token'))
+            with patch('apps.crm.services.captcha.requests.post') as mock_post:
+                mock_post.return_value.json.return_value = {'success': True}
+                self.assertTrue(verify_captcha('good-token'))

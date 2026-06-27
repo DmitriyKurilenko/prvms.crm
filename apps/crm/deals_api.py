@@ -11,8 +11,9 @@ from apps.core.access import (
     require_crm_permission,
 )
 from apps.core.tenant import get_request_tenant
-from apps.distribution.services import ensure_builtin_manager_profiles, try_distribute
+from apps.distribution.services import try_distribute
 from apps.notifications.services import notify
+from apps.team.services import ensure_team_members
 
 from ._api_common import (
     _apply_responsible_write_guard,
@@ -21,7 +22,7 @@ from ._api_common import (
     _serialize_activities,
     crm_router,
 )
-from .models import Activity, Company, Contact, Deal, Stage
+from .models import Activity, Company, Contact, Deal, Stage, StageTransition
 from .schemas import DealIn, DealMoveIn, DealPatchIn
 from .services.auto_actions import evaluate_event_rules, process_stage_change
 
@@ -79,7 +80,7 @@ def kanban_deals(request, pipeline_id: int):
     stages = Stage.objects.filter(pipeline_id=pipeline_id).order_by('sort_order')
     deals = filter_crm_queryset_by_scope(
         request,
-        Deal.objects.filter(pipeline_id=pipeline_id).select_related('stage'),
+        Deal.objects.filter(pipeline_id=pipeline_id).select_related('stage').prefetch_related('tags'),
         'deals',
     )
     grouped = defaultdict(list)
@@ -95,6 +96,7 @@ def kanban_deals(request, pipeline_id: int):
                 'company_id': deal.company_id,
                 'source': deal.source,
                 'created_at': deal.created_at.isoformat(),
+                'tags': [{'id': t.id, 'name': t.name, 'color': t.color} for t in deal.tags.all()],
             }
         )
     return [{'stage': {'id': s.id, 'name': s.name, 'color': s.color}, 'deals': grouped.get(s.id, [])} for s in stages]
@@ -128,9 +130,13 @@ def create_deal(request, payload: DealIn):
         status='done',
         created_by=request.auth,
     )
+    # Лог входа в начальную стадию для честной поэтапной воронки (DEC-055/KI #34).
+    StageTransition.objects.create(
+        deal=deal, pipeline_id=deal.pipeline_id, from_stage=None, to_stage=deal.stage,
+    )
     # Auto-distribute if no responsible assigned
     if not deal.responsible_id:
-        ensure_builtin_manager_profiles()
+        ensure_team_members()
         log = try_distribute('new_deal', 'deal', str(deal.id))
         if log and log.assigned_to_id:
             deal.refresh_from_db()
@@ -174,6 +180,7 @@ def get_deal(request, deal_id: int):
         'expected_close_date': d.expected_close_date.isoformat() if d.expected_close_date else None,
         'source': d.source,
         'loss_reason': d.loss_reason,
+        'tags': [{'id': t.id, 'name': t.name, 'color': t.color} for t in d.tags.all()],
         'activities': [
             {'id': a.id, 'type': a.activity_type, 'title': a.title, 'body': a.body, 'status': a.status, 'created_at': a.created_at.isoformat()}
             for a in activities
@@ -308,6 +315,9 @@ def move_deal(request, deal_id: int, payload: DealMoveIn):
         deal.closed_at = None
         update_fields.append('closed_at')
     deal.save(update_fields=update_fields)
+    StageTransition.objects.create(
+        deal=deal, pipeline_id=deal.pipeline_id, from_stage=old_stage, to_stage=new_stage,
+    )
     Activity.objects.create(
         activity_type='stage_change',
         deal=deal,

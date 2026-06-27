@@ -143,3 +143,17 @@ class VkProviderTest(TenantAPITestCase):
         )
         result = get_vk_group_info('bad', 222)
         self.assertEqual(result['error'], 'Access denied')
+
+
+class VkUserNameTest(TenantAPITestCase):
+    def test_get_vk_user_name_returns_full_name(self):
+        from apps.channels.providers import get_vk_user_name
+        with patch('apps.channels.providers.requests.get') as mock_get:
+            mock_get.return_value.json.return_value = {'response': [{'id': 5, 'first_name': 'Иван', 'last_name': 'Петров'}]}
+            self.assertEqual(get_vk_user_name('tok', 5), 'Иван Петров')
+
+    def test_get_vk_user_name_empty_on_error(self):
+        from apps.channels.providers import get_vk_user_name
+        with patch('apps.channels.providers.requests.get') as mock_get:
+            mock_get.return_value.json.return_value = {'error': {'error_msg': 'invalid token'}}
+            self.assertEqual(get_vk_user_name('tok', 5), '')

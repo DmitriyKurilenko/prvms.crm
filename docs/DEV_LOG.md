@@ -1,5 +1,174 @@
 # Dev Log
 
+## 2026-06-27 — 0.19.0: Подготовка коммита и синхронизация релизных файлов
+
+### Что сделано:
+- Проверен состав рабочей сессии через `git status`: в коммит входят удаление внешних CRM и выделение `apps/team` (DEC-058), волны 0–2 бэклога (KI #22/#28/#29/#30/#31/#32/#33/#34/#35), пересоздание миграций, backend/frontend/e2e-тесты и релизная документация.
+- Bump определён как **minor**: изменения добавляют новую пользовательскую функциональность и обратно-совместимые API.
+- `VERSION` содержит финальную SemVer-версию `0.19.0` без `-dev`.
+- `CHANGELOG.md` содержит верхнюю секцию `0.19.0` с текущей датой `2026-06-27`.
+- `docs/RELEASE_NOTES.md` содержит пользовательское описание версии `0.19.0` с датой `27.06.2026`.
+
+### Файлы релизной подготовки:
+`VERSION`, `CHANGELOG.md`, `docs/TASK_STATE.md`, `docs/DEV_LOG.md`, `docs/DECISIONS.md`, `docs/KNOWN_ISSUES.md`, `docs/RELEASE_NOTES.md`.
+
+### Валидация:
+- Согласованность релизных файлов: `VERSION`, верхняя секция `CHANGELOG.md`, `docs/TASK_STATE.md`, `docs/DEV_LOG.md` и `docs/RELEASE_NOTES.md` ссылаются на `0.19.0`.
+- Полный Docker baseline в рамках подготовки коммита повторно не запускался; функциональная валидация зафиксирована в записях `2026-06-27 — DEC-058` и `2026-06-26 — Волна 2` ниже.
+
+### Риски:
+- Остаточные ограничения остаются в `docs/KNOWN_ISSUES.md` #36 (сквозной результат транскрипции на проде), #23–25 (Exolve на проде).
+
+---
+
+## 2026-06-27 — Удаление внешних CRM + выделение `apps/team` (DEC-058)
+
+### Что сделано:
+- **Новый домен.** Создано TENANT-приложение `apps/team`: модели `Manager` (без CRM-полей, `display_name`) и `TimeOff`, сервис `ensure_team_members`. На него перенацелены FK менеджеров в `distribution` (`DistributionRule.managers/fallback_manager`, `DistributionLog.assigned_to`) и `telephony` (SIP-аккаунты), вызовы синхронизации в `crm/deals_api`, `crm/services/webform_intake`, `channels/tasks`, `telephony/exolve_service`, `users/managers_api`, `tenants/onboarding_api`.
+- **Удаление внешних CRM.** Снесено `apps/integrations` целиком. Абстракция адаптеров схлопнута до `BuiltinCRMAdapter` + `get_crm_adapter()` в `apps/crm/adapter.py`; `channels`/`documents`/`distribution` зовут его напрямую. Из `channels/tasks` убран внешний синк `_sync_to_external_crm` и ветка `crm_mode`. Удалены `tenant.crm_mode` (+ admin/api/seed-команды/exolve), `Plan.max_crm_connections` (+ api/catalog/tasks/usage), фичи `crm_amocrm`/`crm_bitrix24`, FK `crm_connection` из `channels`/`documents`/`distribution`. `_ensure_builtin` сведён к проверке фичи.
+- **Фронтенд.** Удалены `IntegrationsView.vue`, `api/integrations.ts`, пункт меню «Интеграции», маршрут и редирект, фиче-гейты `crm_amocrm`/`crm_bitrix24`, поле `crm_mode` и quick-action из `DashboardView`.
+- **Миграции.** Пересозданы на пустой БД (прецедент DEC-043): все миграции удалены и сгенерированы заново; посев тарифов/фич консолидирован в `billing/0003_seed_plans` (планы `solo/komanda/free-custom` без `max_crm_connections`, канонические фичи + `ai_call_intelligence`). Системные шаблоны документов и дефолтные настройки уведомлений сеются кодом в `provision_tenant` (миграционный seed не нужен).
+- **Тесты.** Поправлены/удалены фикстуры и тесты, ссылавшиеся на удалённые сущности (`base.py` `create_manager_profile`→`team.Manager`, удалён внешне-CRM-тест bridge, очищены `subscription_hardening`/`create_test_users`/`assignment`/`dashboard` и пр.).
+
+### Валидация:
+- Backend: `manage.py test apps` — **225/225**; `check` 0 issues; миграции применены на чистой БД (`down -v`→`up --build`), `makemigrations --check` без дрейфа; ruff чисто.
+- Frontend: typecheck EXIT=0, build OK, vitest 11/11.
+- Живой [граница] зонд: `/healthz` и `/api/docs` 200; `seed_demo_users` провизионил 10 тенантов (tenant-миграции с `team`); планы `solo/komanda/free-custom` + 12 фич засеяны; `ensure_team_members` синхронизировал 4 менеджера с `display_name`.
+- **[сквозь] Playwright e2e — 9/9 passed** против живого стека после устранения латентных ссылок (см. ниже).
+
+### Находка (e2e поймал то, что юнит-тесты пропустили):
+После удаления FK `crm_connection` из моделей остались ссылки на него **на уровне сериализаторов**, не покрытые бэкенд-юнит-тестами и потому давшие `AttributeError`/ошибку создания только в живом UI: `apps/channels/api.py` (`GET /channels/` отдавал `c.crm_connection_id`; `create_channel`/`patch` принимали поле в схеме), `apps/documents/api.py` (маппинги `FieldMapping.crm_connection_id`), `apps/documents/signing.py` и `esign_agreement.py` (`Document(crm_connection=None)`), плюс косметические `crm_connections`/`max_crm_connections` в дисплеях фронтенда (`SubscriptionView`/`DashboardView`/`RegisterView`/`types.ts`/`stores/tenant.ts`/`useFeatureGate.ts`). Все устранены; первый e2e-прогон фейлил email-канал именно из-за `GET /channels/`. Вывод на будущее: при удалении поля модели грепать не только модель, но и все сериализаторы/схемы/дисплеи; ловится это e2e, а не юнит-тестами.
+
+### Примечание про среду:
+Между прогонами Docker-демон входил в нестабильное состояние (неубиваемые зомби-контейнеры, удерживавшие устаревшую сеть), что давало ложный `network not found` у seed-контейнера; лечится полным `docker compose down --remove-orphans` + `up`. Также `web` без авто-reload не подхватывает правки backend без `restart` — из-за этого второй e2e-прогон фейлил на старом коде, пока контейнер не перезапустили.
+
+## 2026-06-26 — Волна 2, задача 2.4 (A+C): честная воронка по истории + планы по воронкам (KI #34 закрыт)
+
+### Что сделано:
+- **Часть A — честная поэтапная воронка.** Добавлена модель `StageTransition(deal, pipeline, from_stage, to_stage, created_at)` — лог переходов. Пишется в `create_deal` (`NULL → начальная стадия`) и `move_deal` (`old → new`). Эндпоинт `funnel` теперь возвращает на каждую стадию `reached` (число уникальных сделок когорты, когда-либо входивших в стадию, через `Count(distinct)` по `StageTransition.to_stage`), поэтапную конверсию `reached[i]/reached[i-1]` и `history_since` (дата начала истории). `StatsView` показывает таблицу «Прохождение по стадиям» с явным примечанием, что история ведётся с момента внедрения лога и старые сделки в неё не входят. Миграция `crm/0014_stagetransition`.
+- **Часть C — планы по воронкам и командные цели.** `SalesTarget` получил необязательную воронку (`pipeline`, NULL = все) и поддержку командной цели (`responsible` NULL = вся команда). Уникальность плана — `UniqueConstraint(period_month, responsible, pipeline, nulls_distinct=False)` (Postgres, Django 5.2). `upsert_target` ключует по трём полям; `list_targets` отдаёт `pipeline_id`/`pipeline_name` и `manager_name='Команда'` для командных; `target_progress` пересчитан: факт считается в области каждого плана (фильтр по менеджеру и/или воронке), добавлена строка «Команда» и план по воронке, плюс сохранена строка факта для менеджеров без плана. `SalesTargetsView` даёт выбор воронки и пункт «Команда (вся команда)», колонку «Воронка» и корректное удаление плана по составному ключу. Миграция `crm/0015`.
+- **Бэкафилл `closed_at`** (Часть B) был закрыт ранее в этот же день (`crm/0013`).
+
+### Файлы:
+`apps/crm/models.py`, `apps/crm/deals_api.py`, `apps/crm/analytics_api.py`, `apps/crm/schemas.py`, `apps/crm/migrations/{0014_stagetransition,0015_*}.py`, `apps/crm/tests/test_analytics_targets.py`, `frontend/src/views/{StatsView,SalesTargetsView}.vue`, `frontend/src/api/crm.ts`, docs.
+
+### Валидация:
+- Backend: `manage.py test apps.crm` — 84/84 (новые `HonestFunnelTest` 2 + `TargetScopeTest` 3; существующие план/воронка-тесты не сломаны после рефактора `target_progress`); `manage.py check` 0 issues; `makemigrations --check` без дрейфа; ruff чисто.
+- Frontend: typecheck EXIT=0, build OK, vitest 11/11, Playwright e2e 9/9.
+
+### Риски:
+- Честная конверсия достоверна только с момента внедрения `StageTransition`: у сделок, перемещённых до релиза, переходов нет, поэтому `reached` для них недосчитывается — это явно помечено в UI, но на боевых данных вид не наблюдался (нет браузера). Рефактор `target_progress` на пер-план итерацию сохранил поведение существующих тестов; на боевых данных с пересекающимися областями планов поведение сквозным результатом не проверялось.
+
+## 2026-06-26 — Волна 2: сегменты, календарь (2.6), веб-формы (2.2), email (2.1), ВК (2.7)
+
+### Что сделано:
+- **Сегменты (KI #30 закрыт полностью).** В списки контактов (`ContactsView.vue`) и сделок (`DealsView.vue`) добавлены сохранённые фильтры: выпадающий список сегментов применяет `filters.tag_id`, кнопка-закладка сохраняет текущий фильтр как именованный сегмент. Клиент `listSegments`/`createSegment`/`deleteSegment` поверх готового CRUD `/crm/segments/`.
+- **Командный календарь (KI #33, задача 2.6).** `calendar_activities` принимает `scope=mine|team`: для владельца/админа `team` отдаёт все задачи тенанта с `responsible_name`, остальным тихо откатывается на личные (роль из `get_membership`). `CalendarView.vue` получил переключатель «Мои/Все задачи» и drag-перенос срока (`eventDrop` → `patch_activity(due_date)`, `editable: true`). Тесты `CalendarScopeTest`.
+- **Веб-формы (KI #29, задача 2.2).** Типы полей `select` (с вариантами) и `checkbox` в конструкторе `WebFormsView.vue` и виджете `crm-webform.js`; приём складывает ответы в `custom_fields` обобщённо (правок сервиса не потребовалось). Подключаемая капча: `apps/crm/services/captcha.py` (no-op без `CAPTCHA_SECRET`, контракт reCAPTCHA/hCaptcha siteverify → `{"success"}`), настройки в `settings.py`, проверка в `webform_submit`, `site_key` в схеме, рендер провайдера в виджете. Тесты `CaptchaServiceTest` (мок siteverify).
+- **Email-канал (KI #28, задача 2.1).** `parse_email` сохраняет содержимое вложений как base64 в `MessageLog.attachments` (лимит 5 МБ; крупнее — метаданные), захватывает `html` и заголовки `In-Reply-To`/`References`; `ChatsTab.vue` отдаёт вложения ссылкой скачивания (data-URI). Исходящий ответ (`_send_email`) проставляет тред-заголовки из `Message-ID` последнего входящего письма переписки (`_last_incoming_email_id`). Тесты `EmailParseAndThreadingTest`.
+- **ВКонтакте (KI #22, задача 2.7).** При первом входящем VK-сообщении `route_incoming_message` подтягивает реальное имя через `get_vk_user_name` (VK `users.get`) и сохраняет в сессию вместо заглушки «Клиент ВК». Тесты `VkUserNameTest` (мок).
+
+### Уровни проверки:
+- **[локально]**: typecheck/build, vitest 11/11, backend `channels`+`crm` 127/127, `CalendarScopeTest`/`CaptchaServiceTest`/`EmailParseAndThreadingTest`/`VkUserNameTest`, ruff чисто, `check` 0 issues, без дрейфа миграций, e2e 9/9.
+- **[граница] не достигнута, помечено непроверенным**: реальная капча у провайдера (нужен `CAPTCHA_SECRET`/site_key), реальный `users.get` ВК (нужен групповой токен) — оба самодиагностируемы через логгеры; drag-перенос задач и рендер вложений в браузере не наблюдались (нет браузера).
+
+### Файлы:
+`apps/crm/activities_api.py`, `apps/crm/public_views.py`, `apps/crm/services/captcha.py`, `apps/channels/email_poller.py`, `apps/channels/providers.py`, `apps/channels/tasks.py`, `config/settings.py`, соответствующие тесты, `frontend/src/views/{ContactsView,DealsView,CalendarView,WebFormsView}.vue`, `frontend/src/components/ChatsTab.vue`, `frontend/public/widget/crm-webform.js`, `frontend/src/api/crm.ts`, docs.
+
+### Остаток Волны 2:
+Честная поэтапная воронка по истории переходов (логирование `stage_id` в истории) и планы продаж по воронкам/командные цели (часть KI #34) — это аналитическая доработка, отдельной задачей. Прочие остатки по каналам (инлайн-HTML с санитайзером, OAuth почты, исходящие вложения/стикеры ВК) перечислены в KNOWN_ISSUES.
+
+## 2026-06-26 — Волна 2, задача 2.3: импорт/экспорт сделок (KI #32)
+
+### Что сделано:
+- **Импорт сделок.** `apps/crm/tasks.py` получил `_import_one_deal`: разрешает обязательные FK по имени (воронка по названию или дефолтная `is_default`, стадия по названию или первая по `sort_order`), контакт — по телефону, затем по ФИО (опционально, не найден → `None`), парсит сумму с заменой запятой/пробелов, дедуплицирует по ключу `название+контакт` (обновление суммы/валюты/источника/стадии или создание). Диспетчер `import_records` направляет `entity='deals'` в эту ветку.
+- **Маппинг и экспорт.** В `apps/crm/services/import_export.py` добавлены `DEAL_FIELDS` (`name/amount/currency/source/pipeline/stage/contact`), словарь подсказок заголовков для сделок и `export_deals_csv` (BOM + воронка/стадия/контакт текстом).
+- **API.** `apps/crm/import_api.py` различает сущности I/O (`_check_io_entity` = contacts/companies/deals) и сущности слияния (`_check_entity` = contacts/companies). `export_entity` обрабатывает `deals` и теперь явно требует `require_crm_permission(view)`.
+- **Фронтенд.** `DataToolsView.vue` получил переключатель «Сделки»; тип `DataEntity` расширен; вкладка «Дубли» для сделок показывает пояснение, что слияние сделок не поддерживается. Слияние сделок осознанно вне охвата: сделки — транзакционные записи, дедуп-слияние применимо к справочным контактам/компаниям.
+
+### Файлы:
+`apps/crm/services/import_export.py`, `apps/crm/tasks.py`, `apps/crm/import_api.py`, `apps/crm/tests/test_import_merge.py`, `frontend/src/api/crm.ts`, `frontend/src/views/DataToolsView.vue`, docs.
+
+### Валидация:
+- Backend: `test_import_merge` 16/16 (3 новых: создание+дедуп+разрешение FK, требование названия, экспорт CSV; обновлён `test_export_rejects_unknown_entity` на `orders`); `manage.py check` 0 issues; ruff чисто.
+- Frontend: typecheck EXIT=0, build OK, vitest 11/11, Playwright e2e 9/9 (включая `data-tools.spec.ts`).
+
+### Риски:
+- Сквозной импорт сделок из реального файла через Celery в браузере не прогонялся (проверены сервис-логика и контракт API синхронным вызовом `import_records`). Эвристика сопоставления контакта по ФИО приблизительна (берёт первое совпадение). Уровень [локально].
+
+## 2026-06-26 — Волна 2: триггер sla_breach (2.5) + бэкафилл closed_at (2.4)
+
+### Что сделано:
+- **Триггер `sla_breach` (KI #31).** Beat `apps/crm/tasks.py::evaluate_time_rules` расширен с `no_activity` на оба time-based триггера. Для `sla_breach` метрика — момент входа в текущую стадию: последняя `Activity(activity_type='stage_change')` сделки (её создаёт `move_deal`), при отсутствии — `created_at`. Идемпотентность сохранена через `AutomationRunLog`. `sla_breach` добавлен в `_TRIGGERS` (`apps/crm/automation_api.py`) и в конструктор `frontend/src/views/AutomationView.vue` (поле «Дней на стадии (SLA)» + подсказка указать стадию в условиях). KI #31 закрыт полностью.
+- **Бэкафилл `closed_at` (KI #34, часть).** Поле `Deal.closed_at` велось только с DEC-055, поэтому сделки, закрытые раньше, выпадали из периодной аналитики. Добавлен сервис `apps/crm/services/maintenance.py::backfill_closed_at()` (источник даты — последняя `stage_change`, иначе `updated_at`; идемпотентно по `closed_at IS NULL`) и data-миграция `crm/0013_backfill_closed_at`, вызывающая его в каждой tenant-схеме. Логика вынесена в сервис ради тестируемости.
+
+### Файлы:
+`apps/crm/tasks.py`, `apps/crm/automation_api.py`, `apps/crm/services/maintenance.py`, `apps/crm/migrations/0013_backfill_closed_at.py`, `apps/crm/tests/test_automation.py`, `apps/crm/tests/test_maintenance.py`, `frontend/src/views/AutomationView.vue`, docs.
+
+### Валидация:
+- Backend: `test_automation` 13/13 (3 новых `test_sla_breach_*`), `test_maintenance` 4/4 (`BackfillClosedAtTest`); `makemigrations --check` — No changes detected (нет дрейфа); `manage.py check` 0 issues; ruff чисто.
+- Frontend: typecheck EXIT=0, build OK, vitest 11/11, Playwright e2e 9/9.
+
+### Риски:
+- Реальное срабатывание `sla_breach` через живой Celery-beat на проде сквозным результатом не наблюдалось; логика покрыта юнит-тестами с искусственным состариванием `created_at`/`stage_change`. Бэкафилл проверен сервис-тестами, на боевых данных не прогонялся. Уровень [локально].
+- Остаток KI #34 (честная воронка по истории переходов со `stage_id`, планы по воронкам и командные цели) в этой задаче не закрывался.
+
+## 2026-06-26 — Волна 1, задача 1.2: действия и условия автоматизаций (KI #31)
+
+### Что сделано:
+- **Фронтенд — действия.** В конструктор `frontend/src/views/AutomationView.vue` выведены три ранее поддержанные бэкендом, но скрытые действия: «Сменить стадию» (выбор целевой стадии из воронки-условия), «Назначить ответственного» (выбор менеджера) и «Создать документ» (выбор шаблона). Действие «создать документ» показывается только при включённой фиче `documents`; шаблоны грузятся с `/documents/templates/` с защитой от 403.
+- **Фронтенд — условия.** Добавлены необязательные условия «Воронка» и «Стадия» (`conditions.pipeline_id`/`stage_id`). Целевая стадия действия `change_stage` берётся из выбранной воронки-условия — это гарантирует, что `Stage.objects.get(..., pipeline_id=deal.pipeline_id)` в исполнителе не упадёт. Таблица правил теперь показывает человекочитаемую сводку действия и условий.
+- **Бэкенд — защита.** `apps/crm/automation_api.py::_validate` теперь требует обязательные параметры действий (`stage_id` для `change_stage`, `responsible_id` для `assign`, `template_id` для `create_document`). Без этой проверки правило с пустым параметром падало бы с `KeyError`/`DoesNotExist` уже при срабатывании внутри `create_deal`/`move_deal` (где `evaluate_event_rules` исполняется без per-rule try/except), то есть ломало бы пользовательский запрос. Сам исполнитель (`execute_action`) и список `_ACTION_TYPES` менять не пришлось — они уже поддерживали действия.
+
+### Файлы:
+`apps/crm/automation_api.py`, `apps/crm/tests/test_automation.py`, `frontend/src/views/AutomationView.vue`, docs.
+
+### Валидация:
+- Backend: `manage.py test apps.crm.tests.test_automation` — 10/10 (добавлены исполнение `change_stage`/`assign` и `AutomationValidationApiTest` на отклонение неполных действий и приём корректного `change_stage`); `manage.py check` — 0 issues; ruff — чисто.
+- Frontend: `npm run typecheck` EXIT=0, `npm run build` OK, `npm run test` vitest 11/11.
+- E2E: `docker compose run --rm e2e` — **9/9 passed** (включая `automation.spec.ts`).
+
+### Риски:
+- Создание правила именно с новыми действиями через браузер (выбор стадии/менеджера/шаблона и фактическое срабатывание) сквозным результатом не проверялось — браузера в среде нет. Подтверждены контракт валидации и исполнение `change_stage`/`assign` бэкенд-тестами, существующий e2e сценарий конструктора не сломан. Уровень [локально]/[граница].
+
+## 2026-06-26 — Волна 1, задача 1.1: теги в карточках и фильтрах (KI #30)
+
+### Что сделано:
+- **Бэкенд.** Сериализаторы `get_contact` (`apps/crm/contacts_api.py`), `get_deal` и `kanban_deals` (`apps/crm/deals_api.py`) теперь возвращают поле `tags` (`[{id,name,color}]`). Для канбана добавлен `prefetch_related('tags')` против N+1. PATCH-эндпоинты назначения (`contacts|deals/{id}/tags/`) и фильтр `tag_id` уже существовали.
+- **Фронтенд — назначение.** В карточку контакта (`frontend/src/components/ContactDrawer.vue`, вкладка «Инфо») и карточку сделки (`frontend/src/views/DealDetailView.vue`, вкладка «Инфо») добавлены цветные чипы текущих тегов и `PMultiSelect` для назначения/снятия, гейтованный правом `update`. Сохранение идёт через готовые `setContactTags`/`setDealTags`, после чего карточка перечитывается.
+- **Фронтенд — фильтр.** В тулбар `ContactsView.vue` добавлен выпадающий фильтр «Тег» (серверный `tag_id` через `listContacts`); в блок фильтров канбана `DealsView.vue` — клиентский фильтр по `d.tags` (канбан теперь несёт теги). Типы `CrmContact`/`CrmDeal` дополнены `tags?: CrmTag[]`, сигнатура `listContacts` получила необязательный `tagId`.
+- **Объём.** Сегменты (сохранённые фильтры) сознательно не делались — KI #30 остаётся частично открытым на этот под-пункт.
+
+### Файлы:
+`apps/crm/contacts_api.py`, `apps/crm/deals_api.py`, `apps/crm/tests/test_tags.py`, `frontend/src/api/crm.ts`, `frontend/src/views/ContactsView.vue`, `frontend/src/views/DealsView.vue`, `frontend/src/views/DealDetailView.vue`, `frontend/src/components/ContactDrawer.vue`, docs.
+
+### Валидация:
+- Backend: `manage.py test apps.crm.tests.test_tags` — 7/7 (добавлен `TagSerializationApiTest`: get_contact/get_deal/kanban возвращают теги); регрессия `apps.crm` — 57/57; `manage.py check` — 0 issues; `docker compose run --rm lint` (ruff) — чисто.
+- Frontend: `npm run typecheck` EXIT=0, `npm run build` OK, `npm run test` vitest 11/11.
+- E2E: `docker compose run --rm e2e` — **9/9 passed** (включая `tags.spec.ts`); существующие сценарии не сломаны.
+
+### Риски:
+- Сквозное назначение тега именно из карточки контакта/сделки отдельным e2e не покрыто (проверены контракт сериализатора бэкенд-тестом и неразрушение существующих e2e). Визуальный браузер-QA чипов/мультиселекта не выполнялся — уровень [локально]/[граница].
+
+## 2026-06-26 — Волна 0 бэклога (ROADMAP_BACKLOG): навигация + дубль чатов
+
+### Что сделано:
+- **Бэклог.** Создан `docs/ROADMAP_BACKLOG.md` — структурированный план доделок «первых версий», подтверждения сквозного результата на проде и технического долга. Волны 0–4, каждая карточка ссылается на конкретный открытый пункт `KNOWN_ISSUES` или ⚠️ пункт `CHECKLIST`.
+- **0.1 — навигация (KI #35).** Пункт «Воронки» (owner/admin, `feature: crm_builtin`) возвращён в `frontend/src/layout/AppMenu.vue` по образцу `sales-targets` (`...(isAdminOwner ? [...] : [])`). Маршрут `/app/pipelines` (`router/index.ts:160`) существовал, но не имел пункта в живом меню. Удалены мёртвые `frontend/src/layouts/SidebarNav.vue` и `TopBar.vue` (grep по `src` — ноль ссылок; активная цепочка `layouts/AppLayout.vue` → `layout/AppSidebar.vue` → `AppMenu.vue`). `docs/user-guide/15-pipelines.md` обновлён под пункт меню.
+- **0.2 — дубль чатов (KI #21).** Из `frontend/src/views/ChannelsView.vue` удалён таб «Чаты» и вся его чат-логика (WebSocket-переподключение, сессии, сообщения, AI-ассистент, deep-link-обработчик без продьюсера). Осталось только управление каналами (CRUD/webhook/ВК). Старая ссылка `/app/channels?tab=chats` редиректит на `/app/chats` через `router.replace` в `onMounted` (во встроенном в `SettingsView` режиме `route.query.tab==='channels'`, редирект не срабатывает). `ChatsTab.vue` сохранён — используется `ChatsView` и `DealChatTab`.
+- **Решения владельца.** KI #19 (admin может менять настройки организации) закрыт как продуктовое решение — роль «Администратор» намеренно сохраняет это право. KI #20 (косметический скачок отступов вкладок Настроек) осознанно отложен в бэклог.
+
+### Файлы:
+`frontend/src/layout/AppMenu.vue`, `frontend/src/views/ChannelsView.vue` (удалены `frontend/src/layouts/SidebarNav.vue`, `frontend/src/layouts/TopBar.vue`), `docs/user-guide/15-pipelines.md`, `docs/ROADMAP_BACKLOG.md`, `docs/TASK_STATE.md`, `docs/KNOWN_ISSUES.md`, `docs/DEV_LOG.md`.
+
+### Валидация:
+- `docker compose exec frontend npm run typecheck` — EXIT=0.
+- `docker compose exec frontend npm run build` — OK (706 модулей; предупреждение о размере чанка — давнее, KI #33).
+- `docker compose exec frontend npm run test` — vitest 11/11 unit. Девять «упавших» файлов — e2e Playwright-спеки (`e2e/*.spec.ts`), которые vitest собирает без `exclude` (у них «0 test», падение на Playwright `test.*` API); это давняя особенность конфигурации, не регрессия данной правки.
+
+### Риски:
+- Браузер-QA не выполнялся (нет браузера в среде): фактический вид пункта «Воронки» в меню и срабатывание редиректа `?tab=chats`→`/app/chats` сквозным результатом не подтверждены — уровень [локально].
+
 ## 2026-06-25 — 0.18.0: Подготовка коммита и синхронизация релизных файлов
 
 ### Что сделано:

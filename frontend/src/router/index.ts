@@ -9,7 +9,6 @@ import TeamView from '@/views/TeamView.vue'
 import SettingsView from '@/views/SettingsView.vue'
 import SubscriptionView from '@/views/SubscriptionView.vue'
 import AuditView from '@/views/AuditView.vue'
-import IntegrationsView from '@/views/IntegrationsView.vue'
 import ContactsView from '@/views/ContactsView.vue'
 import CompaniesView from '@/views/CompaniesView.vue'
 import ProductsView from '@/views/ProductsView.vue'
@@ -175,12 +174,6 @@ const routes: RouteRecordRaw[] = [
         meta: { roles: ['owner', 'admin'], feature: 'crm_builtin', title: 'Планы продаж' }
       },
       {
-        path: 'integrations',
-        name: 'integrations',
-        component: IntegrationsView,
-        meta: { roles: ['owner', 'admin'], title: 'Интеграции' }
-      },
-      {
         path: 'channels',
         name: 'channels',
         component: ChannelsView,
@@ -259,10 +252,6 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/crm',
     redirect: '/app/deals'
-  },
-  {
-    path: '/integrations',
-    redirect: '/app/integrations'
   },
   {
     path: '/channels',

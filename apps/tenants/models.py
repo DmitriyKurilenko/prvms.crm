@@ -21,17 +21,6 @@ class Tenant(TenantMixin):
     timezone = models.CharField(max_length=50, default='Europe/Moscow')
     language = models.CharField(max_length=5, default='ru')
 
-    # CRM-режим
-    crm_mode = models.CharField(
-        max_length=20,
-        choices=[
-            ('builtin', 'Встроенный CRM'),
-            ('bitrix24', 'Битрикс24'),
-            ('amocrm', 'amoCRM'),
-        ],
-        default='builtin',
-    )
-
     # SIP domain for per-tenant isolation (e.g. org-crm.sip.localhost)
     sip_domain = models.CharField(max_length=255, blank=True)
 

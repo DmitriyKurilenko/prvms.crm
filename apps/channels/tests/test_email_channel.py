@@ -137,3 +137,53 @@ class EmailChannelTest(TenantAPITestCase):
         payload = {**EMAIL_MSG, 'attachments': [{'filename': 'a.pdf', 'content_type': 'application/pdf'}]}
         normalized = normalize_incoming_payload('email', payload)
         self.assertEqual(normalized['attachments'], [{'filename': 'a.pdf', 'content_type': 'application/pdf'}])
+
+
+class EmailParseAndThreadingTest(TenantAPITestCase):
+    def _build_raw(self) -> bytes:
+        from email.message import EmailMessage as PyEmail
+        msg = PyEmail()
+        msg['From'] = 'Клиент <client@example.com>'
+        msg['Subject'] = 'Тест'
+        msg['Message-ID'] = '<m1@mail>'
+        msg['In-Reply-To'] = '<prev@mail>'
+        msg['References'] = '<prev@mail>'
+        msg.set_content('Текст письма')
+        msg.add_alternative('<p>Текст <b>письма</b></p>', subtype='html')
+        msg.add_attachment(b'PNGDATA', maintype='image', subtype='png', filename='pic.png')
+        return msg.as_bytes()
+
+    def test_parse_email_captures_html_threading_and_attachment_content(self):
+        import base64
+
+        from apps.channels.email_poller import parse_email
+        parsed = parse_email(self._build_raw())
+        self.assertEqual(parsed['in_reply_to'], '<prev@mail>')
+        self.assertEqual(parsed['references'], '<prev@mail>')
+        self.assertIn('<b>', parsed['html'])
+        self.assertEqual(len(parsed['attachments']), 1)
+        att = parsed['attachments'][0]
+        self.assertEqual(att['filename'], 'pic.png')
+        self.assertEqual(att['size'], len(b'PNGDATA'))
+        self.assertEqual(base64.b64decode(att['content_base64']), b'PNGDATA')
+
+    def test_send_email_sets_thread_headers(self):
+        from apps.channels.providers import _send_email
+        with patch('django.core.mail.EmailMessage') as MockEmail, patch('django.core.mail.get_connection'):
+            MockEmail.return_value.send.return_value = 1
+            ok, _ = _send_email(
+                {'smtp_host': 'h', 'username': 'u', 'password': 'p', 'smtp_ssl': True},
+                'to@example.com', 'Ответ', in_reply_to='<prev@mail>',
+            )
+        self.assertTrue(ok)
+        _, kwargs = MockEmail.call_args
+        self.assertEqual(kwargs['headers']['In-Reply-To'], '<prev@mail>')
+        self.assertEqual(kwargs['headers']['References'], '<prev@mail>')
+
+    def test_send_email_without_thread_id_has_no_headers(self):
+        from apps.channels.providers import _send_email
+        with patch('django.core.mail.EmailMessage') as MockEmail, patch('django.core.mail.get_connection'):
+            MockEmail.return_value.send.return_value = 1
+            _send_email({'smtp_host': 'h', 'username': 'u', 'password': 'p', 'smtp_ssl': True}, 'to@example.com', 'Ответ')
+        _, kwargs = MockEmail.call_args
+        self.assertIsNone(kwargs['headers'])

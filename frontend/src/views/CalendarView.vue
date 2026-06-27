@@ -3,7 +3,17 @@
     <section class="calendar-page animate-fade">
       <div class="section-header">
         <h1 class="page-title">Календарь</h1>
-        <PButton v-if="canEdit" label="Новая задача" icon="pi pi-plus" size="small" @click="openCreate()" />
+        <div class="header-actions">
+          <PButton
+            v-if="isAdminOwner"
+            :label="scope === 'mine' ? 'Мои задачи' : 'Все задачи'"
+            :icon="scope === 'mine' ? 'pi pi-user' : 'pi pi-users'"
+            size="small"
+            outlined
+            @click="toggleScope"
+          />
+          <PButton v-if="canEdit" label="Новая задача" icon="pi pi-plus" size="small" @click="openCreate()" />
+        </div>
       </div>
 
       <div v-if="!canView" class="surface-card" style="padding: 14px;">
@@ -57,7 +67,7 @@ import FullCalendar from '@fullcalendar/vue3'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
 import interactionPlugin from '@fullcalendar/interaction'
-import type { CalendarOptions, EventClickArg, EventInput, DatesSetArg } from '@fullcalendar/core'
+import type { CalendarOptions, EventClickArg, EventInput, DatesSetArg, EventDropArg } from '@fullcalendar/core'
 import type { DateClickArg } from '@fullcalendar/interaction'
 import { useToast } from 'primevue/usetoast'
 import FeatureGate from '@/components/FeatureGate.vue'
@@ -73,6 +83,8 @@ const authStore = useAuthStore()
 const perms = computed(() => normalizeCrmPermissions(authStore.user?.crm_permissions))
 const canView = computed(() => perms.value.deals.can_view)
 const canEdit = computed(() => perms.value.deals.can_update)
+const isAdminOwner = computed(() => ['owner', 'admin'].includes(authStore.user?.role || ''))
+const scope = ref<'mine' | 'team'>('mine')
 
 const recurrenceOptions = [
   { label: 'Не повторять', value: 'none' },
@@ -102,7 +114,7 @@ const events = computed<EventInput[]>(() =>
     .filter((t) => t.due_date)
     .map((t) => ({
       id: String(t.id),
-      title: t.title,
+      title: scope.value === 'team' && t.responsible_name ? `${t.responsible_name}: ${t.title}` : t.title,
       start: t.due_date as string,
       allDay: false,
       classNames: [statusClass(t.status)],
@@ -113,7 +125,7 @@ const events = computed<EventInput[]>(() =>
 async function loadRange(fromISO: string, toISO: string) {
   if (!canView.value) return
   try {
-    tasks.value = await crmApi.calendarActivities(fromISO.slice(0, 10), toISO.slice(0, 10))
+    tasks.value = await crmApi.calendarActivities(fromISO.slice(0, 10), toISO.slice(0, 10), scope.value)
   } catch (err) {
     log.error('Failed to load calendar', err)
     toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось загрузить календарь', life: 5000 })
@@ -132,10 +144,31 @@ const calendarOptions = reactive<CalendarOptions>({
   },
   buttonText: { today: 'Сегодня', month: 'Месяц', week: 'Неделя', day: 'День' },
   events: events as unknown as EventInput[],
+  editable: true,
   datesSet: (arg: DatesSetArg) => loadRange(arg.startStr, arg.endStr),
   dateClick: (arg: DateClickArg) => openCreate(arg.dateStr),
   eventClick: (arg: EventClickArg) => openEdit(arg.event.extendedProps.task as CrmCalendarTask),
+  eventDrop: (arg: EventDropArg) => onEventDrop(arg),
 })
+
+async function onEventDrop(arg: EventDropArg) {
+  if (!canEdit.value || !arg.event.start) {
+    arg.revert()
+    return
+  }
+  try {
+    await crmApi.patchActivity(Number(arg.event.id), { due_date: arg.event.start.toISOString() })
+  } catch (err) {
+    log.error('Failed to reschedule task', err)
+    toast.add({ severity: 'error', summary: 'Ошибка', detail: 'Не удалось перенести задачу', life: 5000 })
+    arg.revert()
+  }
+}
+
+function toggleScope() {
+  scope.value = scope.value === 'mine' ? 'team' : 'mine'
+  refreshCurrentRange()
+}
 
 const showDialog = ref(false)
 const form = reactive({
@@ -258,6 +291,7 @@ async function markDone() {
 <style scoped>
 .calendar-page { padding: 14px; }
 .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.header-actions { display: flex; gap: 8px; align-items: center; }
 .calendar-card { padding: 16px; }
 .form-grid { display: flex; flex-direction: column; gap: 12px; }
 .field { display: flex; flex-direction: column; gap: 4px; }

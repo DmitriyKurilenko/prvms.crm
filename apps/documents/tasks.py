@@ -4,7 +4,7 @@ from celery import shared_task
 from django.utils import timezone
 from django_tenants.utils import schema_context, tenant_context
 
-from apps.integrations.adapters import get_adapter_for_tenant
+from apps.crm.adapter import get_crm_adapter
 from apps.tenants.models import Tenant
 
 from .models import Document, SigningSession
@@ -55,7 +55,7 @@ def notify_document_signed(tenant_id: int, document_id: int):
         )
         try:
             if document.crm_entity_id:
-                adapter = get_adapter_for_tenant(tenant)
+                adapter = get_crm_adapter()
                 adapter.update_lead(document.crm_entity_id, {'document_status': 'signed'})
         except Exception as exc:  # noqa: BLE001
             return {'status': 'warning', 'detail': str(exc)[:500]}

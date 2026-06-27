@@ -22,7 +22,6 @@ def serialize_plan_for_client(plan: Plan) -> dict:
         ],
         'max_managers': plan.max_managers,
         'max_documents_per_month': plan.max_documents_per_month,
-        'max_crm_connections': plan.max_crm_connections,
         'max_pipelines': plan.max_pipelines,
         'price_monthly': float(plan.price_monthly),
         'is_active': plan.is_active,

@@ -12,7 +12,6 @@ distribution_router = Router(tags=['distribution'], auth=JWTAuth())
 
 class DistributionRuleIn(Schema):
     name: str
-    crm_connection_id: int | None = None
     trigger: str
     trigger_filter: dict = {}
     strategy: str = 'min_load'
@@ -25,7 +24,6 @@ class DistributionRuleIn(Schema):
 
 class DistributionRulePatchIn(Schema):
     name: str | None = None
-    crm_connection_id: int | None = None
     trigger: str | None = None
     trigger_filter: dict | None = None
     strategy: str | None = None
@@ -45,7 +43,6 @@ def list_rules(request):
         {
             'id': rule.id,
             'name': rule.name,
-            'crm_connection_id': rule.crm_connection_id,
             'trigger': rule.trigger,
             'trigger_filter': rule.trigger_filter,
             'strategy': rule.strategy,
@@ -65,7 +62,6 @@ def create_rule(request, payload: DistributionRuleIn):
     require_feature_access(request, 'distribution')
     rule = DistributionRule.objects.create(
         name=payload.name,
-        crm_connection_id=payload.crm_connection_id,
         trigger=payload.trigger,
         trigger_filter=payload.trigger_filter,
         strategy=payload.strategy,
@@ -125,7 +121,7 @@ def list_distribution_log(request, limit: int = 100, offset: int = 0):
             'crm_entity_id': item.crm_entity_id,
             'entity_name': deal_names.get(item.crm_entity_id) if item.crm_entity_type in ('deal', 'lead') else None,
             'assigned_to_id': item.assigned_to_id,
-            'assigned_to_name': item.assigned_to.crm_user_name if item.assigned_to_id else None,
+            'assigned_to_name': item.assigned_to.display_name if item.assigned_to_id else None,
             'source': item.source,
             'strategy_used': item.strategy_used,
             'reason': item.reason,
@@ -137,14 +133,14 @@ def list_distribution_log(request, limit: int = 100, offset: int = 0):
 
 @distribution_router.get('/managers/')
 def list_available_managers(request):
-    """List ManagerProfiles available for distribution rules."""
+    """List team managers available for distribution rules."""
     require_roles(request, ['owner', 'admin'])
     require_feature_access(request, 'distribution')
-    from .services import ensure_builtin_manager_profiles
-    ensure_builtin_manager_profiles()
-    from apps.integrations.models import ManagerProfile
-    managers = ManagerProfile.objects.filter(is_active=True).select_related('user')
+    from apps.team.models import Manager
+    from apps.team.services import ensure_team_members
+    ensure_team_members()
+    managers = Manager.objects.filter(is_active=True).select_related('user')
     return [
-        {'id': m.id, 'name': m.crm_user_name or m.user.get_full_name() or m.user.email}
+        {'id': m.id, 'name': m.display_name or m.user.get_full_name() or m.user.email}
         for m in managers
     ]

@@ -15,7 +15,7 @@ class DistributionAssignmentTest(TenantAPITestCase):
         self.fallback = self.create_manager_profile(name='Fallback', crm_user_id='599')
 
     @patch('apps.distribution.services.notify')
-    @patch('apps.distribution.services.get_adapter_for_tenant')
+    @patch('apps.crm.adapter.get_crm_adapter')
     def test_assign_entity_uses_fallback_manager_when_no_candidates(self, mock_get_adapter, _mock_notify):
         rule = DistributionRule.objects.create(
             name='Fallback Rule',
@@ -38,10 +38,10 @@ class DistributionAssignmentTest(TenantAPITestCase):
 
         self.assertEqual(log.assigned_to_id, self.fallback.id)
         self.assertIn('fallback_manager', log.reason)
-        adapter.set_responsible.assert_called_once_with('lead', 'lead-1', str(self.fallback.crm_user_id))
+        adapter.set_responsible.assert_called_once_with('lead', 'lead-1', str(self.fallback.user_id))
 
     @patch('apps.distribution.services.notify')
-    @patch('apps.distribution.services.get_adapter_for_tenant')
+    @patch('apps.crm.adapter.get_crm_adapter')
     def test_round_robin_updates_strategy_cursor(self, mock_get_adapter, _mock_notify):
         rule = DistributionRule.objects.create(
             name='RR Rule',

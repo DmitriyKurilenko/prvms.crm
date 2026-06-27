@@ -6,7 +6,6 @@ from django_tenants.utils import schema_context
 from apps.channels.models import MessengerChannel
 from apps.crm.models import Pipeline
 from apps.documents.models import Document
-from apps.integrations.models import CRMConnection
 from apps.users.models import Membership
 
 MANAGER_LIMIT_ROLES = ('owner', 'admin', 'manager')
@@ -14,7 +13,6 @@ MANAGER_LIMIT_ROLES = ('owner', 'admin', 'manager')
 LIMIT_KEYS = {
     'managers': 'max_managers',
     'documents': 'max_documents_per_month',
-    'crm_connections': 'max_crm_connections',
     'pipelines': 'max_pipelines',
     'messengers': 'max_messengers',
     'inbound_channels': 'max_inbound_channels',
@@ -42,7 +40,6 @@ def get_plan_usage_for_tenant(tenant) -> dict[str, int]:
     return {
         'managers': managers,
         'documents': Document.objects.filter(created_at__gte=month_start).count(),
-        'crm_connections': CRMConnection.objects.filter(is_active=True).count(),
         'pipelines': Pipeline.objects.filter(is_active=True).count(),
         'messengers': MessengerChannel.objects.filter(is_active=True).count(),
         'inbound_channels': 0,  # placeholder until inbound channel model is available

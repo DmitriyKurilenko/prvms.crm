@@ -15,8 +15,6 @@ ALL_FEATURE_CODES = [
     'distribution',
     'documents',
     'document_signing',
-    'crm_bitrix24',
-    'crm_amocrm',
     'analytics',
     'export_pdf',
     'export_excel',
@@ -44,7 +42,6 @@ class TenantAPITestCase(FastTenantTestCase):
         tenant.name = 'QA Tenant'
         tenant.slug = 'qa'
         tenant.plan = plan
-        tenant.crm_mode = 'builtin'
         tenant.is_active = True
         tenant.is_paid = True
         tenant.timezone = 'Europe/Moscow'
@@ -61,14 +58,12 @@ class TenantAPITestCase(FastTenantTestCase):
             cls.tenant.plan = plan
             cls.tenant.slug = 'qa'
             cls.tenant.name = 'QA Tenant'
-            cls.tenant.crm_mode = 'builtin'
             cls.tenant.is_active = True
             cls.tenant.save(
                 update_fields=[
                     'plan',
                     'slug',
                     'name',
-                    'crm_mode',
                     'is_active',
                 ]
             )
@@ -83,7 +78,6 @@ class TenantAPITestCase(FastTenantTestCase):
                     slug='crm',
                     max_managers=None,
                     max_documents_per_month=None,
-                    max_crm_connections=3,
                     max_pipelines=None,
                     price_monthly='0.00',
                     is_active=True,
@@ -135,14 +129,13 @@ class TenantAPITestCase(FastTenantTestCase):
         return headers
 
     def create_manager_profile(self, name: str = 'Manager', user=None, crm_user_id: str = '100'):
-        from apps.integrations.models import ManagerProfile
+        from apps.team.models import Manager
 
         user = user or self.create_user(role='manager')
         with tenant_context(self.tenant):
-            return ManagerProfile.objects.create(
+            return Manager.objects.create(
                 user=user,
-                crm_user_id=str(crm_user_id),
-                crm_user_name=name,
+                display_name=name,
                 max_active_deals=10,
                 schedule={},
                 is_active=True,

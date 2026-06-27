@@ -87,6 +87,27 @@
               <div class="info-val" style="color: #22c55e">✅ Соглашение подписано</div>
             </div>
           </div>
+          <div class="info-row">
+            <i class="pi pi-tags info-icon" />
+            <div class="tags-cell">
+              <div class="info-label">Теги</div>
+              <div class="tag-chips">
+                <span v-for="t in contact.tags || []" :key="t.id" class="tag-chip" :style="{ background: t.color }">{{ t.name }}</span>
+                <span v-if="!(contact.tags || []).length" class="info-val">—</span>
+              </div>
+              <PMultiSelect
+                v-if="canEditTags"
+                v-model="tagIds"
+                :options="allTags"
+                optionLabel="name"
+                optionValue="id"
+                placeholder="Назначить теги"
+                filter
+                class="tags-select"
+                @change="saveTags"
+              />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -135,13 +156,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import type { CrmContact, CrmActivity, CrmDeal } from '@/api/crm'
+import type { CrmContact, CrmActivity, CrmDeal, CrmTag } from '@/api/crm'
 import * as crmApi from '@/api/crm'
+import { useAuthStore } from '@/stores/auth'
+import { normalizeCrmPermissions } from '@/utils/crmPermissions'
 import { formatDate, formatDateTime } from '@/utils/datetime'
 
 const router = useRouter()
+const auth = useAuthStore()
+const canEditTags = computed(() => normalizeCrmPermissions(auth.user?.crm_permissions).contacts.can_update)
 
 const props = defineProps<{
   modelValue: boolean
@@ -164,6 +189,23 @@ const activeTab = ref('info')
 const noteText = ref('')
 const deals = ref<CrmDeal[]>([])
 const dealsLoading = ref(false)
+const allTags = ref<CrmTag[]>([])
+const tagIds = ref<number[]>([])
+
+onMounted(async () => {
+  try {
+    allTags.value = await crmApi.listTags()
+  } catch {
+    allTags.value = []
+  }
+})
+
+const saveTags = async () => {
+  if (!contact.value) return
+  await crmApi.setContactTags(contact.value.id, tagIds.value)
+  contact.value = await crmApi.getContact(contact.value.id)
+  emit('updated')
+}
 
 const tabs = [
   { id: 'info', label: 'Инфо' },
@@ -175,6 +217,7 @@ const tabs = [
 watch(() => props.contactId, async (id) => {
   if (id) {
     contact.value = await crmApi.getContact(id)
+    tagIds.value = (contact.value?.tags || []).map(t => t.id)
     dealsLoading.value = true
     try {
       deals.value = await crmApi.contactDeals(id)
@@ -354,6 +397,11 @@ const saveNote = async () => {
   font-weight: 600;
   color: var(--text);
 }
+
+.tags-cell { flex: 1; min-width: 0; }
+.tag-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
+.tag-chip { display: inline-block; padding: 2px 10px; border-radius: 12px; color: #fff; font-size: 12px; font-weight: 600; }
+.tags-select { width: 100%; }
 
 /* Activity timeline */
 .activity-timeline {

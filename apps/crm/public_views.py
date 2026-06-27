@@ -56,10 +56,12 @@ def webform_schema(request, token):
         form = WebForm.objects.filter(public_token=token, is_active=True).first()
         if not form:
             return JsonResponse({'detail': 'Form not found'}, status=404)
+        from apps.crm.services.captcha import captcha_site_info
         payload = {
             'name': form.name,
             'fields': form.fields_schema,
             'success_message': form.success_message,
+            'captcha': captcha_site_info(),
         }
         allowed = form.allowed_origins
     return _apply_cors(JsonResponse(payload), request, allowed)
@@ -80,6 +82,11 @@ def webform_submit(request, token):
         return JsonResponse({'detail': 'Bad request'}, status=400)
 
     client_ip = _get_client_ip(request)
+
+    from apps.crm.services.captcha import captcha_enabled, verify_captcha
+    if captcha_enabled() and not verify_captcha(str(data.get('captcha') or ''), client_ip):
+        return JsonResponse({'detail': 'Проверка капчи не пройдена'}, status=400)
+
     cache_key = f'webform:{token}:{client_ip}'
     if cache.get(cache_key):
         return JsonResponse({'detail': 'Слишком много запросов. Попробуйте позже.'}, status=429)

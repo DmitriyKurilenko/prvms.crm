@@ -56,7 +56,6 @@ def create_document_from_deal(deal, template: DocumentTemplate, created_by=None)
         template=template,
         template_version=template.version,
         document_type=template.document_type,
-        crm_connection=None,
         crm_entity_type='deal',
         crm_entity_id=str(deal.id),
         deal=deal,

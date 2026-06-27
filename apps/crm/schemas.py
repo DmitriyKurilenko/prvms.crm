@@ -302,7 +302,8 @@ class MergeIn(Schema):
 
 class SalesTargetIn(Schema):
     period: str                       # 'YYYY-MM'
-    responsible_id: int
+    responsible_id: int | None = None  # пусто = командная цель
+    pipeline_id: int | None = None     # пусто = по всем воронкам
     target_amount: float | None = None
     target_count: int | None = None
 

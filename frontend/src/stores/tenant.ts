@@ -32,11 +32,10 @@ export const useTenantStore = defineStore('tenant', {
     planLoaded: (state) => Boolean(state.plan),
     limitReached: (state) => (field: keyof TenantPlan['usage']) => {
       if (!state.plan) return false
-      const limitField = field as 'max_managers' | 'max_documents_per_month' | 'max_crm_connections' | 'max_pipelines'
+      const limitField = field as 'max_managers' | 'max_documents_per_month' | 'max_pipelines'
       const map: Record<string, keyof TenantPlan> = {
         managers: 'max_managers',
         documents: 'max_documents_per_month',
-        crm_connections: 'max_crm_connections',
         pipelines: 'max_pipelines'
       }
       const target = map[field] || limitField

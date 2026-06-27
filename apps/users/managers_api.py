@@ -1,4 +1,8 @@
-"""Manager profile and day-off endpoints (extends team users_router)."""
+"""Эндпоинты профилей менеджеров и выходных (расширяют users_router).
+
+Доменная модель — `apps.team` (Manager/TimeOff); здесь только тонкий API-слой
+поверх неё, оставленный на прежних URL ради стабильности фронтенда.
+"""
 from __future__ import annotations
 
 from datetime import date as date_type
@@ -24,15 +28,15 @@ class DayOffIn(Schema):
 def list_manager_profiles(request):
     """List manager profiles with schedule and days-off for current tenant."""
     require_roles(request, ['owner', 'admin'])
-    from apps.distribution.services import ensure_builtin_manager_profiles
-    from apps.integrations.models import ManagerProfile
-    ensure_builtin_manager_profiles()
-    profiles = ManagerProfile.objects.filter(is_active=True).select_related('user').prefetch_related('days_off')
+    from apps.team.models import Manager
+    from apps.team.services import ensure_team_members
+    ensure_team_members()
+    managers = Manager.objects.filter(is_active=True).select_related('user').prefetch_related('days_off')
     return [
         {
             'id': p.id,
             'user_id': p.user_id,
-            'name': p.crm_user_name or (p.user.get_full_name() if p.user_id else ''),
+            'name': p.display_name or (p.user.get_full_name() if p.user_id else ''),
             'email': p.user.email if p.user_id else '',
             'max_active_deals': p.max_active_deals,
             'schedule': p.schedule or {},
@@ -41,7 +45,7 @@ def list_manager_profiles(request):
                 for d in p.days_off.order_by('date')
             ],
         }
-        for p in profiles
+        for p in managers
     ]
 
 
@@ -49,16 +53,16 @@ def list_manager_profiles(request):
 def patch_manager_profile(request, manager_id: int, payload: ManagerPatchIn):
     """Update manager schedule or max_active_deals."""
     require_roles(request, ['owner', 'admin'])
-    from apps.integrations.models import ManagerProfile
-    profile = ManagerProfile.objects.filter(id=manager_id, is_active=True).first()
-    if not profile:
+    from apps.team.models import Manager
+    manager = Manager.objects.filter(id=manager_id, is_active=True).first()
+    if not manager:
         return {'detail': 'not found'}
     data = payload.dict(exclude_unset=True)
     if 'max_active_deals' in data:
-        profile.max_active_deals = data['max_active_deals']
+        manager.max_active_deals = data['max_active_deals']
     if 'schedule' in data:
-        profile.schedule = data['schedule']
-    profile.save(update_fields=[k for k in data])
+        manager.schedule = data['schedule']
+    manager.save(update_fields=list(data))
     return {'detail': 'ok'}
 
 
@@ -66,15 +70,15 @@ def patch_manager_profile(request, manager_id: int, payload: ManagerPatchIn):
 def add_day_off(request, manager_id: int, payload: DayOffIn):
     """Add a day-off for a manager."""
     require_roles(request, ['owner', 'admin'])
-    from apps.integrations.models import ManagerDayOff, ManagerProfile
-    profile = ManagerProfile.objects.filter(id=manager_id, is_active=True).first()
-    if not profile:
+    from apps.team.models import Manager, TimeOff
+    manager = Manager.objects.filter(id=manager_id, is_active=True).first()
+    if not manager:
         return {'detail': 'not found'}
     try:
         d = date_type.fromisoformat(payload.date)
     except ValueError:
         return {'detail': 'invalid date format, use YYYY-MM-DD'}
-    day_off = ManagerDayOff.objects.create(manager=profile, date=d, reason=payload.reason)
+    day_off = TimeOff.objects.create(manager=manager, date=d, reason=payload.reason)
     return {'id': day_off.id, 'date': day_off.date.isoformat(), 'reason': day_off.reason}
 
 
@@ -82,6 +86,6 @@ def add_day_off(request, manager_id: int, payload: DayOffIn):
 def delete_day_off(request, day_off_id: int):
     """Remove a day-off entry."""
     require_roles(request, ['owner', 'admin'])
-    from apps.integrations.models import ManagerDayOff
-    ManagerDayOff.objects.filter(id=day_off_id).delete()
+    from apps.team.models import TimeOff
+    TimeOff.objects.filter(id=day_off_id).delete()
     return {'detail': 'deleted'}

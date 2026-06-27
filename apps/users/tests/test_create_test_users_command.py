@@ -42,7 +42,6 @@ class CreateTestUsersCommandTest(TenantAPITestCase):
                 slug='org-komanda',
                 schema_name='org-komanda',
                 plan=komanda_plan,
-                crm_mode='amocrm',
                 is_active=False,
             )
             broken_tenant.save()
@@ -54,7 +53,6 @@ class CreateTestUsersCommandTest(TenantAPITestCase):
             org_komanda = Tenant.objects.get(slug='org-komanda')
             self.assertEqual(org_komanda.plan.slug, 'komanda')
             self.assertEqual(org_komanda.name, 'Demo Komanda Org')
-            self.assertEqual(org_komanda.crm_mode, 'builtin')
             self.assertTrue(org_komanda.is_active)
 
             default_domain = Domain.objects.get(tenant=org_komanda, domain='org-komanda.localhost')
@@ -131,11 +129,11 @@ class CreateTestUsersCommandTest(TenantAPITestCase):
             manager_user = User.objects.get(email=f'manager_{self.tenant.slug}@example.com')
 
         with tenant_context(self.tenant):
-            from apps.integrations.models import ManagerProfile
+            from apps.team.models import Manager
 
-            profile = ManagerProfile.objects.get(user_id=manager_user.id)
+            profile = Manager.objects.get(user_id=manager_user.id)
             self.assertTrue(profile.is_active)
-            self.assertEqual(profile.crm_user_id, str(manager_user.id))
+            self.assertEqual(profile.display_name, manager_user.username or manager_user.email)
 
     def test_command_can_create_tenant_and_users(self):
         tenant_slug = f'qa-cmd-{uuid4().hex[:8]}'

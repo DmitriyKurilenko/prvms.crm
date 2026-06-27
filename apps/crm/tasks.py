@@ -25,8 +25,13 @@ def process_stage_auto_action(tenant_id: int, deal_id: int, old_stage_id: int, n
 
 @shared_task
 def evaluate_time_rules():
-    """Time-based автоматизация: «нет активности N дней». Идемпотентна через
-    AutomationRunLog (unique rule+deal)."""
+    """Time-based автоматизация: «нет активности N дней» (`no_activity`) и
+    «просрочка SLA на стадии» (`sla_breach`). Идемпотентна через
+    AutomationRunLog (unique rule+deal).
+
+    Разница только в метрике времени: `no_activity` смотрит на момент последней
+    активности сделки, `sla_breach` — на момент входа в текущую стадию (последняя
+    активность `stage_change`, иначе дата создания сделки)."""
     from datetime import timedelta
 
     from .models import AutomationRule, AutomationRunLog
@@ -37,15 +42,27 @@ def evaluate_time_rules():
     fired = 0
     for tenant in tenants:
         with tenant_context(tenant):
-            rules = AutomationRule.objects.filter(trigger='no_activity', is_active=True)
+            rules = AutomationRule.objects.filter(
+                trigger__in=('no_activity', 'sla_breach'), is_active=True,
+            )
             for rule in rules:
                 days = int((rule.conditions or {}).get('days', 3))
                 threshold = timezone.now() - timedelta(days=days)
                 deals = Deal.objects.filter(stage__stage_type='open').exclude(automation_runs__rule=rule)
                 for deal in deals:
-                    last = Activity.objects.filter(deal=deal).order_by('-created_at').first()
-                    last_at = last.created_at if last else deal.created_at
-                    if last_at < threshold and _match_conditions(rule.conditions or {}, deal):
+                    if not _match_conditions(rule.conditions or {}, deal):
+                        continue
+                    if rule.trigger == 'sla_breach':
+                        last_move = (
+                            Activity.objects.filter(deal=deal, activity_type='stage_change')
+                            .order_by('-created_at')
+                            .first()
+                        )
+                        ref_at = last_move.created_at if last_move else deal.created_at
+                    else:  # no_activity
+                        last = Activity.objects.filter(deal=deal).order_by('-created_at').first()
+                        ref_at = last.created_at if last else deal.created_at
+                    if ref_at < threshold:
                         execute_action(rule.action or {}, deal)
                         AutomationRunLog.objects.get_or_create(rule=rule, deal=deal)
                         fired += 1
@@ -64,7 +81,7 @@ def import_records(schema_name: str, job_id: int, entity: str, rows: list[dict],
     from .services.import_export import allowed_fields
 
     allowed = set(allowed_fields(entity))
-    model = Contact if entity == 'contacts' else Company
+    model = {'contacts': Contact, 'companies': Company}.get(entity)
 
     with schema_context(schema_name):
         job = ImportJob.objects.get(id=job_id)
@@ -84,7 +101,10 @@ def import_records(schema_name: str, job_id: int, entity: str, rows: list[dict],
                         fields[target] = value
                     else:
                         custom[target] = value
-                _import_one(entity, model, fields, custom, job)
+                if entity == 'deals':
+                    _import_one_deal(fields, custom, job)
+                else:
+                    _import_one(entity, model, fields, custom, job)
             except Exception as exc:  # noqa: BLE001 — построчная устойчивость импорта
                 job.errors.append({'row': i + 2, 'message': str(exc)})
             job.processed = i + 1
@@ -134,6 +154,82 @@ def _import_one(entity: str, model, fields: dict, custom: dict, job):
         job.updated += 1
     else:
         model.objects.create(custom_fields=custom or {}, **fields)
+        job.created += 1
+
+
+def _import_one_deal(fields: dict, custom: dict, job):
+    """Импорт одной сделки с разрешением воронки/стадии/контакта по имени и
+    дедупом по (название + контакт). Воронка/стадия обязательны (NOT NULL FK):
+    при пустом значении берётся дефолтная воронка и её первая стадия."""
+    from .models import Contact, Deal, Pipeline, Stage
+
+    name = (fields.get('name') or '').strip()
+    if not name:
+        raise ValueError('Пустая строка: нет названия сделки')
+
+    pname = (fields.get('pipeline') or '').strip()
+    pipeline = Pipeline.objects.filter(name__iexact=pname).first() if pname else None
+    if pipeline is None:
+        pipeline = (
+            Pipeline.objects.filter(is_default=True).first()
+            or Pipeline.objects.order_by('sort_order', 'id').first()
+        )
+    if pipeline is None:
+        raise ValueError('Нет ни одной воронки для импорта сделок')
+
+    sname = (fields.get('stage') or '').strip()
+    stage = Stage.objects.filter(pipeline=pipeline, name__iexact=sname).first() if sname else None
+    if stage is None:
+        stage = Stage.objects.filter(pipeline=pipeline).order_by('sort_order', 'id').first()
+    if stage is None:
+        raise ValueError(f'В воронке «{pipeline.name}» нет стадий')
+
+    contact = None
+    cval = (fields.get('contact') or '').strip()
+    if cval:
+        contact = Contact.objects.filter(phone=cval).first()
+        if contact is None:
+            parts = cval.split()
+            if len(parts) >= 2:
+                contact = Contact.objects.filter(
+                    first_name__iexact=parts[0], last_name__iexact=' '.join(parts[1:]),
+                ).first()
+            if contact is None:
+                contact = Contact.objects.filter(first_name__iexact=cval).first()
+
+    amount = None
+    aval = (fields.get('amount') or '').strip()
+    if aval:
+        try:
+            amount = float(aval.replace(' ', '').replace(',', '.'))
+        except ValueError:
+            amount = None
+    currency = (fields.get('currency') or '').strip() or 'RUB'
+    source = (fields.get('source') or '').strip()
+
+    dup = Deal.objects.filter(name=name, contact=contact).first()
+    if dup is not None:
+        changed = False
+        if amount is not None and dup.amount != amount:
+            dup.amount, changed = amount, True
+        if currency and dup.currency != currency:
+            dup.currency, changed = currency, True
+        if source and dup.source != source:
+            dup.source, changed = source, True
+        if sname and dup.pipeline_id == pipeline.id and dup.stage_id != stage.id:
+            dup.stage, changed = stage, True
+        if custom:
+            merged = dict(dup.custom_fields or {})
+            merged.update(custom)
+            dup.custom_fields, changed = merged, True
+        if changed:
+            dup.save()
+        job.updated += 1
+    else:
+        Deal.objects.create(
+            name=name, pipeline=pipeline, stage=stage, contact=contact,
+            amount=amount, currency=currency, source=source, custom_fields=custom or {},
+        )
         job.created += 1
 
 

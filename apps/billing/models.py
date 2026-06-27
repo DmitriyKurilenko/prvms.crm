@@ -25,7 +25,6 @@ class Plan(models.Model):
     features = models.ManyToManyField(Feature, related_name='plans', blank=True)
     max_managers = models.PositiveIntegerField(null=True, blank=True)
     max_documents_per_month = models.PositiveIntegerField(null=True, blank=True)
-    max_crm_connections = models.PositiveIntegerField(null=True, blank=True, default=1)
     max_pipelines = models.PositiveIntegerField(null=True, blank=True, default=1)
     # --- v2 pricing fields ---
     max_messengers = models.PositiveIntegerField(null=True, blank=True)

@@ -36,7 +36,6 @@ class InviteFlowAPITest(TenantAPITestCase):
                 slug=slug,
                 name=f'Tenant {slug}',
                 plan=self.tenant.plan,
-                crm_mode='builtin',
                 is_active=True,
                 is_paid=True,
             )

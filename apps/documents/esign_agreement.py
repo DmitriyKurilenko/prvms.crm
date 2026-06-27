@@ -51,7 +51,6 @@ def _ensure_esign_agreement(document: Document, session: SigningSession, ip_addr
         agreement = Document(
             template=template,
             template_version=template.version,
-            crm_connection=None,
             crm_entity_type='deal',
             crm_entity_id=str(deal.id),
             deal=deal,
